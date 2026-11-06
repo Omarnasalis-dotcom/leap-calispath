@@ -37,6 +37,14 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain('Say "we don\'t have that exercise", never "library"');
   });
 
+  it("keeps weekly reviews moving and checked (owner, 2026-11-06)", () => {
+    expect(SYSTEM_PROMPT).toContain("**Near their max is not a reason to hold.**");
+    expect(SYSTEM_PROMPT).toContain("3×2 at RPE 6 can become 4×2 or 3×3");
+    expect(SYSTEM_PROMPT).toContain("Their max stays what it is until they test higher");
+    expect(SYSTEM_PROMPT).toContain("pick something that isn't already there");
+    expect(SYSTEM_PROMPT).toContain('A weighted block is never just "no change"');
+  });
+
   it("names library exercises the server can resolve", () => {
     expect(SYSTEM_PROMPT).toContain("`Muscle Up band-assisted`");
     expect(SYSTEM_PROMPT).not.toContain('There is no "Banded Muscle Up" entry');

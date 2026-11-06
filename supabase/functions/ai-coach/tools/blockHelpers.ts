@@ -1581,14 +1581,18 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
 // right note, never a guessed number (owner rule 2026-10-30). Runs on new
 // programs, added days and week builds — a rewritten block in a week build
 // is where a weight note used to get dropped silently.
+const REAL_WEIGHT_RE = /\d\s*(kg|lbs?|كجم|كيلو)/i;
+
 export function warnMissingWeights(blocks: ClaudeBlock[], loggedWeights: Record<string, number>): string[] {
   const warnings: string[] = [];
   for (const block of blocks ?? []) {
     const { day, phase } = getBlockParts(block);
     for (const ex of block.exercises ?? []) {
       if (!ex.is_weighted) continue;
-      if (/\d/.test(ex.notes ?? "")) continue;
       const logged = loggedWeights[(ex.name ?? "").trim().toLowerCase()];
+      // With a logged weight, only real kilos count: "10-12 reps" has digits
+      // but no number to lift. With none, a rep range is all anyone can write.
+      if (logged !== undefined ? REAL_WEIGHT_RE.test(ex.notes ?? "") : /\d/.test(ex.notes ?? "")) continue;
       warnings.push(
         logged !== undefined
           ? `"${day} | ${phase}"'s ${ex.name} is weighted and its notes have no weight. Last session's top set was ${logged}kg. Write this week's target weight in its notes (your call: progress, hold or back off), using §18's weighted-progress phrase bank in the chat's language.`
@@ -1597,6 +1601,63 @@ export function warnMissingWeights(blocks: ClaudeBlock[], loggedWeights: Record<
     }
   }
   return warnings;
+}
+
+// A weighted block left out of a new week carries last week's notes forward,
+// so warnMissingWeights never saw it: found live 2026-11-06, Deadlift and
+// Lateral raises went into week 2 with no weight after "Accessories: no
+// change". A carried "Pick a weight for 10-12 reps" has digits but no number
+// to lift, so only real kilos count. Needs a logged weight: with none,
+// there's nothing to go on and the note can stay.
+export function warnCarriedWeights(blocks: ClaudeBlock[], loggedWeights: Record<string, number>): string[] {
+  const warnings: string[] = [];
+  for (const block of blocks ?? []) {
+    const { day, phase } = getBlockParts(block);
+    for (const ex of block.exercises ?? []) {
+      if (!ex.is_weighted || REAL_WEIGHT_RE.test(ex.notes ?? "")) continue;
+      const logged = loggedWeights[(ex.name ?? "").trim().toLowerCase()];
+      if (logged === undefined) continue;
+      warnings.push(
+        `"${day} | ${phase}" carries forward with no weight for ${ex.name}. Last session's top set was ${logged}kg. Send this block too, with this week's target weight in its notes (your call: progress, hold or back off), using §18's weighted-progress phrase bank in the chat's language.`
+      );
+    }
+  }
+  return warnings;
+}
+
+// The carried blocks from last week, shaped for warnCarriedWeights. A failed
+// read means no extra warnings, never a failed week.
+export async function fetchCarriedBlocks(
+  userClient: { from: (t: string) => any },
+  warriorProgramId: string,
+  weekNumber: number,
+  blockNames: string[],
+): Promise<ClaudeBlock[]> {
+  if (blockNames.length === 0) return [];
+  try {
+    const { data: programs } = await userClient.from("warrior_programs").select("template_id").eq("id", warriorProgramId);
+    const templateId = (programs ?? [])[0]?.template_id;
+    if (!templateId) return [];
+    const { data: rows, error } = await userClient
+      .from("program_blocks")
+      .select("name, block_exercises(is_weighted, notes, exercise_library(name))")
+      .eq("template_id", templateId)
+      .eq("week_number", weekNumber)
+      .in("name", blockNames);
+    if (error) throw new Error(error.message);
+    return ((rows ?? []) as Array<{ name: string; block_exercises?: Array<{ is_weighted?: boolean; notes?: string | null; exercise_library?: { name?: string } | null }> }>)
+      .map((row) => ({
+        name: row.name,
+        exercises: (row.block_exercises ?? []).map((ex) => ({
+          name: ex.exercise_library?.name,
+          is_weighted: ex.is_weighted,
+          notes: ex.notes ?? undefined,
+        })),
+      })) as unknown as ClaudeBlock[];
+  } catch (err) {
+    console.error("[ai-coach] Carried block read failed:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 // Direct build (2026-09-16): the build brief propose_new_program requires

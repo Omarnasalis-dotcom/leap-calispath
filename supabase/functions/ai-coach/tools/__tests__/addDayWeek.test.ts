@@ -1,5 +1,5 @@
 import { resolveAddDayWeek } from "../proposeAddDay";
-import { computeAddBlockOrder, computeAppendWeekOrdering, daysMissingFromWeek, fetchLoggedWeights, findRenameDuplicates, phaseRank, warnMissingWeights, withExistingDaySpelling } from "../blockHelpers";
+import { computeAddBlockOrder, computeAppendWeekOrdering, fetchCarriedBlocks, warnCarriedWeights, daysMissingFromWeek, fetchLoggedWeights, findRenameDuplicates, phaseRank, warnMissingWeights, withExistingDaySpelling } from "../blockHelpers";
 
 // Fake client for the chains resolveAddDayWeek and isCurrentWeekComplete
 // call: warrior_programs (.eq.eq.limit), program_blocks (.eq.eq),
@@ -212,5 +212,68 @@ describe("weights in week builds (2026-10-30)", () => {
     expect(warnings).toHaveLength(2);
     expect(warnings[0]).toMatch(/Goblet Squat.*top set was 27.5kg/);
     expect(warnings[1]).toMatch(/Bulgarian Split Squat.*rep range and RPE/);
+  });
+});
+
+describe("weighted blocks carried into a new week (found live 2026-11-06)", () => {
+  const block = (name: string, exercises: Array<Record<string, unknown>>) => ({ name, exercises }) as never;
+  const accessories = block("FULL BODY DAY | Accessories", [
+    { name: "Bulgarin Lunges", is_weighted: false },
+    { name: "Lateral raises", is_weighted: true, notes: "Pick a weight you can hit 10-12 reps at RPE 8, add weight while you keep the range." },
+    { name: "Deadlift", is_weighted: true },
+  ]);
+  const logged = { "lateral raises": 10, deadlift: 50 };
+
+  it("warns for each weighted exercise with a logged weight, and treats a rep range as no weight", () => {
+    const warnings = warnCarriedWeights([accessories], logged);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain("Lateral raises");
+    expect(warnings[0]).toContain("10kg");
+    expect(warnings[1]).toContain("Deadlift");
+    expect(warnings[1]).toContain("Send this block too");
+  });
+
+  it("stays quiet when a real weight is already there, in English or Arabic", () => {
+    const withWeights = block("D | Accessories", [
+      { name: "Deadlift", is_weighted: true, notes: "Last week 50 kg felt solid. Up to 55 kg this week." },
+      { name: "Lateral raises", is_weighted: true, notes: "الأسبوع الماضي 10 كجم" },
+    ]);
+    expect(warnCarriedWeights([withWeights], logged)).toEqual([]);
+  });
+
+  it("stays quiet with no logged weight or a bodyweight exercise", () => {
+    expect(warnCarriedWeights([accessories], {})).toEqual([]);
+    expect(warnCarriedWeights([block("D | Warm-Up", [{ name: "Deadlift", is_weighted: false }])], logged)).toEqual([]);
+  });
+
+  it("no longer takes a sent rep range for a weight when one is logged", () => {
+    const sent = block("D | Accessories", [{ name: "Deadlift", is_weighted: true, notes: "Keep it 10-12 reps." }]);
+    expect(warnMissingWeights([sent], logged)).toHaveLength(1);
+    expect(warnMissingWeights([sent], {})).toEqual([]);
+  });
+
+  const chain = (answer: { data: unknown; error?: unknown }) => {
+    const q: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "in"]) q[m] = () => q;
+    q.then = (ok: (v: unknown) => void) => ok(answer);
+    return q;
+  };
+
+  it("reads last week's carried blocks by exact name", async () => {
+    const client = {
+      from: (t: string) => chain(t === "warrior_programs"
+        ? { data: [{ template_id: "t1" }] }
+        : { data: [{ name: "D | Accessories", block_exercises: [{ is_weighted: true, notes: null, exercise_library: { name: "Deadlift" } }] }] }),
+    };
+    const blocks = await fetchCarriedBlocks(client, "w1", 2, ["D | Accessories"]);
+    expect(warnCarriedWeights(blocks, logged)).toHaveLength(1);
+  });
+
+  it("never fails the week when that read fails", async () => {
+    const quiet = jest.spyOn(console, "error").mockImplementation(() => {});
+    const client = { from: () => chain({ data: null, error: { message: "boom" } }) };
+    await expect(fetchCarriedBlocks(client, "w1", 2, ["x"])).resolves.toEqual([]);
+    await expect(fetchCarriedBlocks(client, "w1", 2, [])).resolves.toEqual([]);
+    quiet.mockRestore();
   });
 });

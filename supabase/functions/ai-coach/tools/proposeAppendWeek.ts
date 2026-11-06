@@ -7,7 +7,9 @@ import {
   computeAppendWeekOrdering,
   assembleDayWithServerBlocks,
   levelBandForTier,
+  fetchCarriedBlocks,
   fetchLoggedWeights,
+  warnCarriedWeights,
   warnMissingWeights,
 } from "./blockHelpers.ts";
 
@@ -76,10 +78,16 @@ export const proposeAppendWeek: ToolDefinition = {
     validateBlockStructure(orderedBlocks as never[], { requireDayPhases: false });
     const idMap = await resolveExerciseIds(userClient, orderedBlocks as never[]);
     const resolvedBlocks = transformBlocksForInsert(orderedBlocks as never[], idMap);
-    // Only the blocks sent this turn: carried-forward blocks keep last
-    // week's notes, weights included.
     const hasWeighted = (orderedBlocks as Array<{ exercises?: Array<{ is_weighted?: boolean }> }>).some((b) => b.exercises?.some((e) => e.is_weighted));
-    const warnings = hasWeighted ? warnMissingWeights(orderedBlocks as never[], await fetchLoggedWeights(userClient)) : [];
+    const carriedBlocks = newWeekNumber
+      ? await fetchCarriedBlocks(userClient, input.warrior_program_id as string, newWeekNumber - 1, Object.keys(carryOrderOverrides))
+      : [];
+    const carriedWeighted = carriedBlocks.some((b) => b.exercises?.some((e) => e.is_weighted));
+    const loggedWeights = hasWeighted || carriedWeighted ? await fetchLoggedWeights(userClient) : {};
+    const warnings = [
+      ...(hasWeighted ? warnMissingWeights(orderedBlocks as never[], loggedWeights) : []),
+      ...warnCarriedWeights(carriedBlocks, loggedWeights),
+    ];
     return {
       proposed: true,
       week_number: newWeekNumber,
