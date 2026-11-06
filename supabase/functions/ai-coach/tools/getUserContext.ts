@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
+import { ProgramReviewRow, teamReviewFact } from "./teamReview.ts";
 import { ToolDefinition } from "./types.ts";
 import { getNextTrial } from "./trialData.ts";
 
@@ -128,11 +129,25 @@ export const getUserContext: ToolDefinition = {
             is_ai_coach_owned: activeProgram.coach_id === AI_COACH_SYSTEM_PROFILE_ID,
             source: programSource(activeProgram.coach_id),
             current_week_complete: await isCurrentWeekComplete(userClient, activeProgram),
+            ...(await teamReviewField(userClient, activeProgram.id)),
           }
         : null,
     };
   },
 };
+
+// Only present when a review exists, and a failure here can't cost the
+// athlete their context, so chats without one stay exactly as they were.
+async function teamReviewField(userClient: SupabaseClient, warriorProgramId: string) {
+  try {
+    const { data, error } = await userClient.rpc("get_my_program_reviews", { p_warrior_program_id: warriorProgramId });
+    if (error) return {};
+    const fact = teamReviewFact(data as ProgramReviewRow[] | null);
+    return fact ? { team_review: fact } : {};
+  } catch {
+    return {};
+  }
+}
 
 // Mirrors the same day/week-completion grouping logic
 // notify-coach-workout-logged/index.ts uses (no shared server-side "week
