@@ -40,6 +40,7 @@ import { BlockTimerKind, workTimerRunning } from '../../hooks/useBlockTimer';
 import { stopActiveRest, takeRestForSide } from '../../hooks/useExclusiveRest';
 import { setSideRestEndedHandler, startSideRest } from '../../lib/sideRest';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
+import { ProgramReviewPanel } from '../../components/coaching/ProgramReviewPanel';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
 import { selectLibraryTemplate } from '../../lib/templateLibrary';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
@@ -2353,6 +2354,16 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     setScreenPhase('list');
                   }}
                 />
+
+                {/* Athlete's own AI Coach program only. */}
+                {coachId === AI_COACH_PROFILE_ID && !!warriorProgramId && currentTier !== 'free' && warriorId === profile?.id && (
+                  <ProgramReviewPanel
+                    warriorProgramId={warriorProgramId}
+                    week={activeWeek}
+                    weekDone={isLastWeekDone}
+                    onReverted={loadWarriorProgram}
+                  />
+                )}
 
                 {/* DAY LIST (§4) — every day tappable in any order, showing
                     real logging progress; the first not-done day gets the

@@ -50,6 +50,7 @@ import { coachUsageWarning, rateLimitBannerCopy, rateLimitCopy } from '../lib/co
 import { useCoachUsage } from '../hooks/useCoachUsage';
 import { CoachUsageRing } from '../components/coach/CoachUsageRing';
 import { CoachLoadingLabel } from '../components/coach/CoachLoadingTime';
+import { ProgramReviewAsk } from '../components/coach/ProgramReviewAsk';
 import {
   coachServerError,
   deliverWithRecovery,
@@ -1227,6 +1228,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   <Text style={[styles.actionCardTitle, { color: c.bodyText }]}>{t('coach.programIsReady', { name: justStartedProgram.name })}</Text>
                 </View>
                 <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{t('coach.keepChatting')}</Text>
+                <ProgramReviewAsk userId={profile.id} color={theme.accentText} mutedColor={c.secondaryText} />
                 <View style={styles.actionCardButtons}>
                   <TouchableOpacity
                     style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
