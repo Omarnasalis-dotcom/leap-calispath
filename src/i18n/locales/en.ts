@@ -2537,6 +2537,7 @@ const en = {
     reverted: 'You went back to the program you built.',
     revertSkipped: 'Changes kept, as those blocks were logged or changed since: {{count}}.',
     rest: 'rest {{from}}s → {{to}}s',
+    rounds: '{{block}}: {{from}} rounds → {{to}}',
     reason_too_hard: 'It looked too hard for your current max.',
     reason_too_easy: 'It looked too easy for your current max.',
     reason_volume: 'Too much volume for one session.',

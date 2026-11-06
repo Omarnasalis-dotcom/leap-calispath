@@ -11,9 +11,13 @@ export interface ReviewRowValues {
   rest_seconds?: number | null;
   hold_seconds?: number | null;
   notes?: string | null;
+  /** A superset or circuit's rounds, as text like the block's own. */
+  rounds?: string;
 }
 
 export interface ProgramReviewChange {
+  /** Absent means one exercise. */
+  kind?: 'exercise' | 'rounds';
   block_name: string | null;
   exercise_before: string | null;
   exercise_after: string | null;
@@ -84,6 +88,9 @@ const dose = (v: ReviewRowValues) => {
 /** One line, like "Pull Ups 5×8 → 4×6" or "Pull Ups 5×8 → Ring Rows 4×6". */
 export function reviewChangeLine(change: ProgramReviewChange): string {
   const { before, after, exercise_before: from, exercise_after: to } = change;
+  if (change.kind === 'rounds') {
+    return t('programReview.rounds', { block: ltr(change.block_name ?? ''), from: before.rounds, to: after.rounds });
+  }
   const swapped = from !== to;
   const doseChanged = dose(before) !== dose(after);
   const main = swapped

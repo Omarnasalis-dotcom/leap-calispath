@@ -11,6 +11,8 @@ export interface ProgramReviewRow {
   reverted_at: string | null;
   revert_skipped?: number | null;
   changes?: Array<{
+    kind?: string | null;
+    block_name?: string | null;
     exercise_before?: string | null;
     exercise_after?: string | null;
     before?: Record<string, unknown>;
@@ -24,6 +26,9 @@ const FIELDS = ["sets", "reps", "hold_seconds", "rest_seconds"] as const;
 function describe(change: NonNullable<ProgramReviewRow["changes"]>[number]): string {
   const before = change.before ?? {};
   const after = change.after ?? {};
+  if (change.kind === "rounds") {
+    return `${change.block_name}: rounds ${before.rounds} -> ${after.rounds}`;
+  }
   const parts = FIELDS
     .filter((f) => before[f] !== after[f])
     .map((f) => `${f} ${before[f] ?? "none"} -> ${after[f] ?? "none"}`);

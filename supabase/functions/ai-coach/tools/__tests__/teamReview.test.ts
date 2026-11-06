@@ -34,6 +34,14 @@ describe("teamReviewFact", () => {
     expect(fact?.note).not.toContain("rest_seconds");
   });
 
+  it("lists a change to a block's rounds", () => {
+    const fact = teamReviewFact([{
+      ...base,
+      changes: [{ kind: "rounds", block_name: "Strength", before: { rounds: "3" }, after: { rounds: "2" } }],
+    }]);
+    expect(fact?.note).toContain("Strength: rounds 3 -> 2");
+  });
+
   it("tells it the athlete went back, and what stayed", () => {
     const fact = teamReviewFact([{ ...base, reverted_at: "2026-11-07", revert_skipped: 1 }]);
     expect(fact?.state).toBe("reverted");

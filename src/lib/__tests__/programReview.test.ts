@@ -36,6 +36,18 @@ describe('reviewChangeLine', () => {
   });
 });
 
+describe('a change to rounds', () => {
+  it('names the block and the rounds', () => {
+    const line = reviewChangeLine(change({
+      kind: 'rounds', block_name: 'Strength', exercise_before: null, exercise_after: null,
+      before: { rounds: '3' }, after: { rounds: '2' },
+    }));
+    expect(line).toContain('Strength');
+    expect(line).toContain('3 rounds → 2');
+    expect(line).not.toContain('null');
+  });
+});
+
 describe('reviewReasonText', () => {
   it('translates a preset and keeps a written reason', () => {
     expect(reviewReasonText('too_hard')).toBe('It looked too hard for your current max.');

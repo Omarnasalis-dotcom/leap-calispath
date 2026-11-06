@@ -5,6 +5,7 @@ import {
   closeProgramReview,
   fetchProgramReview,
   updateReviewExercise,
+  updateReviewRounds,
   type ProgramReviewDetail,
   type ReviewBlock,
   type ReviewExercise,
@@ -27,6 +28,65 @@ const ISSUES = ['Too hard', 'Too easy', 'Too much volume', 'Wrong exercise', 'Eq
 const ROUND_STRUCTURES = new Set(['superset', 'circuit', 'ladder']);
 
 const numberOrNull = (value: string) => (value.trim() === '' ? null : Number(value));
+
+/** The server's rule: a straight-set superset or circuit repeats by rounds. */
+const hasEditableRounds = (block: ReviewBlock) =>
+  (block.structure === 'superset' || block.structure === 'circuit')
+  && (block.timing ?? 'straight_set') === 'straight_set'
+  && block.rounds != null;
+
+function ReasonPicker({ reason, customReason, onReason, onCustomReason }: {
+  reason: string;
+  customReason: string;
+  onReason: (value: string) => void;
+  onCustomReason: (value: string) => void;
+}) {
+  return (
+    <>
+      <select className="field" aria-label="Reason" value={reason} onChange={(e) => onReason(e.target.value)} style={{ flex: 1 }}>
+        <option value="">Reason shown to the athlete…</option>
+        {REASONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        <option value="custom">Write my own…</option>
+      </select>
+      {reason === 'custom' && (
+        <input className="field" maxLength={300} placeholder="In the athlete's language" value={customReason} onChange={(e) => onCustomReason(e.target.value)} style={{ flex: 1 }} />
+      )}
+    </>
+  );
+}
+
+function RoundsEditor({ reviewId, block, locked }: { reviewId: string; block: ReviewBlock; locked: boolean }) {
+  const queryClient = useQueryClient();
+  const [rounds, setRounds] = useState(block.rounds ?? '');
+  const [reason, setReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const save = useMutation({
+    mutationFn: () => updateReviewRounds(reviewId, block, Number(rounds), reason === 'custom' ? customReason : reason),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['program-review', reviewId] }),
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10 }}>
+      <label className="label">
+        Rounds
+        <input className="field" type="number" min={1} max={20} value={rounds} onChange={(e) => setRounds(e.target.value)} disabled={locked} style={{ maxWidth: 120 }} />
+      </label>
+      {rounds !== (block.rounds ?? '') && (
+        <div className="row" style={{ gap: 6 }}>
+          <ReasonPicker reason={reason} customReason={customReason} onReason={setReason} onCustomReason={setCustomReason} />
+          <button
+            className="btn small"
+            disabled={save.isPending || !reason || (reason === 'custom' && !customReason.trim()) || !rounds}
+            onClick={() => save.mutate()}
+          >
+            Save rounds
+          </button>
+        </div>
+      )}
+      {save.error && <ErrorNote error={save.error} />}
+    </div>
+  );
+}
 
 function ExerciseEditor({ reviewId, block, exercise, exercises }: {
   reviewId: string;
@@ -71,7 +131,9 @@ function ExerciseEditor({ reviewId, block, exercise, exercises }: {
         {exercises.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
       </select>
       <div className="row" style={{ gap: 6 }}>
-        <label className="label">Sets<input className="field" type="number" min={1} value={sets} onChange={(e) => setSets(e.target.value)} disabled={block.logged || roundBlock} title={roundBlock ? 'Rounds belong to the block' : undefined} /></label>
+        {!roundBlock && (
+          <label className="label">Sets<input className="field" type="number" min={1} value={sets} onChange={(e) => setSets(e.target.value)} disabled={block.logged} /></label>
+        )}
         <label className="label">Reps<input className="field" type="number" min={0} value={reps} onChange={(e) => setReps(e.target.value)} disabled={block.logged} /></label>
         <label className="label">Hold (s)<input className="field" type="number" min={0} value={hold} onChange={(e) => setHold(e.target.value)} disabled={block.logged} /></label>
         <label className="label">Rest (s)<input className="field" type="number" min={0} value={rest} onChange={(e) => setRest(e.target.value)} disabled={block.logged} /></label>
@@ -79,14 +141,7 @@ function ExerciseEditor({ reviewId, block, exercise, exercises }: {
       <input className="field" aria-label="Notes" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={block.logged} />
       {dirty && (
         <div className="row" style={{ gap: 6 }}>
-          <select className="field" aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1 }}>
-            <option value="">Reason shown to the athlete…</option>
-            {REASONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            <option value="custom">Write my own…</option>
-          </select>
-          {reason === 'custom' && (
-            <input className="field" maxLength={300} placeholder="In the athlete's language" value={customReason} onChange={(e) => setCustomReason(e.target.value)} style={{ flex: 1 }} />
-          )}
+          <ReasonPicker reason={reason} customReason={customReason} onReason={setReason} onCustomReason={setCustomReason} />
           <button
             className="btn small"
             disabled={save.isPending || !reason || (reason === 'custom' && !customReason.trim()) || !sets}
@@ -209,10 +264,14 @@ export function ProgramReviewDetailPage() {
             <div className="row">
               <span className="label">{block.name}</span>
               {block.structure && <Badge>{block.structure}</Badge>}
+              {block.rounds != null && <span className="dim" style={{ fontSize: 12 }}>{block.rounds} round(s)</span>}
               {block.logged && <Badge tone="ok">logged, locked</Badge>}
             </div>
           </div>
           <div className="panel-body">
+            {hasEditableRounds(block) && (
+              <RoundsEditor key={block.rounds} reviewId={review.id} block={block} locked={!editable || block.logged} />
+            )}
             {block.exercises.map((exercise) => (
               <ExerciseEditor
                 // A saved or refreshed row starts from what's really there.
@@ -233,9 +292,15 @@ export function ProgramReviewDetailPage() {
           <div className="panel-body" style={{ fontSize: 13 }}>
             {review.changes.map((change) => (
               <div key={change.id}>
-                {change.block_name}: {change.exercise_before}
-                {change.exercise_after !== change.exercise_before ? ` → ${change.exercise_after}` : ''}
-                {` ${change.before.sets}×${change.before.reps ?? change.before.hold_seconds} → ${change.after.sets}×${change.after.reps ?? change.after.hold_seconds}`}
+                {change.kind === 'rounds' ? (
+                  `${change.block_name}: ${change.before.rounds} rounds → ${change.after.rounds}`
+                ) : (
+                  <>
+                    {change.block_name}: {change.exercise_before}
+                    {change.exercise_after !== change.exercise_before ? ` → ${change.exercise_after}` : ''}
+                    {` ${change.before.sets}×${change.before.reps ?? change.before.hold_seconds} → ${change.after.sets}×${change.after.reps ?? change.after.hold_seconds}`}
+                  </>
+                )}
                 <span className="dim"> ({change.reason})</span>
               </div>
             ))}
