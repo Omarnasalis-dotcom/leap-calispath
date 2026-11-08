@@ -33,6 +33,7 @@ import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { LogBlockSheet, SheetCard, SheetKind } from '../../components/coaching/LogBlockSheet';
 import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
+import { cancelBlockTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { BlockTimerBanner, BlockTimerBannerData } from '../../components/coaching/BlockTimerBanner';
 import { BlockRestOffer } from '../../components/coaching/BlockRestTimer';
@@ -1882,6 +1883,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         return next;
       });
       setTabataRunHolds(prev => (prev && String(prev.blockId) === String(blockId) ? null : prev));
+      // A block logged without reopening its AMRAP / For Time / ladder after
+      // the app was closed: drop the alert scheduled before that.
+      cancelBlockTimerAlerts(blockId);
       setPendingHoldTimes([]);
       setPendingTabataRounds(null);
       setPendingTimerBlockId(null);
@@ -2033,6 +2037,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         return next;
       });
       setTabataRunHolds(prev => (prev && String(prev.blockId) === String(blockId) ? null : prev));
+      // A block logged without reopening its AMRAP / For Time / ladder after
+      // the app was closed: drop the alert scheduled before that.
+      cancelBlockTimerAlerts(blockId);
       setPendingHoldTimes([]);
       setPendingTabataRounds(null);
       setPendingTimerBlockId(null);

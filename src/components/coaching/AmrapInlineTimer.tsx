@@ -1,12 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
-import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
-import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useBackgroundTimerAlerts, blockTimerAlertId } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer, BlockTimerContext } from '../../hooks/useBlockTimer';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 import { AmrapSaved, restoreAmrap } from '../../lib/workoutInlineState';
 
@@ -97,11 +97,14 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
     timeEnded();
   });
 
+  // Inside a block card: a fixed alert id, so the alert can be replaced after the app is reopened.
+  const timerBlockId = useContext(BlockTimerContext)?.blockId;
   // AMRAP ends while the app is in the background: notify.
   useBackgroundTimerAlerts(() =>
     timerRunning && timeLeft > 0
       ? [{ inSeconds: timeLeft, title: t('timerAlerts.timeUp'), body: t('timerAlerts.amrapDoneBody') }]
-      : []
+      : [],
+    timerBlockId != null ? blockTimerAlertId(timerBlockId, 'amrap') : undefined,
   );
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

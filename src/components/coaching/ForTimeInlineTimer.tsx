@@ -1,12 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
-import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
-import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useBackgroundTimerAlerts, blockTimerAlertId } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer, BlockTimerContext } from '../../hooks/useBlockTimer';
 import { useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 import { ForTimeSaved, restoreForTime } from '../../lib/workoutInlineState';
 
@@ -125,11 +125,14 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     capEnded();
   });
 
+  // Inside a block card: a fixed alert id, so the alert can be replaced after the app is reopened.
+  const timerBlockId = useContext(BlockTimerContext)?.blockId;
   // Time cap reached while the app is in the background: notify.
   useBackgroundTimerAlerts(() =>
     timerRunning && timeCapSeconds > 0 && elapsedTime < timeCapSeconds
       ? [{ inSeconds: timeCapSeconds - elapsedTime, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') }]
-      : []
+      : [],
+    timerBlockId != null ? blockTimerAlertId(timerBlockId, 'fortime') : undefined,
   );
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

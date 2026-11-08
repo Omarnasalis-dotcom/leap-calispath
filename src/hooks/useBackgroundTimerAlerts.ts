@@ -18,6 +18,24 @@ export const TIMER_ALERT_DATA = { timerAlert: true } as const;
 // iOS keeps at most 64 pending local notifications per app.
 const MAX_ALERTS = 48;
 
+/** Workout block timers that come back after the app is closed (see
+ * workoutInlineState) — each schedules its alert under a fixed id. */
+export type ResumableBlockTimer = 'amrap' | 'fortime' | 'ladder';
+const RESUMABLE_BLOCK_TIMERS: ResumableBlockTimer[] = ['amrap', 'fortime', 'ladder'];
+
+/** The fixed notification id of a block's AMRAP / For Time / ladder alert. */
+export const blockTimerAlertId = (blockId: string | number, kind: ResumableBlockTimer) =>
+  `block-timer:${blockId}:${kind}`;
+
+/** Cancels a block's AMRAP / For Time / ladder alert, including one
+ * scheduled before the app was closed (called when the block is logged). */
+export function cancelBlockTimerAlerts(blockId: string | number) {
+  if (Platform.OS === 'web') return;
+  RESUMABLE_BLOCK_TIMERS.forEach(kind =>
+    Notifications.cancelScheduledNotificationAsync(blockTimerAlertId(blockId, kind)).catch(() => {})
+  );
+}
+
 /**
  * Timers only tick while the app is in the foreground. When the app leaves
  * the foreground this schedules a local notification for every moment the
@@ -25,14 +43,28 @@ const MAX_ALERTS = 48;
  * when nothing is running), and cancels them all when the app comes back,
  * where the timer catches up and its own sounds take over. Also cancelled on
  * unmount.
+ *
+ * `alertId` (a timer with at most one alert that comes back after the app
+ * is closed): its alert is scheduled under that fixed id. A killed app can't
+ * cancel what it scheduled, so the reopened app's timer cancels it by id
+ * when it mounts and schedules its own — never two alerts, and never one
+ * at an end time the athlete has since reset.
  */
-export function useBackgroundTimerAlerts(getAlerts: () => TimerAlert[]) {
+export function useBackgroundTimerAlerts(getAlerts: () => TimerAlert[], alertId?: string) {
   const getRef = useRef(getAlerts);
   getRef.current = getAlerts;
+  const alertIdRef = useRef(alertId);
+  alertIdRef.current = alertId;
   const idsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
+
+    // This timer is on screen now: an alert left from before the app was
+    // closed is replaced by this one's own (scheduled on leaving the app).
+    if (alertIdRef.current) {
+      Notifications.cancelScheduledNotificationAsync(alertIdRef.current).catch(() => {});
+    }
 
     const cancelAll = () => {
       const ids = idsRef.current;
@@ -48,9 +80,11 @@ export function useBackgroundTimerAlerts(getAlerts: () => TimerAlert[]) {
       } catch {
         return;
       }
-      for (const a of alerts.filter(x => x.inSeconds >= 1).slice(0, MAX_ALERTS)) {
+      const fixedId = alertIdRef.current;
+      for (const [i, a] of alerts.filter(x => x.inSeconds >= 1).slice(0, MAX_ALERTS).entries()) {
         try {
           const id = await Notifications.scheduleNotificationAsync({
+            ...(fixedId ? { identifier: i === 0 ? fixedId : `${fixedId}:${i}` } : {}),
             content: { title: a.title, body: a.body, sound: true, data: { ...TIMER_ALERT_DATA, ...a.data } },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
