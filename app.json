@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leap.calispath",
-      "buildNumber": "41",
+      "buildNumber": "42",
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.applesignin": [
