@@ -28,6 +28,8 @@ interface WarriorTimerModalProps {
   onAmrapComplete: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
   onBlockComplete: (blockId: string | number, roundsCompleted?: number, holdTimes?: TabataHold[]) => void;
+  /** Holds typed so far in this run, so they can be kept if the app closes mid-run. */
+  onHoldsChange?: (holds: TabataHold[]) => void;
 }
 
 export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
@@ -38,6 +40,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   onAmrapComplete,
   onForTimeComplete,
   onBlockComplete,
+  onHoldsChange,
 }) => {
   const {
     timerType,
@@ -100,6 +103,12 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   };
 
   const [showEndWarning, setShowEndWarning] = React.useState(false);
+
+  const holdsReportRef = React.useRef(onHoldsChange);
+  holdsReportRef.current = onHoldsChange;
+  useEffect(() => {
+    if (holdTimes.length > 0) holdsReportRef.current?.(holdTimes);
+  }, [holdTimes]);
 
   // Initialize timer for this block once on mount
   useEffect(() => {

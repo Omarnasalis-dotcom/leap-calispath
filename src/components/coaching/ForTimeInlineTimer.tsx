@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -8,6 +8,7 @@ import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useBlockTimer } from '../../hooks/useBlockTimer';
 import { useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
+import { ForTimeSaved, restoreForTime } from '../../lib/workoutInlineState';
 
 export interface ForTimeExercise {
   lastTime?: LastTimeLog;
@@ -38,6 +39,10 @@ interface ForTimeInlineTimerProps {
   hideLogButton?: boolean;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  /** Progress saved before the app was closed: time, rounds, manual entry. */
+  savedState?: ForTimeSaved;
+  /** Changes to keep (null = nothing to keep), so they survive the app closing. */
+  onStateChange?: (state: ForTimeSaved | null) => void;
   // Reports whether this timer currently holds unsaved progress (started,
   // rounds counted, or a manual time typed in) — the parent block card uses
   // this to decide whether collapsing needs a confirm.
@@ -58,29 +63,57 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
+  savedState,
+  onStateChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [roundsCompleted, setRoundsCompleted] = useState(0);
+  const [restored] = useState(() => restoreForTime(savedState, timeCapSeconds, Date.now()));
+  const [timerRunning, setTimerRunning] = useState(restored.running);
+  const [elapsedTime, setElapsedTime] = useState(restored.elapsed);
+  const [roundsCompleted, setRoundsCompleted] = useState(restored.rounds);
   // Time cap ran out before the warrior finished — distinct from a voluntary
   // submit, since a capped result means "how far did you get," not a finish time.
-  const [capped, setCapped] = useState(false);
+  const [capped, setCapped] = useState(restored.capped);
   // Whether the timer has ever been started this attempt. Distinct from
   // `timerRunning`, which goes false again the moment the warrior finishes —
   // this stays true so LOG WORKOUT remains available after a real workout.
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(restored.hasStarted);
   // Manual entry for warriors who trained away from the phone — the timer is
   // convenience, not the only way to record a result.
-  const [manualMode, setManualMode] = useState(false);
-  const [manualMins, setManualMins] = useState('');
-  const [manualSecs, setManualSecs] = useState('');
+  const [manualMode, setManualMode] = useState(restored.manualMode);
+  const [manualMins, setManualMins] = useState(restored.manualMins);
+  const [manualSecs, setManualSecs] = useState(restored.manualSecs);
   const intervalRef = useRef<any>(null);
   // Synchronous double-submit guard — state wouldn't have re-rendered yet on a
   // fast double tap, and this writes to the warrior's permanent log.
   const submittedRef = useRef(false);
   const hasRounds = totalRounds > 1;
+
+  // Hand the screen what to keep: the stopwatch's start time while it runs
+  // (not every tick), so reopening the app picks up on the real clock.
+  const elapsedRef = useRef(elapsedTime);
+  elapsedRef.current = elapsedTime;
+  const startAtRef = useRef<number | null>(null);
+  const reportRef = useRef(onStateChange);
+  reportRef.current = onStateChange;
+  useEffect(() => {
+    startAtRef.current = timerRunning ? Date.now() - elapsedRef.current * 1000 : null;
+  }, [timerRunning]);
+  useEffect(() => {
+    const untouched = !timerRunning && !hasStarted && !capped && roundsCompleted === 0 && elapsedRef.current === 0
+      && !manualMode && manualMins === '' && manualSecs === '';
+    reportRef.current?.(untouched ? null : {
+      rounds: roundsCompleted,
+      capped,
+      hasStarted,
+      startAt: startAtRef.current,
+      elapsed: elapsedRef.current,
+      manualMode,
+      manualMins,
+      manualSecs,
+    });
+  }, [timerRunning, roundsCompleted, capped, hasStarted, manualMode, manualMins, manualSecs]);
 
   // Counted from its start time, so it keeps going while the app is in the
   // background (see useAnchoredStopwatch).

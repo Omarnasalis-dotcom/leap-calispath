@@ -35,6 +35,9 @@ interface SetRowProps {
   // Reps/kg edits on a set that hasn't been ticked yet, so a typed weight
   // still gets saved when the block is logged without tapping ✓.
   onSetDraft?: (entry: SetLogEntry) => void;
+  /** What was already entered for this set (ticked or not): the row opens
+   * with it instead of the plan, e.g. after the app was closed mid-workout. */
+  savedEntry?: SetLogEntry;
 }
 
 export const SetRow: React.FC<SetRowProps> = ({
@@ -50,16 +53,20 @@ export const SetRow: React.FC<SetRowProps> = ({
   suggestedWeight,
   onSetComplete,
   onSetDraft,
+  savedEntry,
 }) => {
   // Hold exercises count seconds (starting at the planned hold), everything
   // else counts reps; entries carry the value in the matching field.
   const isHold = !!holdSeconds && holdSeconds > 0;
-  const [reps, setReps] = useState(isHold ? holdSeconds! : targetReps);
+  const [reps, setReps] = useState(() => {
+    const saved = isHold ? savedEntry?.hold : savedEntry?.reps;
+    return typeof saved === 'number' && saved >= 0 ? saved : isHold ? holdSeconds! : targetReps;
+  });
   const entry = (value: number, weightText: string): SetLogEntry =>
     isHold
       ? { setIndex, reps: 0, hold: value, weight: parseKg(weightText) }
       : { setIndex, reps: value, weight: parseKg(weightText) };
-  const [weight, setWeight] = useState('');
+  const [weight, setWeight] = useState(() => (savedEntry?.weight && savedEntry.weight > 0 ? String(savedEntry.weight) : ''));
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const intervalRef = useRef<any>(null);

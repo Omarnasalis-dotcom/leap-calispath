@@ -107,6 +107,20 @@ const AI_COACH_PROFILE_ID = '00000000-0000-0000-0000-000000000002';
 // killed mid-workout (see the restore/save effects in the component).
 const SET_PROGRESS_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const setProgressStorageKey = (warriorProgramId: string) => `workout_set_progress_v1:${warriorProgramId}`;
+/** What's kept on the device for an unfinished workout (all per block id). */
+interface SavedWorkoutProgress {
+  savedAt?: number;
+  /** Ticked sets / rounds. */
+  progress?: Record<string, Record<string, SetLogEntry[]>>;
+  /** Unticked sets' typed reps/seconds/kg (exerciseId -> setIndex). */
+  drafts?: Record<string, Record<string, Record<number, SetLogEntry>>>;
+  /** In-block loggers: AMRAP / For Time / ladder, superset and circuit rounds. */
+  inline?: Record<string, Record<string, unknown>>;
+  /** A finished Tabata run waiting to be logged. */
+  tabata?: { blockId: string | number; holds: TabataHold[]; rounds: number | null } | null;
+  /** Holds from a Tabata run that was still going. */
+  tabataRun?: { blockId: string | number; holds: TabataHold[] } | null;
+}
 
 // "Running" day view (dbRunnerStyles below) was fixed dark-only — same
 // relationship-preservation split as DB_COLORS/PD_COLORS elsewhere.
@@ -265,6 +279,26 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       return { ...prev, [blockId]: { ...blockEntry, [exerciseId]: { ...(blockEntry[exerciseId] || {}), [entry.setIndex]: entry } } };
     });
   };
+
+  // In-block loggers' progress (AMRAP / For Time / ladder rounds, rung and
+  // timer; a superset or circuit round's unticked edits), keyed blockId ->
+  // 'amrap' | 'fortime' | 'ladder' | 'round:N'. Only kept so it survives the
+  // app being closed (saved with the set progress below); never logged.
+  const [blockInlineState, setBlockInlineState] = useState<Record<string, Record<string, unknown>>>({});
+  const handleInlineStateChange = useCallback((blockId: string | number, key: string, value: unknown | null) => {
+    setBlockInlineState(prev => {
+      const blockEntry = prev[String(blockId)] || {};
+      if (value === null) {
+        if (!(key in blockEntry)) return prev;
+        const { [key]: _drop, ...rest } = blockEntry;
+        const next = { ...prev };
+        if (Object.keys(rest).length > 0) next[String(blockId)] = rest;
+        else delete next[String(blockId)];
+        return next;
+      }
+      return { ...prev, [String(blockId)]: { ...blockEntry, [key]: value } };
+    });
+  }, []);
 
   // Ticked sets plus unticked sets that have a weight typed in.
   const blockSetEntries = (blockId: string | number): Record<string | number, SetLogEntry[]> => {
@@ -428,54 +462,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     return { block, kind, isRounds, cards, exercises, topKgDefault, holdDefault, rungs };
   };
 
-  // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
-  // progress only reached the server when a whole block was logged, so a
-  // phone call or low-memory kill lost every set ticked so far. Kept per
-  // program in device storage; restored for up to 12h, and only for blocks
-  // that still aren't logged. Saving starts only after the restore read has
-  // finished, so the empty initial state can't overwrite saved progress.
-  const setProgressRestoredRef = useRef(false);
-  useEffect(() => {
-    if (loading || !warriorProgramId || setProgressRestoredRef.current) return;
-    const key = setProgressStorageKey(warriorProgramId);
-    AsyncStorage.getItem(key)
-      .then((raw) => {
-        if (!raw) return;
-        const saved = JSON.parse(raw) as { savedAt?: number; progress?: typeof blockSetProgress };
-        if (!saved?.progress || !saved.savedAt || Date.now() - saved.savedAt > SET_PROGRESS_MAX_AGE_MS) return;
-        const openBlockIds = new Set(
-          Object.values(weeksData)
-            .flat()
-            .flatMap((d) => d.blocks)
-            .filter((b) => b.completedStatus === 'none')
-            .map((b) => String(b.id))
-        );
-        const restored = Object.fromEntries(
-          Object.entries(saved.progress).filter(([blockId]) => openBlockIds.has(String(blockId)))
-        );
-        if (Object.keys(restored).length > 0) {
-          setBlockSetProgress((prev) => ({ ...restored, ...prev }));
-        }
-      })
-      .catch(() => {
-        // Unreadable/corrupt saved progress — start fresh, never block the screen.
-      })
-      .finally(() => {
-        setProgressRestoredRef.current = true;
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, warriorProgramId]);
-
-  useEffect(() => {
-    if (!setProgressRestoredRef.current || !warriorProgramId) return;
-    const key = setProgressStorageKey(warriorProgramId);
-    const hasProgress = Object.values(blockSetProgress).some((sets) => Object.keys(sets).length > 0);
-    (hasProgress
-      ? AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), progress: blockSetProgress }))
-      : AsyncStorage.removeItem(key)
-    ).catch(() => {});
-  }, [blockSetProgress, warriorProgramId]);
-
   // Log Form State
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [activeLogBlockId, setActiveLogBlockId] = useState<string | number | null>(null);
@@ -498,6 +484,84 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     blockId != null && String(blockId) === String(pendingTimerBlockId) ? pendingHoldTimes : [];
   const timerRoundsFor = (blockId: string | number | null) =>
     blockId != null && String(blockId) === String(pendingTimerBlockId) ? pendingTabataRounds : null;
+  // Holds typed into the Tabata timer while it's still running. Only kept so
+  // a run cut short by the app closing still hands its holds to the log
+  // sheet on reopen; closing the timer on purpose drops them, as before.
+  const [tabataRunHolds, setTabataRunHolds] = useState<{ blockId: string | number; holds: TabataHold[] } | null>(null);
+
+  // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
+  // progress only reached the server when a whole block was logged, so a
+  // phone call or low-memory kill lost every set ticked so far. Kept per
+  // program in device storage; restored for up to 12h, and only for blocks
+  // that still aren't logged. Covers everything entered in a block before
+  // it's logged: ticked sets, unticked reps/seconds/kg, superset/circuit
+  // rounds, AMRAP / For Time / ladder progress and timers, Tabata holds.
+  // Saving starts only after the restore read has finished, so the empty
+  // initial state can't overwrite saved progress; block loggers wait for it
+  // too (progressReady), so they open with the saved values.
+  const setProgressRestoredRef = useRef(false);
+  const [progressReady, setProgressReady] = useState(false);
+  useEffect(() => {
+    if (loading || !warriorProgramId || setProgressRestoredRef.current) return;
+    const key = setProgressStorageKey(warriorProgramId);
+    AsyncStorage.getItem(key)
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw) as SavedWorkoutProgress;
+        if (!saved?.savedAt || Date.now() - saved.savedAt > SET_PROGRESS_MAX_AGE_MS) return;
+        const openBlockIds = new Set(
+          Object.values(weeksData)
+            .flat()
+            .flatMap((d) => d.blocks)
+            .filter((b) => b.completedStatus === 'none')
+            .map((b) => String(b.id))
+        );
+        const openOnly = <T,>(byBlock: Record<string, T> | undefined): Record<string, T> =>
+          Object.fromEntries(Object.entries(byBlock || {}).filter(([blockId]) => openBlockIds.has(String(blockId))));
+        const progress = openOnly(saved.progress);
+        if (Object.keys(progress).length > 0) setBlockSetProgress((prev) => ({ ...progress, ...prev }));
+        const drafts = openOnly(saved.drafts);
+        if (Object.keys(drafts).length > 0) setBlockSetDrafts((prev) => ({ ...drafts, ...prev }));
+        const inline = openOnly(saved.inline);
+        if (Object.keys(inline).length > 0) setBlockInlineState((prev) => ({ ...inline, ...prev }));
+        // A finished Tabata waiting to be logged, else holds from a run the
+        // app closed on: either way the log sheet gets them.
+        const tabata = saved.tabata ?? (saved.tabataRun ? { ...saved.tabataRun, rounds: null } : null);
+        if (tabata && openBlockIds.has(String(tabata.blockId)) && (tabata.holds.length > 0 || tabata.rounds !== null)) {
+          setPendingHoldTimes(tabata.holds);
+          setPendingTabataRounds(tabata.rounds);
+          setPendingTimerBlockId(tabata.blockId);
+        }
+      })
+      .catch(() => {
+        // Unreadable/corrupt saved progress — start fresh, never block the screen.
+      })
+      .finally(() => {
+        setProgressRestoredRef.current = true;
+        setProgressReady(true);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, warriorProgramId]);
+
+  useEffect(() => {
+    if (!progressReady || !warriorProgramId) return;
+    const key = setProgressStorageKey(warriorProgramId);
+    const nonEmpty = <T extends object>(byBlock: Record<string | number, T>) =>
+      Object.fromEntries(Object.entries(byBlock).filter(([, v]) => Object.keys(v).length > 0));
+    const progress = nonEmpty(blockSetProgress);
+    const drafts = nonEmpty(blockSetDrafts);
+    const inline = nonEmpty(blockInlineState);
+    const tabata = pendingTimerBlockId != null && (pendingHoldTimes.length > 0 || pendingTabataRounds !== null)
+      ? { blockId: pendingTimerBlockId, holds: pendingHoldTimes, rounds: pendingTabataRounds }
+      : null;
+    const tabataRun = tabataRunHolds && tabataRunHolds.holds.length > 0 ? tabataRunHolds : null;
+    const hasProgress = Object.keys(progress).length + Object.keys(drafts).length + Object.keys(inline).length > 0 || !!tabata || !!tabataRun;
+    const payload: SavedWorkoutProgress = { savedAt: Date.now(), progress, drafts, inline, tabata, tabataRun };
+    (hasProgress
+      ? AsyncStorage.setItem(key, JSON.stringify(payload))
+      : AsyncStorage.removeItem(key)
+    ).catch(() => {});
+  }, [progressReady, blockSetProgress, blockSetDrafts, blockInlineState, pendingHoldTimes, pendingTabataRounds, pendingTimerBlockId, tabataRunHolds, warriorProgramId]);
   const [logFeel, setLogFeel] = useState<Feel | null>(null);
   const [logRpe, setLogRpe] = useState<number | null>(null);
   // Straight sets with 2+ exercises: RPE per exercise, by exercise id.
@@ -1812,6 +1876,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         delete next[blockId];
         return next;
       });
+      setBlockInlineState(prev => {
+        const next = { ...prev };
+        delete next[String(blockId)];
+        return next;
+      });
+      setTabataRunHolds(prev => (prev && String(prev.blockId) === String(blockId) ? null : prev));
       setPendingHoldTimes([]);
       setPendingTabataRounds(null);
       setPendingTimerBlockId(null);
@@ -1957,6 +2027,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         delete next[blockId];
         return next;
       });
+      setBlockInlineState(prev => {
+        const next = { ...prev };
+        delete next[String(blockId)];
+        return next;
+      });
+      setTabataRunHolds(prev => (prev && String(prev.blockId) === String(blockId) ? null : prev));
       setPendingHoldTimes([]);
       setPendingTabataRounds(null);
       setPendingTimerBlockId(null);
@@ -2160,6 +2236,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   loggedSetsByExercise={blockSetProgress[block.id]}
                   onSetLogged={handleSetLogged}
                   onSetDraft={handleSetDraft}
+                  setDraftsByExercise={blockSetDrafts[block.id]}
+                  inlineState={blockInlineState[String(block.id)]}
+                  onInlineStateChange={handleInlineStateChange}
+                  progressReady={progressReady || !warriorProgramId}
                   onLadderFinalize={handleLadderFinalize}
                   onAmrapFinalize={handleAmrapFinalize}
                   onForTimeFinalize={handleForTimeFinalize}
@@ -2602,7 +2682,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           activeBlock={activeTimerBlock}
           theme={theme}
           bronzeGold={bronzeGold}
-          onClose={() => setActiveTimerBlock(null)}
+          onClose={() => {
+            setActiveTimerBlock(null);
+            setTabataRunHolds(null);
+          }}
+          onHoldsChange={(holds) => setTabataRunHolds({ blockId: activeTimerBlock.id, holds })}
           onAmrapComplete={(blockId, roundsCompleted) => {
             setActiveTimerBlock(null);
             setActiveLogBlockId(blockId);
@@ -2631,6 +2715,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           }}
           onBlockComplete={(blockId, roundsCompleted, tabataHoldTimes) => {
             setActiveTimerBlock(null);
+            setTabataRunHolds(null);
             setActiveLogBlockId(blockId);
             setLogStatus('completed');
             setLogNotes('');

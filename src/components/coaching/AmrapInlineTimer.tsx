@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -8,6 +8,7 @@ import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useBlockTimer } from '../../hooks/useBlockTimer';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
+import { AmrapSaved, restoreAmrap } from '../../lib/workoutInlineState';
 
 export interface AmrapExercise {
   lastTime?: LastTimeLog;
@@ -32,6 +33,10 @@ interface AmrapInlineTimerProps {
 
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  /** Progress saved before the app was closed: rounds and the timer. */
+  savedState?: AmrapSaved;
+  /** Rounds / timer changes (null = nothing to keep), so they survive the app closing. */
+  onStateChange?: (state: AmrapSaved | null) => void;
   // Reports whether this timer currently holds unsaved progress (running,
   // paused-at-time-up, or rounds already counted) — the parent block card
   // uses this to decide whether collapsing needs a confirm.
@@ -47,13 +52,36 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
+  savedState,
+  onStateChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(timeCapSeconds);
-  const [roundsCompleted, setRoundsCompleted] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const [restored] = useState(() => restoreAmrap(savedState, timeCapSeconds, Date.now()));
+  const [timerRunning, setTimerRunning] = useState(restored.running);
+  const [timeLeft, setTimeLeft] = useState(restored.timeLeft);
+  const [roundsCompleted, setRoundsCompleted] = useState(restored.rounds);
+  const [finished, setFinished] = useState(restored.finished);
+
+  // Hand the screen what to keep: the countdown's end time while it runs
+  // (not every tick), so reopening the app picks up on the real clock.
+  const timeLeftRef = useRef(timeLeft);
+  timeLeftRef.current = timeLeft;
+  const endAtRef = useRef<number | null>(null);
+  const reportRef = useRef(onStateChange);
+  reportRef.current = onStateChange;
+  useEffect(() => {
+    endAtRef.current = timerRunning ? Date.now() + timeLeftRef.current * 1000 : null;
+  }, [timerRunning]);
+  useEffect(() => {
+    const untouched = !timerRunning && !finished && roundsCompleted === 0 && timeLeftRef.current === timeCapSeconds;
+    reportRef.current?.(untouched ? null : {
+      rounds: roundsCompleted,
+      finished,
+      endAt: endAtRef.current,
+      timeLeft: timeLeftRef.current,
+    });
+  }, [timerRunning, roundsCompleted, finished, timeCapSeconds]);
   const intervalRef = useRef<any>(null);
   // Synchronous double-submit guard — state wouldn't have re-rendered yet on a
   // fast double tap, and this writes to the warrior's permanent log.

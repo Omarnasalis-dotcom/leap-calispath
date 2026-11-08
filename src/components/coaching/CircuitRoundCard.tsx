@@ -13,6 +13,7 @@ import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 import { useExerciseHoldTimer } from '../../hooks/useExerciseHoldTimer';
 import { parseKg } from '../../lib/parseKg';
 import { WeightStepper } from './WeightStepper';
+import type { RoundSaved } from '../../lib/workoutInlineState';
 
 export interface CircuitExercise {
   lastTime?: LastTimeLog;
@@ -42,6 +43,11 @@ interface CircuitRoundCardProps {
   onRoundComplete: (entries: { exerciseId: string | number; reps: number; weight?: number; hold?: number }[]) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  /** What was already entered for this round (ticked or not): it opens with
+   * these values instead of the plan, e.g. after the app was closed. */
+  savedRound?: RoundSaved;
+  /** Edits on a round that isn't ticked yet, so they can be kept. */
+  onRoundDraft?: (round: RoundSaved) => void;
   // Reports whether this round currently holds unsaved progress (a running
   // rest timer, or reps edited away from the target defaults) — the parent
   // block card uses this to decide whether collapsing needs a confirm.
@@ -59,6 +65,8 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   onRoundComplete,
   activeVideoExerciseId,
   onToggleVideo,
+  savedRound,
+  onRoundDraft,
 }) => {
   const isHold = (ex: CircuitExercise) => !!ex.holdSeconds && ex.holdSeconds > 0;
   // The stepper's planned value: seconds for a hold, reps otherwise.
@@ -66,10 +74,17 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
   const [repsByExercise, setRepsByExercise] = useState<Record<string | number, number>>(
-    () => Object.fromEntries(exercises.map(ex => [ex.id, target(ex)]))
+    () => Object.fromEntries(exercises.map(ex => {
+      const saved = savedRound?.reps[String(ex.id)];
+      return [ex.id, typeof saved === 'number' && saved >= 0 ? saved : target(ex)];
+    }))
   );
   // kg typed per weighted exercise this round ('' = none).
-  const [kgByExercise, setKgByExercise] = useState<Record<string | number, string>>({});
+  const [kgByExercise, setKgByExercise] = useState<Record<string | number, string>>(() => ({ ...(savedRound?.kg || {}) }));
+  const toSaved = (reps: Record<string | number, number>, kg: Record<string | number, string>): RoundSaved => ({
+    reps: Object.fromEntries(Object.entries(reps).map(([k, v]) => [String(k), v])),
+    kg: Object.fromEntries(Object.entries(kg).filter(([, v]) => v !== '').map(([k, v]) => [String(k), v])),
+  });
 
   const entriesFor = (reps: Record<string | number, number>, kg: Record<string | number, string>) =>
     exercises.map(ex => ({
@@ -111,12 +126,14 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
     const next = { ...repsByExercise, [exerciseId]: Math.max(0, (repsByExercise[exerciseId] ?? 0) + delta) };
     setRepsByExercise(next);
     if (completed) onRoundComplete(entriesFor(next, kgByExercise));
+    else onRoundDraft?.(toSaved(next, kgByExercise));
   };
 
   const setKg = (exerciseId: string | number, text: string) => {
     const next = { ...kgByExercise, [exerciseId]: text };
     setKgByExercise(next);
     if (completed) onRoundComplete(entriesFor(repsByExercise, next));
+    else onRoundDraft?.(toSaved(repsByExercise, next));
   };
 
   const handleCompleteRound = () => {

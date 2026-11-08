@@ -17,6 +17,7 @@ import { BlockTimerChip } from './BlockTimerChip';
 import { BlockTimerContext, BlockTimerKind, BlockTimerReporter, LiveBlockTimer, nextBlockTimer } from '../../hooks/useBlockTimer';
 import { SlideToCompleteButton } from './SlideToCompleteButton';
 import { t } from '../../i18n';
+import type { AmrapSaved, ForTimeSaved, LadderSaved, RoundSaved } from '../../lib/workoutInlineState';
 
 // Design handoff (assets/design_handoff_workout_runner, "Day Blocks") — was
 // a fixed dark-only palette independent of the app's own theme toggle; now
@@ -140,6 +141,15 @@ interface WarriorBlockCardProps {
   loggedSetsByExercise?: Record<string | number, SetLogEntry[]>;
   onSetLogged?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
   onSetDraft?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
+  /** Unticked sets' typed reps/kg, exerciseId -> setIndex (see onSetDraft). */
+  setDraftsByExercise?: Record<string | number, Record<number, SetLogEntry>>;
+  /** Saved progress of this block's inline loggers ('amrap', 'fortime',
+   * 'ladder', 'round:N'), so they reopen as left after the app was closed. */
+  inlineState?: Record<string, unknown>;
+  onInlineStateChange?: (blockId: string | number, key: string, value: unknown | null) => void;
+  /** False until saved progress has been read back: the loggers wait, so
+   * they open with it rather than with the plan. */
+  progressReady?: boolean;
   onLadderFinalize?: (blockId: string | number, summary: string, rungIndex: number | null, extraReps: number) => void;
   onAmrapFinalize?: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeFinalize?: (blockId: string | number, result: ForTimeResult) => void;
@@ -168,6 +178,10 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   loggedSetsByExercise,
   onSetLogged,
   onSetDraft,
+  setDraftsByExercise,
+  inlineState,
+  onInlineStateChange,
+  progressReady = true,
   onLadderFinalize,
   onAmrapFinalize,
   onForTimeFinalize,
@@ -201,7 +215,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   // opening another block must not stop a timer or lose that progress.
   const everOpened = useRef(isExpanded);
   if (isExpanded) everOpened.current = true;
-  const contentMounted = everOpened.current;
+  const contentMounted = everOpened.current && progressReady;
   const isActiveForSetLogging = contentMounted && !isLocked && isPureStraightSet && block.completedStatus === 'none';
   const isActiveForCircuitLogging = contentMounted && !isLocked && isCircuitOrSuperset && block.completedStatus === 'none';
   const isActiveForLadderLogging = contentMounted && !isLocked && isLadder && block.completedStatus === 'none';
@@ -239,6 +253,20 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
     block.exercises.length > 0 && block.exercises.every(ex =>
       (loggedSetsByExercise?.[ex.id] || []).some(s => s.setIndex === roundNum)
     );
+  // A round reopens with what was entered: the ticked round's saved sets,
+  // or the edits made before it was ticked.
+  const savedRoundFor = (roundNum: number, roundCompleted: boolean): RoundSaved | undefined => {
+    if (!roundCompleted) return inlineState?.[`round:${roundNum}`] as RoundSaved | undefined;
+    const saved: RoundSaved = { reps: {}, kg: {} };
+    block.exercises.forEach(ex => {
+      const e = (loggedSetsByExercise?.[ex.id] || []).find(s => s.setIndex === roundNum);
+      if (!e) return;
+      const isHoldEx = (parseInt(String(ex.hold_seconds || '0'), 10) || 0) > 0;
+      saved.reps[String(ex.id)] = isHoldEx ? e.hold ?? 0 : e.reps;
+      if (e.weight && e.weight > 0) saved.kg[String(ex.id)] = String(e.weight);
+    });
+    return saved;
+  };
   const router = useRouter();
   const isMissed = block.completedStatus === 'missed';
   const activeVideoExercise = block.exercises.find((ex: ExerciseDetail) => ex.id === activeVideoExerciseId) || null;
@@ -583,6 +611,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                                     .filter(s => s.setIndex < setIndex && (s.weight ?? 0) > 0)
                                     .sort((x, y) => y.setIndex - x.setIndex)[0]?.weight
                                 }
+                                savedEntry={loggedSets.find(s => s.setIndex === setIndex) ?? setDraftsByExercise?.[ex.id]?.[setIndex]}
                                 onSetComplete={(entry) => onSetLogged?.(block.id, ex.id, entry)}
                                 onSetDraft={(entry) => onSetDraft?.(block.id, ex.id, entry)}
                               />
@@ -624,6 +653,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                           bronzeGold={bronzeGold}
                           isLocked={roundLocked}
                           completed={roundCompleted}
+                          savedRound={savedRoundFor(roundNum, roundCompleted)}
+                          onRoundDraft={(round) => onInlineStateChange?.(block.id, `round:${roundNum}`, round)}
                           onRoundComplete={(entries) => {
                             entries.forEach(e => onSetLogged?.(block.id, e.exerciseId, { setIndex: roundNum, reps: e.reps, weight: e.weight, hold: e.hold }));
                           }}
@@ -648,6 +679,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(summary, rungIndex, extraReps) => onLadderFinalize?.(block.id, summary, rungIndex, extraReps)}
                       finalizeRef={inlineFinalizeRef}
                       hideLogButton
+                      savedState={inlineState?.ladder as LadderSaved | undefined}
+                      onStateChange={(state) => onInlineStateChange?.(block.id, 'ladder', state)}
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url, lastTime: ex.last_time }))}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
@@ -665,6 +698,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(roundsCompleted) => onAmrapFinalize?.(block.id, roundsCompleted)}
                       finalizeRef={inlineFinalizeRef}
                       hideLogButton
+                      savedState={inlineState?.amrap as AmrapSaved | undefined}
+                      onStateChange={(state) => onInlineStateChange?.(block.id, 'amrap', state)}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
                     />
@@ -681,6 +716,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(result) => onForTimeFinalize?.(block.id, result)}
                       finalizeRef={inlineFinalizeRef}
                       hideLogButton
+                      savedState={inlineState?.fortime as ForTimeSaved | undefined}
+                      onStateChange={(state) => onInlineStateChange?.(block.id, 'fortime', state)}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
                     />

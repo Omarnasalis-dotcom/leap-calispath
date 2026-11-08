@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -9,6 +9,7 @@ import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useBlockTimer } from '../../hooks/useBlockTimer';
 import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 import { useAnchoredCountdown, useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
+import { LadderSaved, restoreLadder } from '../../lib/workoutInlineState';
 
 export interface LadderExercise {
   lastTime?: LastTimeLog;
@@ -49,6 +50,10 @@ interface LadderRungPickerProps {
   exercises?: LadderExercise[];
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  /** Inline mode: progress saved before the app was closed (rung, extra reps, timer). */
+  savedState?: LadderSaved;
+  /** Inline mode: changes to keep (null = nothing to keep), so they survive the app closing. */
+  onStateChange?: (state: LadderSaved | null) => void;
   // Reports whether this ladder currently holds unsaved progress (a running
   // rest/timer, or a rung already selected) — the parent block card uses
   // this to decide whether collapsing needs a confirm. Only meaningful in
@@ -69,25 +74,55 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   exercises,
   activeVideoExerciseId,
   onToggleVideo,
+  savedState,
+  onStateChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [extraReps, setExtraReps] = useState(0);
-  const [restActive, setRestActive] = useState(false);
-  const [restTimeLeft, setRestTimeLeft] = useState(0);
+  // Only plain REST-between-rungs ladders auto-progress round by round — AMRAP
+  // and FOR TIME ladders run one continuous timer for the whole attempt instead.
+  const isRestMode = !countUp && timerLabel === 'REST';
+  const [restored] = useState(() =>
+    restoreLadder(savedState, { countUp, isRestMode, restSeconds: restSeconds ?? 0, rungCount: sequence.length }, Date.now())
+  );
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(restored.selectedIndex);
+  const [extraReps, setExtraReps] = useState(restored.extraReps);
+  const [restActive, setRestActive] = useState(restored.active);
+  const [restTimeLeft, setRestTimeLeft] = useState(restored.timeLeft);
   // Which rung the plain REST-mode ladder is currently on — auto-advances each
   // time a rest period finishes naturally, so the warrior doesn't have to
   // manually tap through the sequence rung by rung.
-  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(restored.currentRoundIndex);
   const intervalRef = useRef<any>(null);
   const isInline = !!onFinalize;
   // Every running timer (AMRAP/FOR TIME's single continuous timer, and the
   // plain REST-between-rungs timer) supports tap-to-reset.
   const supportsTapReset = true;
-  // Only plain REST-between-rungs ladders auto-progress round by round — AMRAP
-  // and FOR TIME ladders run one continuous timer for the whole attempt instead.
-  const isRestMode = !countUp && timerLabel === 'REST';
+
+  // Hand the screen what to keep: while the timer runs, its end (countdown)
+  // or start (counting up) on the clock rather than every tick.
+  const timeLeftRef = useRef(restTimeLeft);
+  timeLeftRef.current = restTimeLeft;
+  const anchorRef = useRef<number | null>(null);
+  const reportRef = useRef(onStateChange);
+  reportRef.current = onStateChange;
+  useEffect(() => {
+    anchorRef.current = !restActive
+      ? null
+      : countUp
+        ? Date.now() - timeLeftRef.current * 1000
+        : Date.now() + timeLeftRef.current * 1000;
+  }, [restActive, countUp]);
+  useEffect(() => {
+    const untouched = selectedIndex === null && extraReps === 0 && currentRoundIndex === 0 && !restActive && timeLeftRef.current === 0;
+    reportRef.current?.(untouched ? null : {
+      selectedIndex,
+      extraReps,
+      currentRoundIndex,
+      anchorAt: anchorRef.current,
+      timeLeft: timeLeftRef.current,
+    });
+  }, [selectedIndex, extraReps, currentRoundIndex, restActive]);
   const isLastRound = currentRoundIndex === sequence.length - 1;
 
   // Counted from the clock (end time for a countdown, start time when
