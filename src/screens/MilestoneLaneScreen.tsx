@@ -140,6 +140,8 @@ const LIGHT_RANDOM_IMAGES: ImageSourcePropType[] = [
 // like the plank's.
 const LIGHT_ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/onboarding/assessment.jpeg');
 const LIGHT_BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/onboarding/build-your-program.jpeg');
+// Width / height of the assessment file (1672x941), for its finished-card thumb.
+const LIGHT_ASSESSMENT_ASPECT = 1672 / 941;
 
 // The plank's and assessment's heads already sit on the far side; shifting
 // them would cut them off.
@@ -629,7 +631,14 @@ function JourneyCardBody({
             milestoneCardImage below uses this exact technique already. */}
         {!!image && (
           <View style={styles.finishedCardThumbWrap}>
-            <Image source={image} style={[styles.finishedCardThumb, isRTL && mirrorPhotoInRTL && FLIP_X]} resizeMode="cover" />
+            <Image
+              source={image}
+              style={[
+                image === LIGHT_ASSESSMENT_IMAGE ? styles.finishedCardThumbHeadSide : styles.finishedCardThumb,
+                isRTL && mirrorPhotoInRTL && FLIP_X,
+              ]}
+              resizeMode="cover"
+            />
             {/* Fades the photo's left edge into the card's own background
                 instead of a hard vertical cut where it meets the text. */}
             <LinearGradient
@@ -3415,6 +3424,8 @@ const darkStyles = StyleSheet.create({
     // View, not the Image itself -- see finishedCardThumb.
     width: 100,
     alignSelf: 'stretch',
+    // Clips finishedCardThumbHeadSide, which is wider than the panel.
+    overflow: 'hidden',
   },
   finishedCardThumb: {
     position: 'absolute',
@@ -3424,6 +3435,18 @@ const darkStyles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+  },
+  // The light Assessment push-up has its head at the far edge, which a
+  // centre crop cuts off: show the photo at full height pinned to that edge
+  // instead. `right` flips in Arabic, where the photo is mirrored too, so the
+  // head stays in view there as well.
+  finishedCardThumbHeadSide: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    height: '100%',
+    aspectRatio: LIGHT_ASSESSMENT_ASPECT,
   },
   finishedCardThumbBadge: {
     position: 'absolute',
