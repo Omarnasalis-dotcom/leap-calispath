@@ -46,7 +46,7 @@ import {
   formatActiveProgramSub,
 } from '../lib/trainingCenter';
 import { fetchDayChoiceForWeek } from '../lib/journeyLane';
-import { t, FLIP_X, isArabic } from '../i18n';
+import { t, FLIP_X, isArabic, isRTL } from '../i18n';
 
 interface HubData {
   hasActiveProgram: boolean;
@@ -68,13 +68,21 @@ interface HubData {
   pastPrograms: PastProgram[];
 }
 
-// Daytime tile covers for light mode, reusing the Journey's light photo set
-// (assets/Milestone Cards/light), each picked to match its tile.
+// Light-mode tile covers: white-background 3:2 shots in the Journey's light
+// style, athlete on the far side of the tile, clear of the icon and text.
 const TILE_PHOTOS_LIGHT = {
-  active: require('../../assets/Milestone Cards/light/onboarding/build-your-program.png'),
-  templates: require('../../assets/Milestone Cards/light/onboarding/assessment.jpeg'),
-  customize: require('../../assets/Milestone Cards/light/onboarding/goals-equipment.jpeg'),
-  quick: require('../../assets/Milestone Cards/light/random/sprint.jpeg'),
+  active: require('../../assets/training-center/light/active-program.jpeg'),
+  templates: require('../../assets/training-center/light/ready-templates.jpeg'),
+  customize: require('../../assets/training-center/light/customize-program.jpeg'),
+  quick: require('../../assets/training-center/light/quick-workout.jpeg'),
+};
+
+// The tile accents are too faint for text on a white photo (gold is ~2.3:1),
+// so light photo tiles use a darker shade of each for the subtitle.
+const LIGHT_PHOTO_ACCENT_TEXT: Record<string, string> = {
+  '#8b5cf6': '#6D28D9',
+  '#C9A227': '#8A6D0B',
+  '#f97316': '#C2410C',
 };
 
 // The restore sheet only offers the most recent previous programs.
@@ -292,9 +300,15 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
   const isPrimary = !!def.primary && !def.locked;
   const accent = def.accent ?? c.coral;
   const hasPhoto = !!def.bgImage && !def.locked;
-  // Light-mode covers are bright daytime shots, so the tile text goes a
-  // weight heavier with a stronger shadow to hold up against them.
-  const isLight = mode === 'light';
+  // Light-mode covers are white-background shots: dark text over a white
+  // wash, like the Journey's light cards.
+  const lightPhoto = hasPhoto && mode === 'light';
+  const stackArabicTitle = isArabic && lightPhoto;
+  const subColor = def.locked
+    ? c.textMuted
+    : lightPhoto
+      ? LIGHT_PHOTO_ACCENT_TEXT[accent] ?? c.coralText
+      : hexToRgba(accent, 0.9);
 
   const content = (
     <>
@@ -334,22 +348,23 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
         style={[
           styles.tileTitle,
           // Unlocked = hasPhoto (a real cover image + gradient scrim, see
-          // hasPhoto above) — always white regardless of theme, same
-          // reasoning as ProgramTemplatesScreen/QuickWorkoutScreen/
-          // CustomizeProgramScreen's own cover-photo card text.
-          { color: def.locked ? c.textFaint3 : '#FFFFFF' },
-          hasPhoto && { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-          hasPhoto && isLight && styles.tileTitleLight,
+          // hasPhoto above) — white over the dark photos, same reasoning as
+          // ProgramTemplatesScreen/QuickWorkoutScreen/CustomizeProgramScreen's
+          // own cover-photo card text; dark over the light ones' white wash.
+          { color: def.locked ? c.textFaint3 : lightPhoto ? c.textPrimary : '#FFFFFF' },
+          hasPhoto && !lightPhoto && { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
         ]}
         // Arabic titles fit on one line (shrinking if needed); English keeps
-        // its designed two-line split.
-        numberOfLines={isArabic ? 1 : 2}
+        // its designed two-line split. On the light photos a one-line Arabic
+        // title runs into the athlete, so there it stacks one word per line
+        // like the English.
+        numberOfLines={isArabic && !stackArabicTitle ? 1 : 2}
         adjustsFontSizeToFit={isArabic}
         minimumFontScale={0.7}
       >
-        {def.title}
+        {stackArabicTitle ? def.title.replace(' ', '\n') : def.title}
       </Text>
-      <Text style={[styles.tileSub, { color: def.locked ? c.textMuted : hexToRgba(accent, 0.9) }, hasPhoto && isLight && styles.tileSubLight]} numberOfLines={1}>
+      <Text style={[styles.tileSub, { color: subColor }]} numberOfLines={1}>
         {def.sub}
       </Text>
     </>
@@ -388,14 +403,38 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
             // athlete stays clear of the icon now on the right.
             <ImageBackground source={def.bgImage!} style={StyleSheet.absoluteFillObject} imageStyle={[{ borderRadius: 16 }, FLIP_X]} />
           )}
-          {/* Bottom-weighted scrim — the photo stays visible up top (the
-              whole point of adding it), text/badges stay legible at the
-              bottom where they actually sit. */}
-          <LinearGradient
-            colors={['rgba(5,3,3,0.15)', 'rgba(5,3,3,0.25)', 'rgba(5,3,3,0.92)']}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
-          />
+          {lightPhoto ? (
+            // Journey light-card treatment: white wash from the text side
+            // (right in Arabic) so dark text sits on white, plus a very
+            // slight shadow along the bottom edge -- lighter than the
+            // Journey's, since the subtitle sits right on it here.
+            <>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']}
+                locations={[0, 0.35, 0.66]}
+                // Physical, not layout-mirrored: in Arabic the text is on the right.
+                start={{ x: isRTL ? 1 : 0, y: 0.5 }}
+                end={{ x: isRTL ? 0 : 1, y: 0.5 }}
+                style={StyleSheet.absoluteFillObject}
+                pointerEvents="none"
+              />
+              <LinearGradient
+                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.18)']}
+                locations={[0.72, 1]}
+                style={StyleSheet.absoluteFillObject}
+                pointerEvents="none"
+              />
+            </>
+          ) : (
+            // Bottom-weighted scrim — the photo stays visible up top (the
+            // whole point of adding it), text/badges stay legible at the
+            // bottom where they actually sit.
+            <LinearGradient
+              colors={['rgba(5,3,3,0.15)', 'rgba(5,3,3,0.25)', 'rgba(5,3,3,0.92)']}
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="none"
+            />
+          )}
         </>
       )}
       {content}
@@ -666,10 +705,6 @@ export function TrainingCenterScreen() {
           badge: null,
           accent: '#8b5cf6',
           bgImage: isLight ? TILE_PHOTOS_LIGHT.templates : require('../../assets/program-templates-bg.png'),
-          // Zooms the light cover in a touch and slides it right so its
-          // left-side athletes stay in view.
-          bgImageAlign: isLight ? 0.05 : undefined,
-          bgImageZoom: isLight ? 1.12 : undefined,
           onPress: () => router.push('/program-templates'),
         },
         {
@@ -916,17 +951,6 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   // one-line Arabic title sat on the left, away from its icon and subtitle.
   tileTitle: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.1, lineHeight: 16, marginTop: 10, textAlign: 'left' },
   tileSub: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.4, marginTop: 4 },
-  tileTitleLight: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowRadius: 6,
-  },
-  tileSubLight: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
 
   restoreEntryBtn: {
     width: 46, height: 46, borderRadius: 23, borderWidth: 1, borderColor: c.borderStrong,
