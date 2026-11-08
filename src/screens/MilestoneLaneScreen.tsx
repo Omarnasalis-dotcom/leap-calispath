@@ -142,6 +142,7 @@ const LIGHT_ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milest
 const LIGHT_BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/onboarding/build-your-program.jpeg');
 // Width / height of the assessment file (1672x941), for its finished-card thumb.
 const LIGHT_ASSESSMENT_ASPECT = 1672 / 941;
+const FINISHED_CARD_HEIGHT = 84;
 
 // The plank's and assessment's heads already sit on the far side; shifting
 // them would cut them off.
@@ -3400,7 +3401,7 @@ const darkStyles = StyleSheet.create({
     backgroundColor: '#111111',
     borderRadius: 16,
     overflow: 'hidden',
-    height: 84,
+    height: FINISHED_CARD_HEIGHT,
   },
   // Border drawn as a top layer (not on the card itself), so it runs evenly
   // over the photo too instead of disappearing under it, and the photo's
@@ -3439,14 +3440,15 @@ const darkStyles = StyleSheet.create({
   // The light Assessment push-up has its head at the far edge, which a
   // centre crop cuts off: show the photo at full height pinned to that edge
   // instead. `right` flips in Arabic, where the photo is mirrored too, so the
-  // head stays in view there as well.
+  // head stays in view there as well. Width and height are both explicit: a
+  // bundled Image defaults to its file's pixel size, which overrides
+  // aspectRatio (seen live: it drew 1672pt wide and showed a strip of hair).
   finishedCardThumbHeadSide: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
     right: 0,
-    height: '100%',
-    aspectRatio: LIGHT_ASSESSMENT_ASPECT,
+    height: FINISHED_CARD_HEIGHT,
+    width: Math.round(FINISHED_CARD_HEIGHT * LIGHT_ASSESSMENT_ASPECT),
   },
   finishedCardThumbBadge: {
     position: 'absolute',
