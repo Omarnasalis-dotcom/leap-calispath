@@ -136,12 +136,19 @@ const LIGHT_RANDOM_IMAGES: ImageSourcePropType[] = [
   require('../../assets/Milestone Cards/light-v2/random/sit-up.jpeg'),
 ];
 
-// The plank's head already sits on the far side; shifting it would cut it off.
-const LIGHT_SHIFTED_PHOTOS = new Set<ImageSourcePropType>(
-  [...LIGHT_PUSH_IMAGES, ...LIGHT_PULL_IMAGES, ...LIGHT_LEGS_IMAGES, ...LIGHT_RANDOM_IMAGES].filter(
+// The assessment file is already flipped so its head sits on the far side,
+// like the plank's.
+const LIGHT_ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/onboarding/assessment.jpeg');
+const LIGHT_BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/onboarding/build-your-program.jpeg');
+
+// The plank's and assessment's heads already sit on the far side; shifting
+// them would cut them off.
+const LIGHT_SHIFTED_PHOTOS = new Set<ImageSourcePropType>([
+  ...[...LIGHT_PUSH_IMAGES, ...LIGHT_PULL_IMAGES, ...LIGHT_LEGS_IMAGES, ...LIGHT_RANDOM_IMAGES].filter(
     (photo) => photo !== LIGHT_PLANK_IMAGE,
   ),
-);
+  LIGHT_BUILD_PROGRAM_IMAGE,
+]);
 
 interface CardImageSet {
   push: ImageSourcePropType[];
@@ -168,8 +175,8 @@ const LIGHT_CARD_IMAGES: CardImageSet = {
   pull: LIGHT_PULL_IMAGES.length ? LIGHT_PULL_IMAGES : PULL_IMAGES,
   legs: LIGHT_LEGS_IMAGES.length ? LIGHT_LEGS_IMAGES : LEGS_IMAGES,
   random: LIGHT_RANDOM_IMAGES.length ? LIGHT_RANDOM_IMAGES : RANDOM_IMAGES,
-  assessment: require('../../assets/Milestone Cards/light/onboarding/assessment.jpeg'),
-  buildProgram: require('../../assets/Milestone Cards/light/onboarding/build-your-program.png'),
+  assessment: LIGHT_ASSESSMENT_IMAGE,
+  buildProgram: LIGHT_BUILD_PROGRAM_IMAGE,
 };
 
 function useCardImages(): CardImageSet {
@@ -2840,7 +2847,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   : t('journey.step2Todo')
               }
               image={cardImages.buildProgram}
-              mirrorPhotoInRTL={false}
+              // The dark photo has on-screen text; the light one doesn't.
+              mirrorPhotoInRTL={themeMode === 'light'}
               isLast
               staggerIndex={2}
               containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 2 ? activeStepRef : undefined}
