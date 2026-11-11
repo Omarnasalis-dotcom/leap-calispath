@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ErrorNote } from '@/components/bits';
 import { fetchLimits, fetchSettings, updateLimit, updateSetting, type FairPlayLimit } from '@/api/fairPlay';
 import { useFairPlayInvalidate } from './parts';
+import { PageHeader } from '@/components/layout';
 
 const SETTING_LABEL: Record<string, string> = {
   jump_pct: 'Jump: new best above own best by more than (%)',
@@ -31,15 +32,15 @@ export function LimitsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Fair Play · Limits</h1>
-          <div className="sub">
+      <PageHeader
+        title="Fair Play · Limits"
+        sub={
+          <>
             A result above <b>Flag</b> is queued for review; at <b>Strong</b> it's marked strong. Nobody is hidden automatically. Changes apply to
-            new results. Values save when you leave the field.
-          </div>
-        </div>
-      </div>
+                        new results. Values save when you leave the field.
+          </>
+        }
+      />
       {(limitsQ.error || settingsQ.error || saveLimit.error || saveSetting.error) && (
         <ErrorNote error={limitsQ.error ?? settingsQ.error ?? saveLimit.error ?? saveSetting.error} />
       )}

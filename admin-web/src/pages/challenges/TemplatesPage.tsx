@@ -8,6 +8,7 @@ import { deleteLiveTemplate, fetchLiveTemplates, type LiveChallengeTemplate } fr
 import { CHALLENGE_GROUPS, formatDate } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 export function TemplatesPage() {
   const queryClient = useQueryClient();
@@ -119,14 +120,10 @@ export function TemplatesPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Challenge templates</h1>
-          <div className="sub">
-            Saved from the week editor — “Save as template” on any group.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Challenge templates"
+        sub="Saved from the week editor — “Save as template” on any group."
+      />
       {error && <ErrorNote error={error} />}
       {removeMutation.error && <ErrorNote error={removeMutation.error} />}
       <div className="panel">

@@ -5,6 +5,7 @@ import { DataTable } from '@/components/DataTable';
 import { formatDate } from '@/shared/constants';
 import { fetchInactiveAthletes, hideInactive, type InactiveAthlete } from '@/api/fairPlay';
 import { useFairPlayInvalidate } from './parts';
+import { PageHeader } from '@/components/layout';
 
 /** Athletes on a board with no activity for 45+ days (the setting), not already hidden. */
 export function InactivePage() {
@@ -14,15 +15,10 @@ export function InactivePage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Fair Play · Inactive</h1>
-          <div className="sub">
-            No app opens, workouts or results for 45+ days. Hiding is not a cheat action: no strike, no reset. When they come back the app offers
-            one tap to show them again.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Fair Play · Inactive"
+        sub="No app opens, workouts or results for 45+ days. Hiding is not a cheat action: no strike, no reset. When they come back the app offers one tap to show them again."
+      />
       {(q.error || hide.error) && <ErrorNote error={q.error ?? hide.error} />}
       <DataTable<InactiveAthlete>
         rows={q.data ?? []}

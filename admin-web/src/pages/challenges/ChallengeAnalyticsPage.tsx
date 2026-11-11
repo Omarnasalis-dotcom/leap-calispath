@@ -9,6 +9,7 @@ import {
   shiftWeekStart,
 } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 function groupName(id: number): string {
   return CHALLENGE_GROUPS.find((g) => g.id === id)?.name ?? `Group ${id}`;
@@ -35,26 +36,28 @@ export function ChallengeAnalyticsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Challenge analytics</h1>
-          <div className="sub">Participation and score spread per group.</div>
-        </div>
-        <div className="row">
-          <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, -1))}>
-            ‹
-          </button>
-          <span className="num" style={{ fontWeight: 700, minWidth: 120, textAlign: 'center' }}>
-            {formatDate(week)}
-          </span>
-          <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, 1))}>
-            ›
-          </button>
-          <button className="btn small" onClick={() => setWeek(currentWeekStart())}>
-            This week
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Challenge analytics"
+        sub="Participation and score spread per group."
+        actions={
+          <>
+            <div className="row">
+              <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, -1))}>
+                ‹
+              </button>
+              <span className="num" style={{ fontWeight: 700, minWidth: 120, textAlign: 'center' }}>
+                {formatDate(week)}
+              </span>
+              <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, 1))}>
+                ›
+              </button>
+              <button className="btn small" onClick={() => setWeek(currentWeekStart())}>
+                This week
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 160 }} />}

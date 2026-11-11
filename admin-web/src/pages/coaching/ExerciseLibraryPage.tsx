@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 // Must match mobile's newCategory/newConcept enums exactly (src/screens/coaching/ExerciseLibraryScreen.tsx)
 // — the two apps read/write the same comma-joined exercise_library.category column.
@@ -471,41 +472,41 @@ export function ExerciseLibraryPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Exercise library</h1>
-          <div className="sub num">{own ? `${own.length} exercises` : ' '}</div>
-        </div>
-        <div className="row">
-          {isAdmin && (
-            <select
+      <PageHeader
+        title="Exercise library"
+        sub={<span className="num">{own ? `${own.length} exercises` : ' '}</span>}
+        actions={
+          <>
+            {isAdmin && (
+              <select
+                className="field"
+                style={{ minWidth: 160 }}
+                value={coachFilterId}
+                onChange={(e) => setCoachFilterId(e.target.value)}
+                aria-label="Filter by coach"
+              >
+                <option value="">All coaches</option>
+                {coachesQ.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.display_name || c.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
               className="field"
-              style={{ minWidth: 160 }}
-              value={coachFilterId}
-              onChange={(e) => setCoachFilterId(e.target.value)}
-              aria-label="Filter by coach"
-            >
-              <option value="">All coaches</option>
-              {coachesQ.data?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.display_name || c.id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          )}
-          <input
-            className="field"
-            placeholder="Filter…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter exercises"
-          />
-          <BulkImportModal disabled={isCoachPaused} coachId={newExerciseCoachId} />
-          <button className="btn primary" disabled={isCoachPaused} onClick={() => setDraft({ ...EMPTY })}>
-            + New exercise
-          </button>
-        </div>
-      </div>
+              placeholder="Filter…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filter exercises"
+            />
+            <BulkImportModal disabled={isCoachPaused} coachId={newExerciseCoachId} />
+            <button className="btn primary" disabled={isCoachPaused} onClick={() => setDraft({ ...EMPTY })}>
+              + New exercise
+            </button>
+          </>
+        }
+      />
 
       {isCoachPaused && (
         <div className="notice">

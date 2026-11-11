@@ -7,6 +7,7 @@ import { formatDateTime } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 import { FLAG_STATUS_LABEL, FlagRow } from './AiCoachChatsPage';
 import './AiCoachChatsPage.css';
+import { PageHeader } from '@/components/layout';
 
 const FILTERS: Array<CoachChatFlagStatus | 'all'> = ['open', 'fixing', 'fixed', 'wont_fix', 'all'];
 
@@ -19,15 +20,11 @@ export function CoachFlagsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>AI Coach flags</h1>
-          <div className="sub">Every reply you flagged, across all users. Open one to read it in its chat.</div>
-        </div>
-        <Link to="/ai-coach-chats" className="btn small ghost">
-          Back to chats
-        </Link>
-      </div>
+      <PageHeader
+        back={{ label: 'AI Coach chats', to: '/ai-coach-chats' }}
+        title="AI Coach flags"
+        sub="Every reply you flagged, across all users. Open one to read it in its chat."
+      />
 
       <div className="seg" role="group" aria-label="Status" style={{ marginBottom: 16 }}>
         {FILTERS.map((s) => (

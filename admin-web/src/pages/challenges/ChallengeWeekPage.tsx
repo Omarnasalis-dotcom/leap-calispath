@@ -20,6 +20,7 @@ import {
 import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits';
 import { MovementsEditor } from '@/components/MovementsEditor';
 import { useUnsavedChanges } from '@/components/UnsavedChanges';
+import { PageHeader } from '@/components/layout';
 
 interface GroupForm {
   existingId: string | null;
@@ -166,37 +167,37 @@ export function ChallengeWeekPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Weekly challenges</h1>
-          <div className="sub">
-            One save writes every group for the chosen week. Blank groups are skipped.
-          </div>
-        </div>
-        <div className="row">
-          <button className="btn small" aria-label="Previous week" onClick={() => goToWeek(shiftWeekStart(week, -1))}>
-            ‹
-          </button>
-          <span className="num" style={{ fontWeight: 700, minWidth: 120, textAlign: 'center' }}>
-            {formatDate(week)}
-          </span>
-          <button className="btn small" aria-label="Next week" onClick={() => goToWeek(shiftWeekStart(week, 1))}>
-            ›
-          </button>
-          <button
-            className={`btn small${isThisWeek ? ' primary' : ''}`}
-            onClick={() => goToWeek(thisWeek)}
-          >
-            This week
-          </button>
-          <button
-            className={`btn small${isNextWeek ? ' primary' : ''}`}
-            onClick={() => goToWeek(shiftWeekStart(thisWeek, 1))}
-          >
-            Next week
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Weekly challenges"
+        sub="One save writes every group for the chosen week. Blank groups are skipped."
+        actions={
+          <>
+            <div className="row">
+              <button className="btn small" aria-label="Previous week" onClick={() => goToWeek(shiftWeekStart(week, -1))}>
+                ‹
+              </button>
+              <span className="num" style={{ fontWeight: 700, minWidth: 120, textAlign: 'center' }}>
+                {formatDate(week)}
+              </span>
+              <button className="btn small" aria-label="Next week" onClick={() => goToWeek(shiftWeekStart(week, 1))}>
+                ›
+              </button>
+              <button
+                className={`btn small${isThisWeek ? ' primary' : ''}`}
+                onClick={() => goToWeek(thisWeek)}
+              >
+                This week
+              </button>
+              <button
+                className={`btn small${isNextWeek ? ' primary' : ''}`}
+                onClick={() => goToWeek(shiftWeekStart(thisWeek, 1))}
+              >
+                Next week
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {weekQ.error && <ErrorNote error={weekQ.error} />}
       {saveMutation.error && <ErrorNote error={saveMutation.error} />}

@@ -9,6 +9,7 @@ import {
 } from '@/api/fairPlay';
 import { noteLabel } from '@/shared/fairPlayNotes';
 import { ActionsBar, FlagTable, HoldRow, useFairPlayInvalidate } from './parts';
+import { PageHeader } from '@/components/layout';
 
 /** One athlete: strikes, holds, appeals, every flag; act on the open ones. */
 export function AthleteFairPlayPage() {
@@ -32,20 +33,17 @@ export function AthleteFairPlayPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Fair Play · Athlete</h1>
-          <div className="sub">
-            <Link to={`/users/${id}`}>Open the user profile</Link> · <Link to="/fair-play">Back to the queue</Link>
-          </div>
-          <div className="sub" style={{ marginTop: 6 }}>
-            Wrong call? Lift a hold (looks real, or decide again), restore results after a reset, or reopen a flag below.
-          </div>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <Badge tone={strikes > 0 ? 'warn' : undefined}>{strikes} strike{strikes === 1 ? '' : 's'}</Badge>
-        </div>
-      </div>
+      <PageHeader
+        back={{ label: 'Fair Play flags', to: '/fair-play' }}
+        title="Fair Play · Athlete"
+        sub={
+          <>
+            <Link to={`/users/${id}`}>Open the user profile</Link>. Wrong call? Lift a hold (looks real, or decide again),
+            restore results after a reset, or reopen a flag below.
+          </>
+        }
+        actions={<Badge tone={strikes > 0 ? 'warn' : undefined}>{strikes} strike{strikes === 1 ? '' : 's'}</Badge>}
+      />
 
       {q.error && <ErrorNote error={q.error} />}
       {q.isLoading && <div className="skeleton" style={{ height: 200 }} />}

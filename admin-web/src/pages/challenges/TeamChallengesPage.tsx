@@ -16,6 +16,7 @@ import { currentWeekStart, formatDate, shiftWeekStart } from '@/shared/constants
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { DataTable, type Column } from '@/components/DataTable';
 import { MovementsEditor } from '@/components/MovementsEditor';
+import { PageHeader } from '@/components/layout';
 
 const FORMATS: Record<TeamFormat, { label: string; help: string }> = {
   sync: {
@@ -293,24 +294,24 @@ export function TeamChallengesPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Team challenges</h1>
-          <div className="sub">
-            Teams of 2–4 join with an invite code and compete for the best attempt. Dates are UTC.
-          </div>
-        </div>
-        <button
-          className="btn primary"
-          onClick={() => {
-            setForm(emptyForm());
-            setFormError(null);
-            setSelectedId(null);
-          }}
-        >
-          New challenge
-        </button>
-      </div>
+      <PageHeader
+        title="Team challenges"
+        sub="Teams of 2–4 join with an invite code and compete for the best attempt. Dates are UTC."
+        actions={
+          <>
+            <button
+              className="btn primary"
+              onClick={() => {
+                setForm(emptyForm());
+                setFormError(null);
+                setSelectedId(null);
+              }}
+            >
+              New challenge
+            </button>
+          </>
+        }
+      />
 
       {challengesQ.error && <ErrorNote error={challengesQ.error} />}
       {deleteChallengeMutation.error && <ErrorNote error={deleteChallengeMutation.error} />}

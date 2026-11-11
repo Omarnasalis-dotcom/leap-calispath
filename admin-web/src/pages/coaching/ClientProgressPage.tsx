@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchAssignment } from '@/api/coaching';
 import { ErrorNote } from '@/components/bits';
 import { ProgressDrawer } from './ProgressDrawer';
+import { PageHeader } from '@/components/layout';
 
 /** Dedicated route for a client's log history — linked from the Client
  * Adherence analytics table, which needs a URL to point at rather than
@@ -30,24 +31,16 @@ export function ClientProgressPage() {
 
   return (
     <div className="page wide">
-      <div className="page-head">
-        <div>
-          <div className="label" style={{ marginBottom: 4 }}>
-            <button className="btn small" onClick={() => navigate('/coaching')}>
-              ← Clients
-            </button>
-          </div>
-          <h1>{a?.warrior_name ?? '…'}</h1>
-          <div className="sub">
-            {a?.template_name} · coach {a?.coach_name ?? '—'}
-          </div>
-        </div>
-        <div className="row">
+      <PageHeader
+        back={{ label: 'Clients', to: '/coaching' }}
+        title={a?.warrior_name ?? '…'}
+        sub={<>{a?.template_name} · coach {a?.coach_name ?? '—'}</>}
+        actions={
           <button className="btn" onClick={() => navigate(`/coaching/clients/${assignmentId}`)}>
             Edit program
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {assignmentQ.isLoading && <div className="skeleton" style={{ height: 200 }} />}
 

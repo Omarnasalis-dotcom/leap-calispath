@@ -5,6 +5,7 @@ import { ErrorNote } from '@/components/bits';
 import { fetchActiveHolds, fetchLiftedOutOfQueue, fetchOpenFlags, type FairPlayFlag } from '@/api/fairPlay';
 import { searchUsers } from '@/api/users';
 import { ActionsBar, FlagTable, HoldRow } from './parts';
+import { PageHeader } from '@/components/layout';
 
 /** The review queue: open flags grouped by athlete, newest first. */
 export function FlagsPage() {
@@ -25,15 +26,10 @@ export function FlagsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Fair Play · Flags</h1>
-          <div className="sub">
-            Results that look unusual against the limits. Nothing changes for an athlete until you act: dismiss, hide from one area, hide
-            everywhere, or ban permanently.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Fair Play · Flags"
+        sub="Results that look unusual against the limits. Nothing changes for an athlete until you act: dismiss, hide from one area, hide everywhere, or ban permanently."
+      />
 
       <FindAthlete />
 

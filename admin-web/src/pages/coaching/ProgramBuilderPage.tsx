@@ -24,6 +24,7 @@ import { StaleNotice } from './builder/StaleNotice';
 import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
 import type { BuilderWeeks } from './builder/types';
+import { PageHeader } from '@/components/layout';
 
 type ListTab = 'master' | 'assigned' | 'leftover' | 'library';
 
@@ -270,42 +271,42 @@ export function ProgramBuilderPage() {
 
     return (
       <div className="page">
-        <div className="page-head">
-          <div>
-            <h1>Program builder</h1>
-            <div className="sub">
-              {isAdmin ? 'Master templates and client copies, every coach.' : 'Your master templates and client copies.'}
-            </div>
-          </div>
-          <div className="row" style={{ gap: 8 }}>
-            {isAdmin && (
-              <select
-                className="field"
-                style={{ minWidth: 160 }}
-                value={coachFilterId}
-                onChange={(e) => setCoachFilterId(e.target.value)}
-                aria-label="Filter by coach"
-              >
-                <option value="">All coaches</option>
-                {coachesQ.data?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.display_name || c.id.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
-            )}
-            <ImportTemplateButton
-              disabled={isCoachPaused}
-              onImported={() => {
-                void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
-                void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
-              }}
-            />
-            <button className="btn primary" disabled={isCoachPaused} onClick={() => setSelectedId('new')}>
-              + New template
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Program builder"
+          sub={<>{isAdmin ? 'Master templates and client copies, every coach.' : 'Your master templates and client copies.'}</>}
+          actions={
+            <>
+              <div className="row" style={{ gap: 8 }}>
+                {isAdmin && (
+                  <select
+                    className="field"
+                    style={{ minWidth: 160 }}
+                    value={coachFilterId}
+                    onChange={(e) => setCoachFilterId(e.target.value)}
+                    aria-label="Filter by coach"
+                  >
+                    <option value="">All coaches</option>
+                    {coachesQ.data?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.display_name || c.id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <ImportTemplateButton
+                  disabled={isCoachPaused}
+                  onImported={() => {
+                    void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
+                    void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
+                  }}
+                />
+                <button className="btn primary" disabled={isCoachPaused} onClick={() => setSelectedId('new')}>
+                  + New template
+                </button>
+              </div>
+            </>
+          }
+        />
         {isCoachPaused && (
           <div className="notice">
             Your coaching access is paused by an admin. You can still view your templates, but creating,
@@ -407,61 +408,60 @@ export function ProgramBuilderPage() {
   // ---------- editor view ----------
   return (
     <div className="page wide">
-      <div className="page-head">
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <button
-            className="btn small"
-            style={{ marginBottom: 8 }}
-            onClick={() =>
-              unsaved.confirmDiscard(() => {
-                setDirty(false);
-                setSelectedId(null);
-              })
-            }
-          >
-            ← Templates
-          </button>
-          <input
-            className="field"
-            style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
-            placeholder="Template name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setDirty(true);
-            }}
-            aria-label="Template name"
-          />
-          <textarea
-            className="field"
-            style={{ width: '100%', marginTop: 8 }}
-            rows={2}
-            placeholder="Description (optional)"
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              setDirty(true);
-            }}
-            aria-label="Template description"
-          />
-        </div>
-        <div className="row">
-          {flash && <Badge tone="ok">{flash}</Badge>}
-          {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
-          {clipboard.clipboard && (
-            <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>
-          )}
-          <button
-            className="btn primary"
-            disabled={
-              !name.trim() || saveMutation.isPending || isCoachPaused || (selectedId !== 'new' && (!loadQ.data || loadQ.isFetching))
-            }
-            onClick={() => saveMutation.mutate(false)}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save template'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        grow
+        back={{
+          label: 'Templates',
+          onClick: () =>
+            unsaved.confirmDiscard(() => {
+              setDirty(false);
+              setSelectedId(null);
+            }),
+        }}
+        title={
+          <>
+            <input
+              className="field"
+              style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
+              placeholder="Template name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setDirty(true);
+              }}
+              aria-label="Template name"
+            />
+            <textarea
+              className="field"
+              style={{ width: '100%', marginTop: 8 }}
+              rows={2}
+              placeholder="Description (optional)"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setDirty(true);
+              }}
+              aria-label="Template description"
+            />
+          </>
+        }
+        actions={
+          <>
+            {flash && <Badge tone="ok">{flash}</Badge>}
+            {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+            {clipboard.clipboard && <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>}
+            <button
+              className="btn primary"
+              disabled={
+                !name.trim() || saveMutation.isPending || isCoachPaused || (selectedId !== 'new' && (!loadQ.data || loadQ.isFetching))
+              }
+              onClick={() => saveMutation.mutate(false)}
+            >
+              {saveMutation.isPending ? 'Saving…' : 'Save template'}
+            </button>
+          </>
+        }
+      />
 
       {isCoachPaused && (
         <div className="notice">

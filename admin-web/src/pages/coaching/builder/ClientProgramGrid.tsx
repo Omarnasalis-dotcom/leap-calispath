@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deleteCoachWeekData,
@@ -18,11 +18,11 @@ import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
 import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
+import { PageHeader } from '@/components/layout';
 
 export function ClientProgramGrid() {
   const { profile, isAdmin, isCoachPaused } = useAuth();
   const { assignmentId = '' } = useParams();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const clipboard = useBuilderClipboard();
 
@@ -153,15 +153,11 @@ export function ClientProgramGrid() {
 
   return (
     <div className="page wide">
-      <div className="page-head">
-        <div>
-          <div className="label" style={{ marginBottom: 4 }}>
-            <button className="btn small" onClick={() => navigate('/coaching')}>
-              ← Clients
-            </button>
-          </div>
-          <h1>{a?.warrior_name ?? '…'}</h1>
-          <div className="sub">
+      <PageHeader
+        back={{ label: 'Clients', to: '/coaching' }}
+        title={a?.warrior_name ?? '…'}
+        sub={
+          <>
             {a?.template_name} · coach {a?.coach_name ?? '—'}
             {clipboard.clipboard && (
               <>
@@ -169,23 +165,25 @@ export function ClientProgramGrid() {
                 <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>
               </>
             )}
-          </div>
-        </div>
-        <div className="row">
-          {flash && <Badge tone="ok">{flash}</Badge>}
-          {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
-          <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
-            {showApply ? 'Close' : 'Apply template…'}
-          </button>
-          <button
-            className="btn primary"
-            disabled={!templateId || !loadQ.data || loadQ.isFetching || saveMutation.isPending || isCoachPaused}
-            onClick={() => saveMutation.mutate(false)}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save program'}
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            {flash && <Badge tone="ok">{flash}</Badge>}
+            {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+            <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
+              {showApply ? 'Close' : 'Apply template…'}
+            </button>
+            <button
+              className="btn primary"
+              disabled={!templateId || !loadQ.data || loadQ.isFetching || saveMutation.isPending || isCoachPaused}
+              onClick={() => saveMutation.mutate(false)}
+            >
+              {saveMutation.isPending ? 'Saving…' : 'Save program'}
+            </button>
+          </>
+        }
+      />
 
       {isCoachPaused && (
         <div className="notice">

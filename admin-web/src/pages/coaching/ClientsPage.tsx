@@ -14,6 +14,7 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { AssignForm } from './AssignForm';
 import { ProgressDrawer } from './ProgressDrawer';
+import { PageHeader } from '@/components/layout';
 
 function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined {
   if (status === 'active') return 'ok';
@@ -178,19 +179,19 @@ export function ClientsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Clients</h1>
-          <div className="sub">
-            {isAdmin ? "Every coach's assignments, arena-wide." : 'Your assigned clients.'}
-          </div>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <button className="btn primary" disabled={isCoachPaused} onClick={() => setShowAssign((s) => !s)}>
-            {showAssign ? 'Close' : '+ Assign program'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Clients"
+        sub={<>{isAdmin ? "Every coach's assignments, arena-wide." : 'Your assigned clients.'}</>}
+        actions={
+          <>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn primary" disabled={isCoachPaused} onClick={() => setShowAssign((s) => !s)}>
+                {showAssign ? 'Close' : '+ Assign program'}
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {isCoachPaused && (
         <div className="notice">

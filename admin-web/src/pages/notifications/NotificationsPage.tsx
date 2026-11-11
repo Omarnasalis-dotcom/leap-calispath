@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthProvider';
 import { ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
+import { PageHeader } from '@/components/layout';
 
 // Types this inbox currently receives: client_workout_logged /
 // client_day_complete / client_week_complete (all notify-coach-workout-logged
@@ -129,22 +130,20 @@ export function NotificationsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Notifications</h1>
-          <div className="sub num">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} · the latest 50 are shown
-          </div>
-        </div>
-        <button
-          type="button"
-          className="btn small"
-          disabled={unreadCount === 0 || readAllMutation.isPending}
-          onClick={() => readAllMutation.mutate()}
-        >
-          Mark all read
-        </button>
-      </div>
+      <PageHeader
+        title="Notifications"
+        sub={<span className="num">{unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} · the latest 50 are shown</span>}
+        actions={
+          <button
+            type="button"
+            className="btn small"
+            disabled={unreadCount === 0 || readAllMutation.isPending}
+            onClick={() => readAllMutation.mutate()}
+          >
+            Mark all read
+          </button>
+        }
+      />
       {error && <ErrorNote error={error} />}
       <section className="panel">
         <div className="panel-body" style={{ padding: 0 }}>

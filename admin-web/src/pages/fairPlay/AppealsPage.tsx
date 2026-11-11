@@ -6,21 +6,17 @@ import { formatDateTime } from '@/shared/constants';
 import { AREA_LABEL, decideAppeal, fetchFlagsByIds, fetchPendingAppeals, type FairPlayAppeal } from '@/api/fairPlay';
 import { APPEAL_REPLY_PRESETS, noteLabel } from '@/shared/fairPlayNotes';
 import { FlagTable, NotePicker, useFairPlayInvalidate } from './parts';
+import { PageHeader } from '@/components/layout';
 
 /** Pending appeals, oldest first. Accept = unhide, no reset, strike removed. */
 export function AppealsPage() {
   const q = useQuery({ queryKey: ['fair-play', 'appeals'], queryFn: fetchPendingAppeals });
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Fair Play · Appeals</h1>
-          <div className="sub">
-            Accept: the athlete is visible again, nothing is reset, and the strike no longer counts. Reject: the hold stays and they can still
-            accept the reset. The athlete sees your reply in the app.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Fair Play · Appeals"
+        sub="Accept: the athlete is visible again, nothing is reset, and the strike no longer counts. Reject: the hold stays and they can still accept the reset. The athlete sees your reply in the app."
+      />
       {q.error && <ErrorNote error={q.error} />}
       {q.isLoading && <div className="skeleton" style={{ height: 160 }} />}
       {q.data && q.data.length === 0 && (

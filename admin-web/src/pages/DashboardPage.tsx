@@ -21,6 +21,7 @@ import { CoachEngagementChart } from '@/components/dashboard/CoachEngagementChar
 import { RetentionCurveChart } from '@/components/dashboard/RetentionCurveChart';
 import { TierDistributionChart } from '@/components/dashboard/TierDistributionChart';
 import { RecentPulseChart } from '@/components/dashboard/RecentPulseChart';
+import { PageHeader } from '@/components/layout';
 
 function WeekRow({
   title,
@@ -153,19 +154,21 @@ export function DashboardPage() {
         </div>
       )}
 
-      <div className="page-head">
-        <div>
-          <h1>Dashboard</h1>
-          <div className="sub">Arena-wide activity at a glance.</div>
-        </div>
-        <div className="dv-updated-pill">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 3" />
-          </svg>
-          Updated {formatRelativeTime(dataUpdatedAt)}
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        sub="Arena-wide activity at a glance."
+        actions={
+          <>
+            <div className="dv-updated-pill">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              Updated {formatRelativeTime(dataUpdatedAt)}
+            </div>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
 

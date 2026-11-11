@@ -19,6 +19,7 @@ import type {
 import { formatDateTime } from '@/shared/constants';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import './AiCoachChatsPage.css';
+import { PageHeader } from '@/components/layout';
 
 export const FLAG_KIND_LABEL: Record<CoachChatFlagKind, string> = {
   mistake: 'Mistake',
@@ -63,18 +64,17 @@ export function AiCoachChatsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>AI Coach chats</h1>
-          <div className="sub">
-            Every AI Coach exchange, kept 90 days (longer while a flag on it is open). Flag a
-            reply as a mistake, a bad choice or bad behavior, then fix it and mark the flag fixed.
-          </div>
-        </div>
-        <Link to="/ai-coach-chats/flags" className="btn small ghost">
-          All flags
-        </Link>
-      </div>
+      <PageHeader
+        title="AI Coach chats"
+        sub="Every AI Coach exchange, kept 90 days (longer while a flag on it is open). Flag a reply as a mistake, a bad choice or bad behavior, then fix it and mark the flag fixed."
+        actions={
+          <>
+            <Link to="/ai-coach-chats/flags" className="btn small ghost">
+              All flags
+            </Link>
+          </>
+        }
+      />
 
       {users.error && <ErrorNote error={users.error} />}
 

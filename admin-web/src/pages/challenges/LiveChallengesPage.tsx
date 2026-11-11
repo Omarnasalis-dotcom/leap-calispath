@@ -19,6 +19,7 @@ import { currentWeekStart, formatDate, shiftWeekStart } from '@/shared/constants
 import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits';
 import { DataTable, type Column } from '@/components/DataTable';
 import { MovementsEditor } from '@/components/MovementsEditor';
+import { PageHeader } from '@/components/layout';
 
 interface HalfForm {
   minutes: string;
@@ -355,23 +356,23 @@ export function LiveChallengesPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Live challenges</h1>
-          <div className="sub">
-            Players open a room, join with a code, pick a side and play 2–3 timed halves together. Dates are UTC.
-          </div>
-        </div>
-        <button
-          className="btn primary"
-          onClick={() => {
-            openForm(emptyForm());
-            setSelectedId(null);
-          }}
-        >
-          New challenge
-        </button>
-      </div>
+      <PageHeader
+        title="Live challenges"
+        sub="Players open a room, join with a code, pick a side and play 2–3 timed halves together. Dates are UTC."
+        actions={
+          <>
+            <button
+              className="btn primary"
+              onClick={() => {
+                openForm(emptyForm());
+                setSelectedId(null);
+              }}
+            >
+              New challenge
+            </button>
+          </>
+        }
+      />
 
       {challengesQ.error && <ErrorNote error={challengesQ.error} />}
       {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}

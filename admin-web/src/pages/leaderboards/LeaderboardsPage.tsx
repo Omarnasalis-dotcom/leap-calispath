@@ -9,6 +9,7 @@ import {
 } from '@/api/leaderboards';
 import { TIER_NAMES } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 // Glory is left out: it ships with the V2 features (Tournament/Clash) and
 // isn't live in the app.
@@ -68,57 +69,59 @@ export function LeaderboardsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Leaderboards</h1>
-          <div className="sub">The same boards athletes see in the app (hidden athletes left out).</div>
-        </div>
-        <div className="row">
-          <select
-            className="field"
-            value={board}
-            onChange={(e) => setBoard(e.target.value as BoardKey)}
-            aria-label="Leaderboard type"
-          >
-            {BOARDS.map((b) => (
-              <option key={b.key} value={b.key}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-          {board === 'power' && (
-            <select
-              className="field"
-              value={powerLevel}
-              onChange={(e) => setPowerLevel(Number(e.target.value))}
-              aria-label="Power level"
-            >
-              <option value={0}>All levels</option>
-              {[1, 2, 3].map((l) => (
-                <option key={l} value={l}>
-                  {POWER_LEVEL_NAMES[l]}
-                </option>
-              ))}
-            </select>
-          )}
-          {board === 'strength' && (
-            <select
-              className="field"
-              value={tier}
-              onChange={(e) => setTier(Number(e.target.value))}
-              aria-label="Tier"
-            >
-              {TIER_NAMES.map((name, i) =>
-                i === 0 ? null : (
-                  <option key={i} value={i}>
-                    Tier {i} — {name}
+      <PageHeader
+        title="Leaderboards"
+        sub="The same boards athletes see in the app (hidden athletes left out)."
+        actions={
+          <>
+            <div className="row">
+              <select
+                className="field"
+                value={board}
+                onChange={(e) => setBoard(e.target.value as BoardKey)}
+                aria-label="Leaderboard type"
+              >
+                {BOARDS.map((b) => (
+                  <option key={b.key} value={b.key}>
+                    {b.label}
                   </option>
-                ),
+                ))}
+              </select>
+              {board === 'power' && (
+                <select
+                  className="field"
+                  value={powerLevel}
+                  onChange={(e) => setPowerLevel(Number(e.target.value))}
+                  aria-label="Power level"
+                >
+                  <option value={0}>All levels</option>
+                  {[1, 2, 3].map((l) => (
+                    <option key={l} value={l}>
+                      {POWER_LEVEL_NAMES[l]}
+                    </option>
+                  ))}
+                </select>
               )}
-            </select>
-          )}
-        </div>
-      </div>
+              {board === 'strength' && (
+                <select
+                  className="field"
+                  value={tier}
+                  onChange={(e) => setTier(Number(e.target.value))}
+                  aria-label="Tier"
+                >
+                  {TIER_NAMES.map((name, i) =>
+                    i === 0 ? null : (
+                      <option key={i} value={i}>
+                        Tier {i} — {name}
+                      </option>
+                    ),
+                  )}
+                </select>
+              )}
+            </div>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
 

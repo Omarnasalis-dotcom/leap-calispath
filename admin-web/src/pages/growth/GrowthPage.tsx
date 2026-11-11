@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchDeletedAccounts, fetchGrowthAnalytics, fetchOfferAnalytics, type GrowthAnalytics, type OfferAnalytics } from '@/api/growth';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 // Growth report from admin_get_growth_analytics (v3, audit 2026-10-29).
 // The funnel and feature use are derived from the data itself, so they cover
@@ -130,24 +131,26 @@ export function GrowthPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Growth</h1>
-          <div className="sub">Where new signups get to, who keeps training, and what they use.</div>
-        </div>
-        <div className="row">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              className={`btn small${r === days ? ' primary' : ''}`}
-              onClick={() => setDays(r)}
-              aria-pressed={r === days}
-            >
-              {r} days
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Growth"
+        sub="Where new signups get to, who keeps training, and what they use."
+        actions={
+          <>
+            <div className="row">
+              {RANGES.map((r) => (
+                <button
+                  key={r}
+                  className={`btn small${r === days ? ' primary' : ''}`}
+                  onClick={() => setDays(r)}
+                  aria-pressed={r === days}
+                >
+                  {r} days
+                </button>
+              ))}
+            </div>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 160 }} />}

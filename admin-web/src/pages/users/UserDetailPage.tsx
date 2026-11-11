@@ -23,6 +23,7 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { PerformancePanel } from '@/components/performance/PerformancePanel';
 import type { TrialHistoryRow } from '@/shared/types';
+import { PageHeader } from '@/components/layout';
 
 const TRIAL_COLUMNS: Column<TrialHistoryRow>[] = [
   {
@@ -120,57 +121,55 @@ export function UserDetailPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <div className="label" style={{ marginBottom: 4 }}>
-            <Link to="/users" style={{ textDecoration: 'none' }}>
-              Users
-            </Link>{' '}
-            / profile ·{' '}
-            <Link to={`/fair-play/athlete/${id}`}>Fair Play history</Link>
-          </div>
-          <h1>{u ? u.display_name || u.email || 'Unnamed warrior' : '…'}</h1>
-          {u && (
-            <div className="sub row" style={{ gap: 6 }}>
+      <PageHeader
+        back={{ label: 'Users', to: '/users' }}
+        title={u ? u.display_name || u.email || 'Unnamed warrior' : '…'}
+        sub={
+          u && (
+            <span className="row" style={{ gap: 6 }}>
               <span className="num" style={{ fontWeight: 700, color: 'var(--ink)' }}>
                 Tier {u.strength_tier ?? '—'} · {tierName(u.strength_tier)}
               </span>
               {u.is_admin && <Badge tone="accent">admin</Badge>}
               {u.is_coach && <Badge>coach</Badge>}
-            </div>
-          )}
-        </div>
-        {u && (
+              <span>·</span>
+              <Link to={`/fair-play/athlete/${id}`}>Fair Play history</Link>
+            </span>
+          )
+        }
+        actions={
+          u && (
           <div className="row">
-            <ConfirmButton
-              label={u.is_coach ? 'Revoke coach' : 'Make coach'}
-              title={`${u.is_coach ? 'Revoke coach from' : 'Grant coach to'} ${u.display_name || u.email}?`}
-              body="Coach access opens the coaching center and client management."
-              confirmLabel={u.is_coach ? 'Revoke' : 'Grant'}
-              danger={u.is_coach}
-              onConfirm={() =>
-                roleMutation.mutateAsync({ role: 'coach', enabled: !u.is_coach })
-              }
-            />
-            <ConfirmButton
-              label={u.is_admin ? 'Revoke admin' : 'Make admin'}
-              title={`${u.is_admin ? 'Revoke admin from' : 'Grant admin to'} ${u.display_name || u.email}?`}
-              body={
-                u.is_admin
-                  ? isSelf
-                    ? 'This is your own account — you will lose access to this panel.'
-                    : 'They lose all admin surfaces immediately.'
-                  : 'Full admin: this panel, every RLS admin path, role management.'
-              }
-              confirmLabel={u.is_admin ? 'Revoke' : 'Grant'}
-              danger={u.is_admin}
-              onConfirm={() =>
-                roleMutation.mutateAsync({ role: 'admin', enabled: !u.is_admin })
-              }
-            />
-          </div>
-        )}
-      </div>
+              <ConfirmButton
+                label={u.is_coach ? 'Revoke coach' : 'Make coach'}
+                title={`${u.is_coach ? 'Revoke coach from' : 'Grant coach to'} ${u.display_name || u.email}?`}
+                body="Coach access opens the coaching center and client management."
+                confirmLabel={u.is_coach ? 'Revoke' : 'Grant'}
+                danger={u.is_coach}
+                onConfirm={() =>
+                  roleMutation.mutateAsync({ role: 'coach', enabled: !u.is_coach })
+                }
+              />
+              <ConfirmButton
+                label={u.is_admin ? 'Revoke admin' : 'Make admin'}
+                title={`${u.is_admin ? 'Revoke admin from' : 'Grant admin to'} ${u.display_name || u.email}?`}
+                body={
+                  u.is_admin
+                    ? isSelf
+                      ? 'This is your own account — you will lose access to this panel.'
+                      : 'They lose all admin surfaces immediately.'
+                    : 'Full admin: this panel, every RLS admin path, role management.'
+                }
+                confirmLabel={u.is_admin ? 'Revoke' : 'Grant'}
+                danger={u.is_admin}
+                onConfirm={() =>
+                  roleMutation.mutateAsync({ role: 'admin', enabled: !u.is_admin })
+                }
+              />
+            </div>
+          )
+        }
+      />
 
       {profileQ.error && <ErrorNote error={profileQ.error} />}
       {roleMutation.error && <ErrorNote error={roleMutation.error} />}

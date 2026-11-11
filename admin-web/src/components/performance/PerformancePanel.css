@@ -1,27 +1,12 @@
 /* Performance panel (UserDetailPage) — design handoff:
    assets/design_handoff_admin_performance. Light values are the handoff's
    exact tokens; dark mode maps the same roles onto the admin's dark
-   surfaces. Body text keeps the admin's sans; Oswald is for numbers and
-   display titles only (handoff §Design Tokens). */
-
-@font-face {
-  font-family: 'Oswald';
-  src: url('/fonts/oswald/oswald-500.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Oswald';
-  src: url('/fonts/oswald/oswald-600.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
+   surfaces. One system font for everything, numbers included (design
+   phase 1: one font everywhere). */
 
 /* Dark (admin default). */
 .pf-root {
-  --pf-display: 'Oswald', var(--font);
+  --pf-display: var(--font);
   --pf-surface: var(--surface);
   --pf-ink: rgba(255, 255, 255, 0.9);
   --pf-muted: rgba(255, 255, 255, 0.58);
@@ -114,16 +99,16 @@
   font-family: var(--pf-display);
   font-weight: 600;
   font-size: 11px;
-  letter-spacing: 3px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--pf-coral);
 }
 .pf-heading {
   margin: 0;
   font-family: var(--pf-display);
-  font-weight: 600;
-  font-size: 26px;
-  letter-spacing: 0.3px;
+  font-weight: 700;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.01em;
   line-height: 1.1;
 }
 .pf-head-side {
@@ -221,7 +206,7 @@
 .pf-cell-title {
   margin: 0;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--pf-ink);
 }
 .pf-cell-sub {
@@ -364,7 +349,7 @@
   flex-wrap: wrap;
 }
 .pf-tile-value {
-  font-size: 26px;
+  font-size: 24px;
 }
 .pf-delta {
   font-size: 12px;
@@ -453,7 +438,7 @@
   font-family: var(--pf-display);
   font-weight: 600;
   font-size: 11px;
-  letter-spacing: 2.5px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 .pf-world-delta {
@@ -461,10 +446,10 @@
   font-weight: 600;
 }
 .pf-world-value {
-  font-size: 40px;
+  font-size: 24px;
 }
 .pf-world-value .pf-unit {
-  font-size: 15px;
+  font-size: 16px;
   margin-left: 4px;
 }
 .pf-world-spark {
@@ -481,7 +466,7 @@
   gap: 2px;
 }
 .pf-figure-side .pf-num {
-  font-size: 28px;
+  font-size: 24px;
 }
 .pf-figure-note {
   font-size: 12px;
@@ -532,7 +517,7 @@
   flex-wrap: wrap;
 }
 .pf-summary .pf-num {
-  font-size: 28px;
+  font-size: 24px;
 }
 .pf-summary-note {
   font-size: 13px;
@@ -931,7 +916,7 @@
     font-size: 11px;
     font-family: var(--pf-display);
     font-weight: 600;
-    letter-spacing: 2.5px;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--pf-coral);
   }

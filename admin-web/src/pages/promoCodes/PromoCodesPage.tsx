@@ -4,6 +4,7 @@ import { fetchPromoCodes, savePromoCode, PROMO_OFFERS, type AdminPromoCode, type
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, CopyCode, ErrorNote } from '@/components/bits';
 import { formatDate } from '@/shared/constants';
+import { PageHeader } from '@/components/layout';
 
 interface FormState {
   create: boolean;
@@ -158,16 +159,15 @@ export function PromoCodesPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Promo codes</h1>
-          <div className="sub">
-            Android only. People type the code in Settings → Redeem a Code and buy the chosen Google Play offer.
-            iPhone codes are made in App Store Connect. "Bought" is reported by the app; access itself always comes from the store.
-          </div>
-        </div>
-        <button className="btn primary" onClick={() => { setForm(emptyForm()); setFormError(null); }}>New code</button>
-      </div>
+      <PageHeader
+        title="Promo codes"
+        sub={<>Android only. People type the code in Settings → Redeem a Code and buy the chosen Google Play offer. iPhone codes are made in App Store Connect. "Bought" is reported by the app; access itself always comes from the store.</>}
+        actions={
+          <>
+            <button className="btn primary" onClick={() => { setForm(emptyForm()); setFormError(null); }}>New code</button>
+          </>
+        }
+      />
 
       {codesQ.error && <ErrorNote error={codesQ.error} />}
       {toggleMutation.error && <ErrorNote error={toggleMutation.error} />}

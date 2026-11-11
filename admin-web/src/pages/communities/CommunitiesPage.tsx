@@ -4,6 +4,7 @@ import type { CommunityRow } from '@/shared/types';
 import { formatDate } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, CopyCode, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 const COLUMNS: Column<CommunityRow>[] = [
   {
@@ -51,14 +52,10 @@ export function CommunitiesPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Communities</h1>
-          <div className="sub">
-            Join codes are admin-only — they never reach the app clients.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Communities"
+        sub="Join codes are admin-only — they never reach the app clients."
+      />
       {error && <ErrorNote error={error} />}
       <div className="panel">
         <DataTable

@@ -5,6 +5,7 @@ import { fetchAiCoachReports, markAiCoachReportReviewed } from '@/api/aiCoachRep
 import type { AiCoachMessageReportRow } from '@/shared/types';
 import { formatDateTime } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 const REASON_LABEL: Record<AiCoachMessageReportRow['reason'], string> = {
   inaccurate: 'Inaccurate',
@@ -29,23 +30,22 @@ export function AiCoachReportsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>AI Coach reports</h1>
-          <div className="sub">
-            User-flagged AI Coach responses — App Store guideline 4.7.1 requires a way to
-            report chatbot content and respond to it. Mark reviewed once you've looked into one.
-          </div>
-        </div>
-        <label className="row" style={{ gap: 6, fontSize: 13 }}>
-          <input
-            type="checkbox"
-            checked={includeReviewed}
-            onChange={(e) => setIncludeReviewed(e.target.checked)}
-          />
-          Show reviewed
-        </label>
-      </div>
+      <PageHeader
+        title="AI Coach reports"
+        sub="User-flagged AI Coach responses — App Store guideline 4.7.1 requires a way to report chatbot content and respond to it. Mark reviewed once you've looked into one."
+        actions={
+          <>
+            <label className="row" style={{ gap: 6, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={includeReviewed}
+                onChange={(e) => setIncludeReviewed(e.target.checked)}
+              />
+              Show reviewed
+            </label>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {reviewMutation.error && <ErrorNote error={reviewMutation.error} />}

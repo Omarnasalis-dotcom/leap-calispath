@@ -12,6 +12,7 @@ import type {
 import { formatDate, formatDateTime } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, CopyCode, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 const CONFIG_COLUMNS: Column<TournamentConfigRow>[] = [
   {
@@ -112,15 +113,10 @@ export function TournamentsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Tournaments</h1>
-          <div className="sub">
-            Read-only for now — create, delete and code generation stay on the mobile
-            admin screen.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Tournaments"
+        sub="Read-only for now — create, delete and code generation stay on the mobile admin screen."
+      />
 
       {configsQ.error && <ErrorNote error={configsQ.error} />}
 

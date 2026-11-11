@@ -3,6 +3,7 @@ import { fetchInviteRequests, setInviteRequestStatus } from '@/api/waitlist';
 import type { InviteRequestRow } from '@/shared/types';
 import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 function statusTone(status: string | null): 'ok' | 'warn' | undefined {
   if (status === 'approved') return 'ok';
@@ -25,15 +26,10 @@ export function WaitlistPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Waitlist</h1>
-          <div className="sub">
-            Invite requests from the website — first admin surface this table has ever
-            had.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Waitlist"
+        sub="Invite requests from the website — first admin surface this table has ever had."
+      />
 
       {error && <ErrorNote error={error} />}
       {statusMutation.error && <ErrorNote error={statusMutation.error} />}

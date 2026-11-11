@@ -11,6 +11,7 @@ import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
 import { ProgressDrawer } from './ProgressDrawer';
 import { PerformancePanel } from '@/components/performance/PerformancePanel';
+import { PageHeader } from '@/components/layout';
 
 function KvList({ entries }: { entries: Array<[string, number]> }) {
   return (
@@ -121,31 +122,33 @@ export function CoachingAnalyticsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Coaching analytics</h1>
-          <div className="sub">Templates, assignments and adherence across every coach.</div>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <span className="label">Source</span>
-          <div className="seg" role="group" aria-label="Source">
-            {SOURCE_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                className="seg-item"
-                aria-pressed={source === opt.value}
-                onClick={() => {
-                  setSource(opt.value);
-                  setExpandedId(null);
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Coaching analytics"
+        sub="Templates, assignments and adherence across every coach."
+        actions={
+          <>
+            <div className="row" style={{ gap: 8 }}>
+              <span className="label">Source</span>
+              <div className="seg" role="group" aria-label="Source">
+                {SOURCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    className="seg-item"
+                    aria-pressed={source === opt.value}
+                    onClick={() => {
+                      setSource(opt.value);
+                      setExpandedId(null);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 200 }} />}

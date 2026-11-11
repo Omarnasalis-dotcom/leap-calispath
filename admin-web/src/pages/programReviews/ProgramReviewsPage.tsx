@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchProgramReviews, type ProgramReviewRow } from '@/api/programReviews';
 import { formatDateTime } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 const HOUR = 60 * 60 * 1000;
 const PROMISED_HOURS = 48;
@@ -52,19 +53,19 @@ export function ProgramReviewsPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Program reviews</h1>
-          <div className="sub">
-            Weeks built with the AI Coach that athletes asked the team to check. Athletes are told usually within 48 hours.
-          </div>
-        </div>
-        <select className="field" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} style={{ width: 'auto' }}>
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
+      <PageHeader
+        title="Program reviews"
+        sub="Weeks built with the AI Coach that athletes asked the team to check. Athletes are told usually within 48 hours."
+        actions={
+          <>
+            <select className="field" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} style={{ width: 'auto' }}>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 200 }} />}

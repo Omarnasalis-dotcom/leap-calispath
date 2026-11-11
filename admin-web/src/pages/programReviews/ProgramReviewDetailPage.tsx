@@ -15,6 +15,7 @@ import {
 import { fetchExercises, type Exercise } from '@/api/coaching';
 import { formatDateTime } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 // Keys the app shows in the athlete's language.
 const REASONS: Array<[string, string]> = [
@@ -497,15 +498,16 @@ export function ProgramReviewDetailPage() {
   const { athlete } = review;
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{athlete.display_name || 'Athlete'}: week {review.week_number}</h1>
-          <div className="sub">
-            {review.program_name} · asked {formatDateTime(review.requested_at)} · <Link to={`/users/${review.user_id}`}>View user</Link>
-          </div>
-        </div>
-        <Badge tone={editable ? 'warn' : 'ok'}>{review.status}</Badge>
-      </div>
+      <PageHeader
+        back={{ label: 'Program reviews', to: '/program-reviews' }}
+        title={<>{athlete.display_name || 'Athlete'}: week {review.week_number}</>}
+        sub={<>{review.program_name} · asked {formatDateTime(review.requested_at)} · <Link to={`/users/${review.user_id}`}>View user</Link></>}
+        actions={
+          <>
+            <Badge tone={editable ? 'warn' : 'ok'}>{review.status}</Badge>
+          </>
+        }
+      />
 
       <section className="panel">
         <div className="panel-head"><span className="label">What they said</span></div>

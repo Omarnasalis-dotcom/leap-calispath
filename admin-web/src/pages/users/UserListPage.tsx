@@ -6,6 +6,7 @@ import type { AdminUserRow } from '@/shared/types';
 import { tierName, formatDate, subscriptionTierLabel, SUBSCRIPTION_TIER_COLORS } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ErrorNote } from '@/components/bits';
+import { PageHeader } from '@/components/layout';
 
 const PAGE_SIZE = 50;
 
@@ -120,34 +121,32 @@ export function UserListPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Users</h1>
-          <div className="sub num">
-            {total.toLocaleString()} warrior{total === 1 ? '' : 's'}
-          </div>
-        </div>
-        <form
-          className="row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(0);
-            setQuery(input);
-          }}
-        >
-          <input
-            className="field"
-            style={{ width: 260 }}
-            placeholder="Search name or email…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            aria-label="Search users"
-          />
-          <button className="btn" type="submit">
-            Search
-          </button>
-        </form>
-      </div>
+      <PageHeader
+        title="Users"
+        sub={<span className="num">{total.toLocaleString()} warrior{total === 1 ? '' : 's'}</span>}
+        actions={
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPage(0);
+              setQuery(input);
+            }}
+          >
+            <input
+              className="field"
+              style={{ width: 260 }}
+              placeholder="Search name or email…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              aria-label="Search users"
+            />
+            <button className="btn" type="submit">
+              Search
+            </button>
+          </form>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
 

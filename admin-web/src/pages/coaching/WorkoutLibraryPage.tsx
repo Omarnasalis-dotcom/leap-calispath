@@ -38,6 +38,7 @@ import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { BlockCard, fromClipboardBlock } from './builder/BlockCard';
 import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './builder/types';
+import { PageHeader } from '@/components/layout';
 
 // Admin-only page (wrapped in RequireAdmin in App.tsx, unlike the mobile-app
 // LIBRARY tab equivalent for Programs, which is visible to every coach and
@@ -919,30 +920,30 @@ export function WorkoutLibraryPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Workout content</h1>
-          <div className="sub num">{data ? `${data.length} items` : ' '}</div>
-        </div>
-        <div className="row">
-          <select className="field" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as any)} aria-label="Filter by kind">
-            <option value="all">All kinds</option>
-            {KIND_OPTIONS.map((k) => (
-              <option key={k} value={k}>{k.replace('_', ' ')}</option>
-            ))}
-          </select>
-          <select className="field" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} aria-label="Filter by status">
-            <option value="all">All statuses</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <ImportWorkoutModal />
-          <button className="btn primary" onClick={() => unsaved.confirmDiscard(() => openDraft(newDraft()))}>
-            + New workout
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Workout content"
+        sub={<span className="num">{data ? `${data.length} items` : ' '}</span>}
+        actions={
+          <>
+            <select className="field" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as any)} aria-label="Filter by kind">
+              <option value="all">All kinds</option>
+              {KIND_OPTIONS.map((k) => (
+                <option key={k} value={k}>{k.replace('_', ' ')}</option>
+              ))}
+            </select>
+            <select className="field" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} aria-label="Filter by status">
+              <option value="all">All statuses</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <ImportWorkoutModal />
+            <button className="btn primary" onClick={() => unsaved.confirmDiscard(() => openDraft(newDraft()))}>
+              + New workout
+            </button>
+          </>
+        }
+      />
 
       {error && <ErrorNote error={error} />}
       {loadMutation.error && <ErrorNote error={loadMutation.error} />}

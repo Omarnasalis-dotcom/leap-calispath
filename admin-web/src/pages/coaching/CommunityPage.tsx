@@ -14,6 +14,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, CopyCode, ErrorNote } from '@/components/bits';
 import { AssignForm } from './AssignForm';
+import { PageHeader } from '@/components/layout';
 
 interface MemberRow {
   id: string;
@@ -199,69 +200,73 @@ export function CommunityPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Community</h1>
-          <div className="sub">
+      <PageHeader
+        title="Community"
+        sub={
+          <>
             {communitiesQ.data && communitiesQ.data.length > 0
-              ? communitiesQ.data.map((c) => (
-                  <span key={c.id} className="row" style={{ gap: 6, display: 'inline-flex' }}>
-                    {c.name} · join code <CopyCode value={c.join_code} />
-                  </span>
-                ))
-              : 'Members who’ve joined your community.'}
-          </div>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <input
-            className="field"
-            placeholder="Filter members…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter members"
-          />
-          {(isCoach || isAdmin) && (
-            <button className="btn" disabled={isCoachPaused} onClick={() => setShowAssistants((s) => !s)}>
-              {showAssistants ? 'Close' : 'Assistants'}
-            </button>
-          )}
-          {isAdmin && (
-            <select
-              className="field"
-              value={coachId}
-              onChange={(e) => {
-                setCoachId(e.target.value);
-                setAssigningTo(null);
-                setShowAssistants(false);
-              }}
-              aria-label="Viewing community for"
-            >
-              {coachesQ.data?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.display_name || c.id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          )}
-          {!isAdmin && !isCoach && assistingCoachIds.length > 1 && (
-            <select
-              className="field"
-              value={coachId}
-              onChange={(e) => {
-                setCoachId(e.target.value);
-                setAssigningTo(null);
-              }}
-              aria-label="Viewing community for"
-            >
-              {assistedCoachesQ.data?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.display_name || c.id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </div>
+                          ? communitiesQ.data.map((c) => (
+                              <span key={c.id} className="row" style={{ gap: 6, display: 'inline-flex' }}>
+                                {c.name} · join code <CopyCode value={c.join_code} />
+                              </span>
+                            ))
+                          : 'Members who’ve joined your community.'}
+          </>
+        }
+        actions={
+          <>
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                className="field"
+                placeholder="Filter members…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Filter members"
+              />
+              {(isCoach || isAdmin) && (
+                <button className="btn" disabled={isCoachPaused} onClick={() => setShowAssistants((s) => !s)}>
+                  {showAssistants ? 'Close' : 'Assistants'}
+                </button>
+              )}
+              {isAdmin && (
+                <select
+                  className="field"
+                  value={coachId}
+                  onChange={(e) => {
+                    setCoachId(e.target.value);
+                    setAssigningTo(null);
+                    setShowAssistants(false);
+                  }}
+                  aria-label="Viewing community for"
+                >
+                  {coachesQ.data?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_name || c.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!isAdmin && !isCoach && assistingCoachIds.length > 1 && (
+                <select
+                  className="field"
+                  value={coachId}
+                  onChange={(e) => {
+                    setCoachId(e.target.value);
+                    setAssigningTo(null);
+                  }}
+                  aria-label="Viewing community for"
+                >
+                  {assistedCoachesQ.data?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_name || c.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </>
+        }
+      />
 
       {isCoachPaused && (
         <div className="notice">
