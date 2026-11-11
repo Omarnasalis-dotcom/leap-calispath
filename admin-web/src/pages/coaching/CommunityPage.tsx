@@ -272,7 +272,7 @@ export function CommunityPage() {
       {communitiesQ.error && <ErrorNote error={communitiesQ.error} />}
       {membersQ.error && <ErrorNote error={membersQ.error} />}
 
-      {showAssistants && isCoach && <AssistantsPanel coachId={coachId} />}
+      {showAssistants && (isCoach || isAdmin) && coachId && <AssistantsPanel coachId={coachId} />}
 
       {assigningTo && (
         <AssignForm

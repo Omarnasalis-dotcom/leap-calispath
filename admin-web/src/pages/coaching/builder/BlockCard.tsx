@@ -55,6 +55,7 @@ function toClipboardBlock(block: BuilderBlock): ClipboardBlock {
       reps: e.reps,
       rest_seconds: e.rest_seconds,
       hold_seconds: e.hold_seconds,
+      is_weighted: e.is_weighted,
       notes: e.notes,
     })),
   };
@@ -252,7 +253,17 @@ export function BlockCard({
             <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
               <ConceptWizard
                 metadata={block.metadata}
-                onChange={(m) => onChange({ metadata: m })}
+                onChange={(m) =>
+                  // Ticking "Weighted" for the block sets it on every
+                  // exercise; any other setting leaves each exercise's own
+                  // weighted flag as it is.
+                  !!m.is_weighted !== !!block.metadata.is_weighted
+                    ? onChange({
+                        metadata: m,
+                        exercises: block.exercises.map((x) => ({ ...x, is_weighted: !!m.is_weighted })),
+                      })
+                    : onChange({ metadata: m })
+                }
                 exerciseCount={block.exercises.length}
                 readOnly={readOnly}
               />
@@ -310,7 +321,16 @@ export function BlockCard({
                 onChange({
                   exercises: [
                     ...block.exercises,
-                    { id: clientKey(), exercise_id: '', sets: 3, reps: null, rest_seconds: null, hold_seconds: null, notes: '' },
+                    {
+                      id: clientKey(),
+                      exercise_id: '',
+                      sets: 3,
+                      reps: null,
+                      rest_seconds: null,
+                      hold_seconds: null,
+                      is_weighted: !!block.metadata.is_weighted,
+                      notes: '',
+                    },
                   ],
                 })
               }

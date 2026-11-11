@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   applyTemplateToExistingClient,
+  fetchAssignedTemplateIds,
   fetchProgramTemplates,
   type ClientProgramWriteMode,
 } from '@/api/coaching';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
+import { isMasterTemplate } from '@/shared/constants';
 
 const MODE_LABELS: Record<ClientProgramWriteMode, string> = {
   append: 'Add as new weeks (keeps everything)',
@@ -40,10 +42,12 @@ export function ApplyTemplateForm({
   );
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
-  // Library templates are admin-managed and admin-assigned only.
-  const assignableTemplates = isAdmin
-    ? templatesQ.data
-    : templatesQ.data?.filter((t) => !t.is_library_template);
+  const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
+  // Master templates only (plus published library templates for admins),
+  // never another athlete's program copy.
+  const assignableTemplates = templatesQ.data?.filter(
+    (t) => isMasterTemplate(t, assignedIdsQ.data) || (isAdmin && t.is_library_template && t.status === 'published'),
+  );
 
   const applyMutation = useMutation({
     mutationFn: () => applyTemplateToExistingClient(mode, warriorProgramId, sourceTemplateId),

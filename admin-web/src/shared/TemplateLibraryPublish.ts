@@ -6,6 +6,7 @@
 // coverage) before actually flipping status to 'published'.
 
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAll';
 import { BlockConceptParser } from './BlockConceptParser';
 import type { TierRange } from './templateLibrary';
 
@@ -40,14 +41,15 @@ export async function validateForPublish(templateId: string): Promise<PublishVal
     return { valid: false, error: 'Set a goal before publishing' };
   }
 
-  const { data: blocks, error: blocksError } = await supabase
-    .from('program_blocks')
-    .select('id, notes')
-    .eq('template_id', templateId);
-  if (blocksError) {
+  let blocks: Array<{ id: string; notes: string | null }>;
+  try {
+    blocks = await fetchAllRows<{ id: string; notes: string | null }>((from, to) =>
+      supabase.from('program_blocks').select('id, notes').eq('template_id', templateId).order('id').range(from, to),
+    );
+  } catch {
     return { valid: false, error: 'Failed to load blocks for validation.' };
   }
-  if (!blocks || blocks.length === 0) {
+  if (blocks.length === 0) {
     return { valid: false, error: 'Template has no blocks' };
   }
 

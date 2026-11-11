@@ -1,4 +1,11 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+} from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
@@ -87,12 +94,11 @@ function RequireAdmin() {
   return <Outlet />;
 }
 
-export function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
+// A data router (not <BrowserRouter>) so editors can block navigation while
+// they have unsaved changes (useBlocker, see components/UnsavedChanges.tsx).
+const router = createBrowserRouter(
+  createRoutesFromElements(
+          <>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<Gate />}>
               <Route element={<RequireAdmin />}>
@@ -150,8 +156,15 @@ export function App() {
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
-          </Routes>
-        </BrowserRouter>
+          </>,
+  ),
+);
+
+export function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RouterProvider router={router} />
       </AuthProvider>
     </QueryClientProvider>
   );

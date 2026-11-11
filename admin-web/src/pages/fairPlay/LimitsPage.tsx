@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ErrorNote } from '@/components/bits';
 import { fetchLimits, fetchSettings, updateLimit, updateSetting, type FairPlayLimit } from '@/api/fairPlay';
@@ -50,7 +50,7 @@ export function LimitsPage() {
           {(settingsQ.data ?? []).map((s) => (
             <div key={s.key} className="row" style={{ justifyContent: 'space-between' }}>
               <span>{SETTING_LABEL[s.key] ?? s.key}</span>
-              <NumberCell value={s.value} onSave={(v) => saveSetting.mutate({ key: s.key, value: v })} />
+              <NumberCell value={s.value} onSave={(v) => saveSetting.mutateAsync({ key: s.key, value: v })} />
             </div>
           ))}
         </div>
@@ -80,10 +80,10 @@ export function LimitsPage() {
                           {l.kind === 'ceiling_fraction' ? '(fraction of its ceiling)' : l.kind === 'bw_ratio' ? '(× bodyweight)' : ''}
                         </span>
                       </td>
-                      <td><NumberCell value={l.flag_value} onSave={(v) => saveLimit.mutate({ area, movement: l.movement_id, patch: { flag_value: v } })} /></td>
-                      <td><NumberCell value={l.strong_value} onSave={(v) => saveLimit.mutate({ area, movement: l.movement_id, patch: { strong_value: v } })} /></td>
-                      {area === 'power' && <td><NumberCell value={l.flag_kg ?? 0} onSave={(v) => saveLimit.mutate({ area, movement: l.movement_id, patch: { flag_kg: v } })} /></td>}
-                      {area === 'power' && <td><NumberCell value={l.strong_kg ?? 0} onSave={(v) => saveLimit.mutate({ area, movement: l.movement_id, patch: { strong_kg: v } })} /></td>}
+                      <td><NumberCell value={l.flag_value} onSave={(v) => saveLimit.mutateAsync({ area, movement: l.movement_id, patch: { flag_value: v } })} /></td>
+                      <td><NumberCell value={l.strong_value} onSave={(v) => saveLimit.mutateAsync({ area, movement: l.movement_id, patch: { strong_value: v } })} /></td>
+                      {area === 'power' && <td><NumberCell value={l.flag_kg ?? 0} onSave={(v) => saveLimit.mutateAsync({ area, movement: l.movement_id, patch: { flag_kg: v } })} /></td>}
+                      {area === 'power' && <td><NumberCell value={l.strong_kg ?? 0} onSave={(v) => saveLimit.mutateAsync({ area, movement: l.movement_id, patch: { strong_kg: v } })} /></td>}
                     </tr>
                   ))}
                 </tbody>
@@ -96,8 +96,11 @@ export function LimitsPage() {
   );
 }
 
-function NumberCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+/** Saves on blur. A failed save puts the stored value back, so the field
+ * never shows a number that isn't really in use. */
+function NumberCell({ value, onSave }: { value: number; onSave: (v: number) => Promise<unknown> }) {
   const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
   return (
     <input
       className="field"
@@ -107,8 +110,9 @@ function NumberCell({ value, onSave }: { value: number; onSave: (v: number) => v
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
         const v = Number(draft);
-        if (Number.isFinite(v) && v >= 0 && v !== Number(value)) onSave(v);
-        else setDraft(String(value));
+        if (Number.isFinite(v) && v >= 0 && v !== Number(value)) {
+          onSave(v).catch(() => setDraft(String(value)));
+        } else setDraft(String(value));
       }}
     />
   );

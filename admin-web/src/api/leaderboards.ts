@@ -30,24 +30,25 @@ export async function fetchOneMMWellRounded() {
   return (data ?? []) as Array<Record<string, unknown>>;
 }
 
-export async function fetchPowerLeaderboard() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, power_points, power_tier, country')
-    .gt('power_points', 0)
-    .order('power_points', { ascending: false })
-    .limit(100);
+/** The app's own Power board for one level (1 Voltaic, 2 Ampere, 3 Tesla):
+ * hidden athletes are already left out, so it matches what athletes see.
+ * (Reading profiles directly showed people Fair Play had hidden.) */
+export async function fetchPowerLeaderboard(tier: number): Promise<Array<Record<string, unknown>>> {
+  if (tier === 0) return fetchPowerLeaderboardAllLevels();
+  const { data, error } = await supabase.rpc('get_power_tier_board', {
+    p_tier: tier,
+    p_community_id: null,
+  });
   if (error) throw new Error(error.message);
   return (data ?? []) as Array<Record<string, unknown>>;
 }
 
-export async function fetchGloryLeaderboard() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, glory_score, strength_tier, country')
-    .gt('glory_score', 0)
-    .order('glory_score', { ascending: false })
-    .limit(100);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Array<Record<string, unknown>>;
+/** All three level boards in one list, highest points first and re-ranked;
+ * each row keeps its level. Still the app's boards, so hidden athletes stay out. */
+async function fetchPowerLeaderboardAllLevels(): Promise<Array<Record<string, unknown>>> {
+  const boards = await Promise.all([1, 2, 3].map((level) => fetchPowerLeaderboard(level)));
+  return boards
+    .flatMap((rows, i) => rows.map((r): Record<string, unknown> => ({ ...r, power_level: i + 1 })))
+    .sort((a, b) => Number(b.power_points ?? 0) - Number(a.power_points ?? 0))
+    .map((r, i) => ({ ...r, rank: i + 1 }));
 }

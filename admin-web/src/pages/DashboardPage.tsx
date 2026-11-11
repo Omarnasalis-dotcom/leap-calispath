@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import './DashboardPage.css';
@@ -11,7 +11,7 @@ import {
   fetchWorldParticipation,
 } from '@/api/dashboard';
 import { fetchCoachingAnalytics } from '@/api/coaching';
-import { CHALLENGE_GROUPS, DISCIPLINE_SERIES, formatDate, formatRelativeTime } from '@/shared/constants';
+import { CHALLENGE_GROUPS, DISCIPLINE_SERIES, formatDate, formatRelativeTime, isSystemCoach } from '@/shared/constants';
 import { ErrorNote, Badge } from '@/components/bits';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { WarriorGrowthChart } from '@/components/dashboard/WarriorGrowthChart';
@@ -58,6 +58,31 @@ function WeekRow({
 
 const WEEK_RANGE_OPTIONS = [1, 4, 8, 12, 26];
 
+/** A panel's body: the chart, its load error with Retry, or a skeleton. A
+ * failed query used to leave the skeleton up forever. */
+function PanelBody({
+  query,
+  height,
+  children,
+}: {
+  query: { error: unknown; isError: boolean; refetch: () => unknown; isFetching: boolean };
+  height: number;
+  children: ReactNode | null;
+}) {
+  if (children) return <>{children}</>;
+  if (query.isError) {
+    return (
+      <div className="row" style={{ gap: 8, minHeight: height, alignItems: 'center' }}>
+        <ErrorNote error={query.error} />
+        <button className="btn small" disabled={query.isFetching} onClick={() => void query.refetch()}>
+          {query.isFetching ? 'Retrying…' : 'Retry'}
+        </button>
+      </div>
+    );
+  }
+  return <div className="skeleton" style={{ height }} />;
+}
+
 export function DashboardPage() {
   // Shared filters for Warrior growth / Weekly activity / Retention /
   // World participation — the other panels (stat strip, Coach engagement,
@@ -70,30 +95,38 @@ export function DashboardPage() {
     queryKey: ['dashboard-overview'],
     queryFn: fetchDashboardOverview,
   });
-  const { data: trends } = useQuery({
+  const trendsQ = useQuery({
     queryKey: ['dashboard-trends', weeksBack, groupId],
     queryFn: () => fetchDashboardTrends(weeksBack, groupId),
   });
-  const { data: coaching } = useQuery({
+  const coachingQ = useQuery({
     queryKey: ['coaching-analytics'],
     queryFn: () => fetchCoachingAnalytics(),
   });
-  const { data: retention } = useQuery({
+  const retentionQ = useQuery({
     queryKey: ['retention-curve', weeksBack, groupId],
     queryFn: () => fetchRetentionCurve(weeksBack, groupId),
   });
-  const { data: tierDistribution } = useQuery({
+  const tierQ = useQuery({
     queryKey: ['tier-distribution'],
     queryFn: fetchTierDistribution,
   });
-  const { data: worlds } = useQuery({
+  const worldsQ = useQuery({
     queryKey: ['world-participation', groupId],
     queryFn: () => fetchWorldParticipation(groupId),
   });
-  const { data: pulse } = useQuery({
+  const pulseQ = useQuery({
     queryKey: ['recent-pulse', pulseHours],
     queryFn: () => fetchRecentPulse(pulseHours),
   });
+  const trends = trendsQ.data;
+  const retention = retentionQ.data;
+  const tierDistribution = tierQ.data;
+  const worlds = worldsQ.data;
+  const pulse = pulseQ.data;
+  // Leap (self-selected library programs) and AI Coach are system profiles,
+  // not coaches.
+  const humanCoaches = coachingQ.data?.coach_leaderboard.filter((c) => !isSystemCoach(c.coach_id));
 
   const worldBars = worlds
     ? DISCIPLINE_SERIES.map((d) => ({
@@ -143,11 +176,11 @@ export function DashboardPage() {
           hint="total accounts"
           delta={data?.total_users_delta}
         />
-        <StatCard label="Assessed" value={data?.assessed_users} hint="completed onboarding" />
+        <StatCard label="Assessed" value={data?.assessed_users} hint="took the strength assessment" />
         <StatCard
-          label="Active this week"
+          label="Active since Saturday"
           value={data?.active_this_week}
-          hint="logged anything since Saturday"
+          hint="challenge week (Sat–Fri) · Growth's weekly active counts the last 7 days"
           delta={data?.active_this_week_delta}
         />
         <StatCard label="Coaches" value={data?.coaches} />
@@ -172,11 +205,9 @@ export function DashboardPage() {
           </select>
         </div>
         <div className="panel-body">
-          {pulse ? (
-            <RecentPulseChart pulse={pulse} />
-          ) : (
-            <div className="skeleton" style={{ height: 140 }} />
-          )}
+          <PanelBody query={pulseQ} height={140}>
+            {pulse ? <RecentPulseChart pulse={pulse} /> : null}
+          </PanelBody>
         </div>
       </section>
 
@@ -221,11 +252,9 @@ export function DashboardPage() {
             </span>
           </div>
           <div className="panel-body">
-            {trends ? (
-              <WarriorGrowthChart weeks={trends} />
-            ) : (
-              <div className="skeleton" style={{ height: 180 }} />
-            )}
+            <PanelBody query={trendsQ} height={180}>
+              {trends ? <WarriorGrowthChart weeks={trends} /> : null}
+            </PanelBody>
           </div>
         </section>
 
@@ -235,11 +264,9 @@ export function DashboardPage() {
             <span className="label">warriors with activity</span>
           </div>
           <div className="panel-body">
-            {worldBars ? (
-              <WorldParticipationChart bars={worldBars} />
-            ) : (
-              <div className="skeleton" style={{ height: 90 }} />
-            )}
+            <PanelBody query={worldsQ} height={90}>
+              {worldBars ? <WorldParticipationChart bars={worldBars} /> : null}
+            </PanelBody>
           </div>
         </section>
       </div>
@@ -251,25 +278,21 @@ export function DashboardPage() {
             <span className="label">active warriors</span>
           </div>
           <div className="panel-body">
-            {weeklyActivityWeeks ? (
-              <WeeklyActivityChart weeks={weeklyActivityWeeks} />
-            ) : (
-              <div className="skeleton" style={{ height: 140 }} />
-            )}
+            <PanelBody query={trendsQ} height={140}>
+              {weeklyActivityWeeks ? <WeeklyActivityChart weeks={weeklyActivityWeeks} /> : null}
+            </PanelBody>
           </div>
         </section>
 
         <section className="panel dv-chart-panel" style={{ flex: '1 1 380px' }}>
           <div className="panel-head">
             <h2>Coach engagement</h2>
-            <span className="label">clients active</span>
+            <span className="label">human coaches · clients active this week</span>
           </div>
           <div className="panel-body">
-            {coaching ? (
-              <CoachEngagementChart coaches={coaching.coach_leaderboard} />
-            ) : (
-              <div className="skeleton" style={{ height: 90 }} />
-            )}
+            <PanelBody query={coachingQ} height={90}>
+              {humanCoaches ? <CoachEngagementChart coaches={humanCoaches} /> : null}
+            </PanelBody>
           </div>
         </section>
       </div>
@@ -280,11 +303,9 @@ export function DashboardPage() {
           <span className="label">% still active by weeks since signup</span>
         </div>
         <div className="panel-body">
-          {retention ? (
-            <RetentionCurveChart points={retention} />
-          ) : (
-            <div className="skeleton" style={{ height: 180 }} />
-          )}
+          <PanelBody query={retentionQ} height={180}>
+            {retention ? <RetentionCurveChart points={retention} /> : null}
+          </PanelBody>
         </div>
       </section>
 
@@ -294,11 +315,9 @@ export function DashboardPage() {
           <span className="label">assessed warriors</span>
         </div>
         <div className="panel-body">
-          {tierDistribution ? (
-            <TierDistributionChart rows={tierDistribution} />
-          ) : (
-            <div className="skeleton" style={{ height: 140 }} />
-          )}
+          <PanelBody query={tierQ} height={140}>
+            {tierDistribution ? <TierDistributionChart rows={tierDistribution} /> : null}
+          </PanelBody>
         </div>
       </section>
 

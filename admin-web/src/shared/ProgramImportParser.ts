@@ -1,6 +1,7 @@
 // Verbatim mirror of src/lib/ProgramImportParser.ts — keep in sync manually.
 
 import { supabase } from '@/lib/supabase';
+import { fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser } from './BlockConceptParser';
 
 export interface ImportValidationResult {
@@ -50,12 +51,10 @@ export async function resolveImportedExercises(blocks: any[], coachId: string): 
   const resolved = new Map<string, string>();
 
   if (idsReferenced.size > 0) {
-    const { data, error } = await supabase
-      .from('exercise_library')
-      .select('id')
-      .in('id', Array.from(idsReferenced));
-    if (error) throw error;
-    const validIds = new Set((data || []).map(r => r.id));
+    const data = await fetchByIds<{ id: string }>(Array.from(idsReferenced), (chunk, from, to) =>
+      supabase.from('exercise_library').select('id').in('id', chunk).order('id').range(from, to),
+    );
+    const validIds = new Set(data.map(r => r.id));
     idsReferenced.forEach(id => {
       if (validIds.has(id)) resolved.set(`id:${id}`, id);
     });

@@ -8,6 +8,7 @@
 // warrior or logs attached, and an import here always spans every week in
 // the file (not offset onto an existing assignment's next week).
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser, type ConceptMetadata } from './BlockConceptParser';
 
 export interface MasterTemplateExportBlock {
@@ -24,6 +25,8 @@ export interface MasterTemplateExportBlock {
     reps: string;
     rest_seconds: string;
     hold_seconds: string;
+    /** Web export addition (mobile's export omits it; import treats missing as false). */
+    is_weighted?: boolean;
   }>;
 }
 
@@ -42,25 +45,27 @@ export async function fetchMasterTemplateExportPayload(
   templateName: string,
   description: string,
 ): Promise<MasterTemplateExportPayload> {
-  const { data: blocksData, error: blocksError } = await supabase
-    .from('program_blocks')
-    .select('id, name, notes, order_index, week_number')
-    .eq('template_id', templateId)
-    .order('week_number', { ascending: true })
-    .order('order_index', { ascending: true });
-  if (blocksError) throw new Error(blocksError.message);
+  const blocksData = await fetchAllRows<{ id: string; name: string | null; notes: string | null; order_index: number | null; week_number: number | null }>(
+    (from, to) =>
+      supabase
+        .from('program_blocks')
+        .select('id, name, notes, order_index, week_number')
+        .eq('template_id', templateId)
+        .order('week_number', { ascending: true })
+        .order('order_index', { ascending: true })
+        .order('id')
+        .range(from, to),
+  );
 
-  const blockIds = (blocksData ?? []).map((b) => b.id);
-  let allExercisesData: Array<Record<string, unknown>> = [];
-  if (blockIds.length > 0) {
-    const { data, error } = await supabase
+  const allExercisesData = await fetchByIds<Record<string, unknown>>(blocksData.map((b) => b.id), (chunk, from, to) =>
+    supabase
       .from('block_exercises')
-      .select('id, block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, order_index, exercise_library(name)')
-      .in('block_id', blockIds)
-      .order('order_index', { ascending: true });
-    if (error) throw new Error(error.message);
-    allExercisesData = (data ?? []) as Array<Record<string, unknown>>;
-  }
+      .select('id, block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, order_index, exercise_library(name)')
+      .in('block_id', chunk)
+      .order('order_index', { ascending: true })
+      .order('id')
+      .range(from, to),
+  );
 
   const exercisesByBlock = new Map<string, Array<Record<string, unknown>>>();
   for (const ex of allExercisesData) {
@@ -70,7 +75,7 @@ export async function fetchMasterTemplateExportPayload(
     exercisesByBlock.set(blockId, list);
   }
 
-  const blocks: MasterTemplateExportBlock[] = (blocksData ?? []).map((block) => {
+  const blocks: MasterTemplateExportBlock[] = blocksData.map((block) => {
     const parsed = BlockConceptParser.parse(block.notes);
 
     let dayName = block.name ?? '';
@@ -97,6 +102,7 @@ export async function fetchMasterTemplateExportPayload(
         reps: String(ex.reps ?? ''),
         rest_seconds: String(ex.rest_seconds ?? ''),
         hold_seconds: String(ex.hold_seconds ?? ''),
+        is_weighted: !!ex.is_weighted,
       })),
     };
   });
@@ -155,6 +161,7 @@ export function buildMasterTemplateBlocksPayload(data: { blocks: unknown[] }, re
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
             hold_seconds: ex.hold_seconds != null ? parseInt(String(ex.hold_seconds), 10) || null : null,
+            is_weighted: !!ex.is_weighted,
             notes: ex.notes || '',
           };
         })

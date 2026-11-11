@@ -9,7 +9,7 @@ import {
   type AssignmentRow,
 } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
-import { formatDate, LEAP_SYSTEM_PROFILE_ID } from '@/shared/constants';
+import { formatDate, programSource, PROGRAM_SOURCE_LABEL, type ProgramSource } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { AssignForm } from './AssignForm';
@@ -31,11 +31,10 @@ export function ClientsPage() {
   const navigate = useNavigate();
   const [showAssign, setShowAssign] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  // Admin-only slice: a coach-assigned program vs. a warrior who
-  // self-selected a library template (tracked under the fixed Leap system
-  // coach id) — mirrors MyClientsScreen.tsx's admin filters. Meaningless for
-  // a coach session, which only ever sees their own rows anyway.
-  const [originFilter, setOriginFilter] = useState<'all' | 'coach' | 'library'>('all');
+  // Admin-only slice by where the program came from: a coach, a library
+  // template the athlete picked (Leap system id) or the AI Coach (its system
+  // id). Meaningless for a coach session, which only sees their own rows.
+  const [originFilter, setOriginFilter] = useState<'all' | ProgramSource>('all');
   const [coachFilterId, setCoachFilterId] = useState<string>('');
 
   const { data, isLoading, error } = useQuery({
@@ -51,10 +50,8 @@ export function ClientsPage() {
       // roster," not "every assignment I can see," so exclude those.
       return a.coach_id === profile?.id || assistingCoachIds.includes(a.coach_id);
     }
-    const isLibrarySelection = a.coach_id === LEAP_SYSTEM_PROFILE_ID;
-    if (originFilter === 'coach' && isLibrarySelection) return false;
-    if (originFilter === 'library' && !isLibrarySelection) return false;
-    if (coachFilterId && a.coach_id !== coachFilterId) return false;
+    if (originFilter !== 'all' && programSource(a.coach_id) !== originFilter) return false;
+    if (originFilter === 'coach' && coachFilterId && a.coach_id !== coachFilterId) return false;
     return true;
   });
 
@@ -93,8 +90,15 @@ export function ClientsPage() {
       ? [
           {
             key: 'coach',
-            header: 'Coach',
-            render: (a: AssignmentRow) => <span className="dim">{a.coach_name ?? '—'}</span>,
+            header: 'Source',
+            render: (a: AssignmentRow) => {
+              const source = programSource(a.coach_id);
+              return source === 'coach' ? (
+                <span className="dim">{a.coach_name ?? '—'}</span>
+              ) : (
+                <Badge tone={source === 'ai' ? 'accent' : undefined}>{PROGRAM_SOURCE_LABEL[source]}</Badge>
+              );
+            },
           } satisfies Column<AssignmentRow>,
         ]
       : []),
@@ -162,7 +166,7 @@ export function ClientsPage() {
               danger
               disabled={rowPaused || !canDeleteClient}
               title={`Delete ${a.warrior_name ?? 'this warrior'}'s program data?`}
-              body="Removes the assignment, its cloned program and workout logs. This cannot be undone."
+              body={`Removes ${programSource(a.coach_id) === 'coach' ? 'the assignment, its program copy' : `the athlete's own ${PROGRAM_SOURCE_LABEL[programSource(a.coach_id)].toLowerCase()} program`} and every workout they logged on it. This cannot be undone.`}
               confirmLabel="Delete"
               onConfirm={() => deleteMutation.mutateAsync(a.id)}
             />
@@ -210,16 +214,18 @@ export function ClientsPage() {
 
       {isAdmin && (
         <div className="row" style={{ gap: 6 }}>
-          {(['all', 'coach', 'library'] as const).map((o) => (
+          {(['all', 'coach', 'library', 'ai'] as const).map((o) => (
             <button
               key={o}
               className={`btn small${originFilter === o ? ' primary' : ''}`}
+              aria-pressed={originFilter === o}
               onClick={() => setOriginFilter(o)}
             >
-              {o === 'all' ? 'All' : o === 'coach' ? 'Coach-assigned' : 'Self-selected (library)'}
+              {o === 'all' ? 'All' : PROGRAM_SOURCE_LABEL[o]}
+              {data ? ` (${o === 'all' ? data.length : data.filter((a) => programSource(a.coach_id) === o).length})` : ''}
             </button>
           ))}
-          {originFilter !== 'library' && (
+          {originFilter === 'coach' && (
             <select
               className="field"
               style={{ minWidth: 160 }}

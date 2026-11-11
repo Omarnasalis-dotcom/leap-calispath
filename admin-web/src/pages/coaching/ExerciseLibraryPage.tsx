@@ -107,6 +107,23 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
   const [csvText, setCsvText] = useState('');
   const [previewRows, setPreviewRows] = useState<Array<Record<string, string>>>([]);
   const [parseError, setParseError] = useState<string | null>(null);
+  // Same cache as the page's list. Rows whose name the owner already has (or
+  // that repeat earlier in the file) are skipped instead of duplicated. Only
+  // the owner's own exercises count: coaches can pick only their own.
+  const existingQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
+  const nameKey = (name: string) => name.trim().toLowerCase();
+  const existingNames = new Set(
+    (existingQ.data ?? []).filter((e) => e.created_by === coachId).map((e) => nameKey(e.name)),
+  );
+  const seen = new Set<string>();
+  const rowStatus = previewRows.map((row) => {
+    const key = nameKey(row.name);
+    if (existingNames.has(key)) return 'exists' as const;
+    if (seen.has(key)) return 'repeat' as const;
+    seen.add(key);
+    return 'new' as const;
+  });
+  const newRows = previewRows.filter((_, i) => rowStatus[i] === 'new');
 
   function reset() {
     setStep(1);
@@ -129,10 +146,11 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      if (previewRows.length > BULK_IMPORT_ROW_LIMIT) {
+      if (newRows.length > BULK_IMPORT_ROW_LIMIT) {
         throw new Error(`Maximum ${BULK_IMPORT_ROW_LIMIT} exercises per import — split your CSV into smaller batches.`);
       }
-      const rows = previewRows.map((row) => {
+      if (newRows.length === 0) throw new Error('Every exercise in this file is already in the library.');
+      const rows = newRows.map((row) => {
         const parts = [row.category?.trim().toLowerCase(), row.concept?.trim().toLowerCase()].filter(Boolean);
         return {
           name: row.name.trim(),
@@ -207,7 +225,10 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
             {importMutation.error && <ErrorNote error={importMutation.error} />}
             <div className="dim" style={{ fontSize: 13 }}>
-              {previewRows.length} exercise{previewRows.length === 1 ? '' : 's'} parsed. Review before importing.
+              {previewRows.length} exercise{previewRows.length === 1 ? '' : 's'} parsed: {newRows.length} new
+              {previewRows.length - newRows.length > 0 &&
+                `, ${previewRows.length - newRows.length} skipped (already in the library or repeated in the file)`}
+              . Review before importing.
             </div>
             <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
               <table className="data">
@@ -217,15 +238,19 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
                     <th>Category</th>
                     <th>Concept</th>
                     <th>Difficulty</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {previewRows.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={i} style={rowStatus[i] === 'new' ? undefined : { opacity: 0.5 }}>
                       <td>{row.name}</td>
                       <td className="dim">{row.category || '—'}</td>
                       <td className="dim">{row.concept || '—'}</td>
                       <td className="dim">{row.difficulty || '—'}</td>
+                      <td className="dim">
+                        {rowStatus[i] === 'exists' ? 'already in this library' : rowStatus[i] === 'repeat' ? 'repeated' : ''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -238,10 +263,10 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
               <button
                 type="button"
                 className="btn small primary"
-                disabled={importMutation.isPending || !coachId}
+                disabled={importMutation.isPending || !coachId || !existingQ.data || newRows.length === 0}
                 onClick={() => importMutation.mutate()}
               >
-                {importMutation.isPending ? 'Importing…' : `Import ${previewRows.length}`}
+                {importMutation.isPending ? 'Importing…' : `Import ${newRows.length} new`}
               </button>
             </div>
           </div>

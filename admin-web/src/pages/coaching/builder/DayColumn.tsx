@@ -40,6 +40,7 @@ function toClipboardDay(day: BuilderDay): ClipboardDay {
         reps: e.reps,
         rest_seconds: e.rest_seconds,
         hold_seconds: e.hold_seconds,
+        is_weighted: e.is_weighted,
         notes: e.notes,
       })),
     })),

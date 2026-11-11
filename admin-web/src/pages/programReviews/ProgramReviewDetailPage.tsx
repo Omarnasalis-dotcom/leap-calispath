@@ -45,6 +45,48 @@ const SETTING_LABELS: Record<string, string> = {
 
 const asText = (value: string | number | null | undefined) => (value == null ? '' : String(value));
 
+/** "Weighted pull-up 40 kg · Dip 55 kg" from power_pbs ({ weighted_pullup_1rm: 40, … }). */
+function formatPowerBests(pbs: Record<string, unknown> | null): string {
+  const parts = Object.entries(pbs ?? {})
+    .filter(([, v]) => Number(v) > 0)
+    .map(([k, v]) => {
+      const name = k.replace(/_1rm$/, '').replace(/_/g, ' ');
+      return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${Number(v)} kg`;
+    });
+  return parts.length ? parts.join(' · ') : 'None logged';
+}
+
+/** An exercise <select> with a type-to-filter box: the library has ~300
+ * exercises. The chosen one always stays in the list. */
+function ExerciseSelect({ value, exercises, onChange, disabled, placeholder }: {
+  value: string;
+  exercises: Exercise[];
+  onChange: (id: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [filter, setFilter] = useState('');
+  const q = filter.trim().toLowerCase();
+  const shown = q ? exercises.filter((x) => x.id === value || x.name.toLowerCase().includes(q)) : exercises;
+  return (
+    <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+      <input
+        className="field"
+        style={{ width: 160 }}
+        placeholder="Filter exercises…"
+        value={filter}
+        disabled={disabled}
+        onChange={(e) => setFilter(e.target.value)}
+        aria-label="Filter exercises"
+      />
+      <select className="field" style={{ flex: 1, minWidth: 0 }} aria-label="Exercise" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        {placeholder && <option value="">{placeholder}</option>}
+        {shown.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function ReasonPicker({ reason, customReason, onReason, onCustomReason }: {
   reason: string;
   customReason: string;
@@ -199,10 +241,12 @@ function BlockOpForm({ reviewId, block, pending, exercises, onDone }: {
       )}
       {addsExercise && (
         <>
-          <select className="field" aria-label="Exercise" value={form.exercise_id ?? ''} onChange={(e) => set('exercise_id', e.target.value)}>
-            <option value="">Choose an exercise…</option>
-            {exercises.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
+          <ExerciseSelect
+            value={form.exercise_id ?? ''}
+            exercises={exercises}
+            placeholder="Choose an exercise…"
+            onChange={(id) => set('exercise_id', id)}
+          />
           <div className="row" style={{ gap: 6 }}>
             {[['sets', 'Sets'], ['reps', 'Reps'], ['hold_seconds', 'Hold (s)'], ['rest_seconds', 'Rest (s)']].map(([key, label]) => (
               <label key={key} className="label">{label}<input className="field" type="number" min={0} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} /></label>
@@ -260,9 +304,7 @@ function ExerciseEditor({ reviewId, block, exercise, exercises, onOp }: {
   const roundBlock = ROUND_STRUCTURES.has(block.structure ?? '');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderTop: '1px solid var(--hairline)' }}>
-      <select className="field" aria-label="Exercise" value={exerciseId} onChange={(e) => setExerciseId(e.target.value)} disabled={block.logged}>
-        {exercises.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-      </select>
+      <ExerciseSelect value={exerciseId} exercises={exercises} onChange={setExerciseId} disabled={block.logged} />
       <div className="row" style={{ gap: 6 }}>
         {!roundBlock && (
           <label className="label">Sets<input className="field" type="number" min={1} value={sets} onChange={(e) => setSets(e.target.value)} disabled={block.logged} /></label>
@@ -479,13 +521,22 @@ export function ProgramReviewDetailPage() {
           <div>Plan: {athlete.subscription_tier ?? 'none'} · Strength tier: {athlete.strength_tier ?? 0} · Language: {athlete.language === 'ar' ? 'Arabic' : 'English'}</div>
           <div>Goal: {[athlete.primary_goal, ...(athlete.goals ?? []), athlete.goal_other_text].filter(Boolean).join(', ') || 'Not set'}</div>
           <div>Days a week: {athlete.training_days_per_week ?? 'Not set'} · Equipment: {(athlete.available_equipment ?? []).join(', ') || 'Not set'}</div>
-          <div>Power bests: {JSON.stringify(athlete.power_pbs ?? {})}</div>
+          <div>Power bests: {formatPowerBests(athlete.power_pbs)}</div>
         </div>
       </section>
 
-      {review.week.map((block) => (
-        <BlockCard key={block.block_id} reviewId={review.id} block={block} editable={editable} exercises={exercisesQ.data} />
-      ))}
+      {review.week.map((block, i) => {
+        // Blocks arrive in program order, named "<Day> | <Block>": a heading
+        // whenever the day changes.
+        const day = block.name.split(' | ')[0];
+        const prevDay = i > 0 ? review.week[i - 1].name.split(' | ')[0] : null;
+        return (
+          <div key={block.block_id} style={{ display: 'contents' }}>
+            {day !== prevDay && <h2 style={{ margin: '8px 0 0' }}>{day}</h2>}
+            <BlockCard reviewId={review.id} block={block} editable={editable} exercises={exercisesQ.data} />
+          </div>
+        );
+      })}
 
       {review.changes.length > 0 && (
         <section className="panel">

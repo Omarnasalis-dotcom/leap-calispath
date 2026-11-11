@@ -6,6 +6,7 @@
 // (week_number is read from each block, defaulting to 1 when absent).
 
 import { supabase } from '@/lib/supabase';
+import { fetchByIds } from '@/lib/fetchAll';
 import { validateWeekImportPayload, resolveImportedExercises } from './ProgramImportParser';
 import { BlockConceptParser } from './BlockConceptParser';
 import { deriveTrainingDaysPerWeek, type MatchingCriteria } from './templateLibrary';
@@ -72,8 +73,10 @@ async function classifyExercises(blocks: any[]): Promise<ImportSummary['exercise
 
   let byId = 0;
   if (idsReferenced.size > 0) {
-    const { data } = await supabase.from('exercise_library').select('id').in('id', Array.from(idsReferenced));
-    byId = (data || []).length;
+    const data = await fetchByIds<{ id: string }>(Array.from(idsReferenced), (chunk, from, to) =>
+      supabase.from('exercise_library').select('id').in('id', chunk).order('id').range(from, to),
+    );
+    byId = data.length;
   }
 
   let byName = 0;

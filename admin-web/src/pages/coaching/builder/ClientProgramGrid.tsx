@@ -11,8 +11,10 @@ import {
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { ApplyTemplateForm } from './ApplyTemplateForm';
-import { loadTemplateWeeks, saveTemplateWeeks } from './builderIO';
+import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builderIO';
+import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
 import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
@@ -33,6 +35,7 @@ export function ClientProgramGrid() {
   // Logged blocks whose "already logged" warning the coach has accepted
   // since the program was last loaded.
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
+  const unsaved = useUnsavedChanges(dirty, "this athlete's program");
 
   const assignmentQ = useQuery({
     queryKey: ['assignment', assignmentId],
@@ -105,8 +108,16 @@ export function ClientProgramGrid() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      saveTemplateWeeks({ templateId: templateId!, name: assignmentQ.data!.template_name ?? 'Program', description: '', weeks }),
+    // force: "Save anyway" after a stale-check refusal.
+    mutationFn: (force: boolean = false) =>
+      saveTemplateWeeks({
+        templateId: templateId!,
+        name: loadQ.data?.name ?? assignmentQ.data!.template_name ?? 'Program',
+        // Kept as it is: this editor has no description field.
+        description: loadQ.data?.description ?? '',
+        weeks,
+        expectedFingerprint: force ? undefined : loadQ.data?.fingerprint,
+      }),
     onSuccess: (result) => {
       setDirty(false);
       setSaveError(null);
@@ -168,8 +179,8 @@ export function ClientProgramGrid() {
           </button>
           <button
             className="btn primary"
-            disabled={!templateId || saveMutation.isPending || isCoachPaused}
-            onClick={() => saveMutation.mutate()}
+            disabled={!templateId || !loadQ.data || loadQ.isFetching || saveMutation.isPending || isCoachPaused}
+            onClick={() => saveMutation.mutate(false)}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save program'}
           </button>
@@ -183,7 +194,20 @@ export function ClientProgramGrid() {
         </div>
       )}
       {loadQ.error && <ErrorNote error={loadQ.error} />}
-      {saveError && <ErrorNote error={saveError} />}
+      {saveError instanceof StaleProgramError ? (
+        <StaleNotice
+          message={saveError.message}
+          reloading={loadQ.isFetching}
+          saving={saveMutation.isPending}
+          onReload={() => {
+            setSaveError(null);
+            void loadQ.refetch();
+          }}
+          onSaveAnyway={() => saveMutation.mutateAsync(true).then(() => undefined)}
+        />
+      ) : (
+        saveError && <ErrorNote error={saveError} />
+      )}
       {(assignmentQ.isLoading || loadQ.isLoading) && <div className="skeleton" style={{ height: 200 }} />}
 
       {showApply && (
@@ -219,7 +243,9 @@ export function ClientProgramGrid() {
             <ConfirmButton
               label="Delete week"
               danger
-              disabled={isCoachPaused}
+              // Deleting reloads the program, which would drop unsaved edits.
+              disabled={isCoachPaused || dirty}
+              ariaLabel={dirty ? 'Delete week (save or reload first)' : 'Delete week'}
               title={`Delete week ${activeWeek}?`}
               body="Removes every block and exercise logged against this week for this client."
               confirmLabel="Delete"
@@ -246,6 +272,7 @@ export function ClientProgramGrid() {
           </LoggedBlocksProvider>
         </>
       )}
+      {unsaved.dialog}
     </div>
   );
 }

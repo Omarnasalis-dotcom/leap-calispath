@@ -304,7 +304,7 @@ function Headline({ data }: { data: GrowthAnalytics }) {
         </span>
       </div>
       <div className="stat-cell">
-        <span className="label">Finished a first workout</span>
+        <span className="label">Finished first training</span>
         <span className="value">{pct(trained?.users ?? 0, h.signups)}</span>
         <span className="hint">{trained?.users ?? 0} of {h.signups} signups</span>
       </div>

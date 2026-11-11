@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   assignTemplate,
+  fetchAssignedTemplateIds,
   fetchAssignments,
   fetchCoaches,
   fetchProfilesByIds,
@@ -9,6 +10,7 @@ import {
 } from '@/api/coaching';
 import { searchUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
+import { isMasterTemplate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 import { ApplyTemplateForm } from './builder/ApplyTemplateForm';
 
@@ -40,12 +42,13 @@ export function AssignForm({
     queryKey: ['program-templates'],
     queryFn: fetchProgramTemplates,
   });
-  // Library templates are admin-managed and admin-assigned only — a coach
-  // (or their assistant) builds client programs from their own master
-  // templates, not the shared recommendation catalog.
-  const assignableTemplates = isAdmin
-    ? templatesQ.data
-    : templatesQ.data?.filter((t) => !t.is_library_template);
+  const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
+  // Only master templates (and, for admins, library templates): never an
+  // athlete's own program copy or a leftover copy, which would clone someone
+  // else's weeks. Library templates are admin-assigned only.
+  const assignableTemplates = templatesQ.data?.filter(
+    (t) => isMasterTemplate(t, assignedIdsQ.data) || (isAdmin && t.is_library_template && t.status === 'published'),
+  );
   const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches, enabled: isAdmin });
   const assistedCoachesQ = useQuery({
     queryKey: ['assisted-coaches', assistingCoachIds],

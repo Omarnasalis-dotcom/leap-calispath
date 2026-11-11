@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAll';
 import { resolveImportedExercises } from '@/shared/ProgramImportParser';
 import { BlockConceptParser, ConceptMetadata } from '@/shared/BlockConceptParser';
 
@@ -82,12 +83,14 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 }
 
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
-  const { data, error } = await supabase
-    .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as StandaloneWorkoutRow[];
+  return fetchAllRows<StandaloneWorkoutRow>((from, to) =>
+    supabase
+      .from('standalone_workouts')
+      .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to),
+  );
 }
 
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {

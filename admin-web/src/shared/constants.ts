@@ -6,6 +6,43 @@
 // involved (src/constants/system.ts). A real profiles row, but must never
 // appear in user-facing rosters, searches, or leaderboards.
 export const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+/** Owner of every AI Coach-built program (src/constants/system.ts). */
+export const AI_COACH_PROFILE_ID = '00000000-0000-0000-0000-000000000002';
+
+/** Leap and AI Coach are flagged is_coach but aren't people: they own the
+ * self-selected library programs and the AI Coach programs. */
+export function isSystemCoach(id: string | null | undefined): boolean {
+  return id === LEAP_SYSTEM_PROFILE_ID || id === AI_COACH_PROFILE_ID;
+}
+
+/** Where an athlete's program came from, by the coach id that owns it. */
+export type ProgramSource = 'coach' | 'library' | 'ai';
+export function programSource(coachId: string | null | undefined): ProgramSource {
+  if (coachId === LEAP_SYSTEM_PROFILE_ID) return 'library';
+  if (coachId === AI_COACH_PROFILE_ID) return 'ai';
+  return 'coach';
+}
+export const PROGRAM_SOURCE_LABEL: Record<ProgramSource, string> = {
+  coach: 'Coach-assigned',
+  library: 'Self-selected (library)',
+  ai: 'AI Coach',
+};
+
+/** A reusable master template: not a library template, not anyone's program
+ * (warrior_programs never points at it), and owned by a real coach. Leap /
+ * AI Coach templates nobody uses are leftover copies of ended programs. */
+export function isMasterTemplate(
+  t: { id: string; coach_id: string; is_library_template: boolean },
+  assignedIds: Set<string> | undefined,
+): boolean {
+  return !t.is_library_template && !!assignedIds && !assignedIds.has(t.id) && !isSystemCoach(t.coach_id);
+}
+export function isLeftoverCopy(
+  t: { id: string; coach_id: string; is_library_template: boolean },
+  assignedIds: Set<string> | undefined,
+): boolean {
+  return !t.is_library_template && !!assignedIds && !assignedIds.has(t.id) && isSystemCoach(t.coach_id);
+}
 
 export const TIER_NAMES = [
   'Helot',

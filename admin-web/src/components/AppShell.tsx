@@ -39,8 +39,11 @@ const ADMIN_NAV: Array<
   { to: '/coaching/analytics', label: 'Analytics' },
   { section: 'Arena' },
   { to: '/communities', label: 'Communities' },
-  { to: '/waitlist', label: 'Waitlist' },
-  { to: '/tournaments', label: 'Tournaments' },
+  // Not in use: invite codes are retired and Tournament ships with V2. Kept
+  // reachable for reference.
+  { section: 'Archive' },
+  { to: '/waitlist', label: 'Waitlist (old invites)' },
+  { to: '/tournaments', label: 'Tournaments (V2)' },
 ];
 
 // A coach's whole world is their own roster — no Dashboard/Users/Arena

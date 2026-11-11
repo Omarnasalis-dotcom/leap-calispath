@@ -90,15 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error || assistantError || !data) return null;
       const coachIds = (assistantRows ?? []).map((r) => r.coach_id as string);
 
+      // profiles.coaching_paused_at has no SELECT grant for signed-in users
+      // (PII lockdown), so reading it directly failed and every assistant got
+      // "Couldn't load your account". is_coaching_paused is the SECURITY
+      // DEFINER check the RLS policies themselves use.
       let pausedIds: string[] = [];
       if (coachIds.length > 0) {
-        const { data: pausedRows, error: pausedError } = await supabase
-          .from('profiles')
-          .select('id')
-          .in('id', coachIds)
-          .not('coaching_paused_at', 'is', null);
-        if (pausedError) return null;
-        pausedIds = (pausedRows ?? []).map((r) => r.id as string);
+        const checks = await Promise.all(
+          coachIds.map((id) => supabase.rpc('is_coaching_paused', { uid: id })),
+        );
+        if (checks.some((c) => c.error)) return null;
+        pausedIds = coachIds.filter((_, i) => checks[i].data === true);
       }
       return { profile: data as MyProfile, coachIds, pausedIds };
     }

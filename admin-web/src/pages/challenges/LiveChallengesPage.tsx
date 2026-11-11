@@ -16,7 +16,7 @@ import {
 } from '@/api/liveChallenges';
 import { fetchTemplates, type ChallengeMovement } from '@/api/challenges';
 import { currentWeekStart, formatDate, shiftWeekStart } from '@/shared/constants';
-import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits';
 import { DataTable, type Column } from '@/components/DataTable';
 import { MovementsEditor } from '@/components/MovementsEditor';
 
@@ -251,15 +251,13 @@ export function LiveChallengesPage() {
     if (tpl) patchHalf(i, { movements: tpl.movements ?? [] });
   }
 
-  function saveAsTemplate() {
+  async function saveAsTemplate(name: string) {
     if (!form) return;
     const problem = validateSetup(form);
     setFormError(problem);
-    if (problem) return;
-    const name = window.prompt('Template name', form.title.trim())?.trim();
-    if (!name) return;
+    if (problem) throw new Error(problem);
     setTemplateSaved(false);
-    templateMutation.mutate({
+    await templateMutation.mutateAsync({
       name: name.slice(0, 80),
       title: form.title.trim(),
       description: form.description.trim(),
@@ -393,14 +391,14 @@ export function LiveChallengesPage() {
                   Duplicate
                 </button>
               )}
-              <button
-                className="btn small"
+              <PromptButton
+                label="Save as template"
+                title="Save as a reusable template (title, description, halves, rest, players per side)"
+                fieldLabel="Template name"
+                initialValue={form.title.trim()}
                 disabled={templateMutation.isPending}
-                title="Save the title, description, halves, rest and players per side to reuse later"
-                onClick={saveAsTemplate}
-              >
-                {templateMutation.isPending ? 'Saving…' : 'Save as template'}
-              </button>
+                onConfirm={saveAsTemplate}
+              />
               <button className="btn small" onClick={() => openForm(null)}>
                 Cancel
               </button>

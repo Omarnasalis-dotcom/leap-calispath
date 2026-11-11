@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deleteChallenge,
+  fetchEntryCounts,
   fetchTemplates,
+  setChallengeActive,
   fetchWeekChallenges,
   saveTemplate,
   upsertChallenges,
@@ -15,11 +17,14 @@ import {
   formatDate,
   shiftWeekStart,
 } from '@/shared/constants';
-import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits';
 import { MovementsEditor } from '@/components/MovementsEditor';
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 
 interface GroupForm {
   existingId: string | null;
+  /** Kept on save: a hidden challenge stays hidden. */
+  is_active: boolean;
   title: string;
   description: string;
   scoring_type: 'reps' | 'time';
@@ -29,6 +34,7 @@ interface GroupForm {
 
 const EMPTY_FORM: GroupForm = {
   existingId: null,
+  is_active: true,
   title: '',
   description: '',
   scoring_type: 'reps',
@@ -47,12 +53,20 @@ export function ChallengeWeekPage() {
   });
   const [templateChoice, setTemplateChoice] = useState<Record<number, string>>({});
   const [savedFlash, setSavedFlash] = useState(false);
+  // The forms as last loaded, to tell whether anything is unsaved.
+  const [seeded, setSeeded] = useState<string | null>(null);
 
   const weekQ = useQuery({
     queryKey: ['week-challenges', week],
     queryFn: () => fetchWeekChallenges(week),
   });
   const templatesQ = useQuery({ queryKey: ['challenge-templates'], queryFn: fetchTemplates });
+  const challengeIds = (weekQ.data ?? []).map((c) => c.id);
+  const entriesQ = useQuery({
+    queryKey: ['week-challenge-entries', challengeIds],
+    queryFn: () => fetchEntryCounts(challengeIds),
+    enabled: challengeIds.length > 0,
+  });
 
   // Re-seed the form whenever the fetched week changes.
   useEffect(() => {
@@ -61,6 +75,7 @@ export function ChallengeWeekPage() {
     for (const c of weekQ.data) {
       next[c.group_id] = {
         existingId: c.id,
+        is_active: c.is_active,
         title: c.title,
         description: c.description ?? '',
         scoring_type: c.scoring_type,
@@ -69,7 +84,12 @@ export function ChallengeWeekPage() {
       };
     }
     setForms(next);
+    setSeeded(JSON.stringify(next));
   }, [weekQ.data]);
+
+  const dirty = seeded !== null && JSON.stringify(forms) !== seeded;
+  const unsaved = useUnsavedChanges(dirty, `the challenges for ${formatDate(week)}`);
+  const goToWeek = (w: string) => unsaved.confirmDiscard(() => setWeek(w));
 
   const saveMutation = useMutation({
     mutationFn: (rows: ChallengeUpsert[]) => upsertChallenges(rows),
@@ -83,6 +103,14 @@ export function ChallengeWeekPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteChallenge(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['week-challenges', week] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+    },
+  });
+
+  const activeMutation = useMutation({
+    mutationFn: (vars: { id: string; isActive: boolean }) => setChallengeActive(vars.id, vars.isActive),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['week-challenges', week] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
@@ -127,7 +155,7 @@ export function ChallengeWeekPage() {
         scoring_type: f.scoring_type,
         time_limit: f.time_limit.trim() === '' ? null : Number(f.time_limit),
         movements: f.movements.filter((m) => m.name.trim() !== ''),
-        is_active: true,
+        is_active: f.is_active,
       };
     });
     saveMutation.mutate(rows);
@@ -146,24 +174,24 @@ export function ChallengeWeekPage() {
           </div>
         </div>
         <div className="row">
-          <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, -1))}>
+          <button className="btn small" aria-label="Previous week" onClick={() => goToWeek(shiftWeekStart(week, -1))}>
             ‹
           </button>
           <span className="num" style={{ fontWeight: 700, minWidth: 120, textAlign: 'center' }}>
             {formatDate(week)}
           </span>
-          <button className="btn small" onClick={() => setWeek(shiftWeekStart(week, 1))}>
+          <button className="btn small" aria-label="Next week" onClick={() => goToWeek(shiftWeekStart(week, 1))}>
             ›
           </button>
           <button
             className={`btn small${isThisWeek ? ' primary' : ''}`}
-            onClick={() => setWeek(thisWeek)}
+            onClick={() => goToWeek(thisWeek)}
           >
             This week
           </button>
           <button
             className={`btn small${isNextWeek ? ' primary' : ''}`}
-            onClick={() => setWeek(shiftWeekStart(thisWeek, 1))}
+            onClick={() => goToWeek(shiftWeekStart(thisWeek, 1))}
           >
             Next week
           </button>
@@ -173,6 +201,8 @@ export function ChallengeWeekPage() {
       {weekQ.error && <ErrorNote error={weekQ.error} />}
       {saveMutation.error && <ErrorNote error={saveMutation.error} />}
       {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}
+      {activeMutation.error && <ErrorNote error={activeMutation.error} />}
+      {entriesQ.error && <ErrorNote error={entriesQ.error} />}
 
       <div className="grid-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
         {CHALLENGE_GROUPS.map((g) => {
@@ -184,7 +214,9 @@ export function ChallengeWeekPage() {
                   <h2>{g.name}</h2>
                   <span className="label">{g.tiers}</span>
                 </div>
-                {f.existingId ? (
+                {f.existingId && !f.is_active ? (
+                  <Badge tone="warn">hidden</Badge>
+                ) : f.existingId ? (
                   <Badge tone="ok">live</Badge>
                 ) : f.title.trim() ? (
                   <Badge tone="accent">unsaved</Badge>
@@ -265,14 +297,14 @@ export function ChallengeWeekPage() {
                   >
                     Load
                   </button>
-                  <button
-                    className="btn small"
+                  <PromptButton
+                    label="Save as template"
+                    title="Save as a reusable template"
+                    fieldLabel="Template name"
+                    initialValue={f.title.trim()}
                     disabled={!f.title.trim() || templateMutation.isPending}
-                    title="Save this group's setup as a reusable template"
-                    onClick={() => {
-                      const name = window.prompt('Template name', f.title.trim());
-                      if (!name) return;
-                      templateMutation.mutate({
+                    onConfirm={async (name) => {
+                      await templateMutation.mutateAsync({
                         name,
                         group_id: g.id,
                         title: f.title.trim(),
@@ -282,21 +314,46 @@ export function ChallengeWeekPage() {
                         time_limit: f.time_limit.trim() === '' ? null : Number(f.time_limit),
                       });
                     }}
-                  >
-                    Save as template
-                  </button>
-                  {f.existingId && (
-                    <ConfirmButton
-                      label="Delete"
-                      danger
-                      title={`Delete ${g.name} challenge for ${formatDate(week)}?`}
-                      body="Existing entries keep their rows but the challenge disappears from the app."
-                      confirmLabel="Delete"
-                      onConfirm={async () => {
-                        await deleteMutation.mutateAsync(f.existingId!);
-                      }}
-                    />
-                  )}
+                  />
+                  {f.existingId && (() => {
+                    const id = f.existingId;
+                    const entries = entriesQ.data?.[id];
+                    if (entries === undefined) return null; // still counting
+                    if (entries > 0) {
+                      // Deleting would erase every entry (ON DELETE CASCADE).
+                      return f.is_active ? (
+                        <ConfirmButton
+                          label={`Hide (${entries} ${entries === 1 ? 'entry' : 'entries'})`}
+                          title={`Hide the ${g.name} challenge for ${formatDate(week)}?`}
+                          body={`It disappears from the app, including its leaderboard. The ${entries} ${entries === 1 ? 'entry stays' : 'entries stay'} saved, and you can show it again any time.`}
+                          confirmLabel="Hide"
+                          onConfirm={async () => {
+                            await activeMutation.mutateAsync({ id, isActive: false });
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="btn small"
+                          disabled={activeMutation.isPending}
+                          onClick={() => activeMutation.mutate({ id, isActive: true })}
+                        >
+                          Show in app
+                        </button>
+                      );
+                    }
+                    return (
+                      <ConfirmButton
+                        label="Delete"
+                        danger
+                        title={`Delete the ${g.name} challenge for ${formatDate(week)}?`}
+                        body="Nobody has entered it yet. It disappears from the app. This can't be undone."
+                        confirmLabel="Delete"
+                        onConfirm={async () => {
+                          await deleteMutation.mutateAsync(id);
+                        }}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
             </section>
@@ -316,6 +373,7 @@ export function ChallengeWeekPage() {
             : `Save week (${filledGroups.length} group${filledGroups.length === 1 ? '' : 's'})`}
         </button>
       </div>
+      {unsaved.dialog}
     </div>
   );
 }

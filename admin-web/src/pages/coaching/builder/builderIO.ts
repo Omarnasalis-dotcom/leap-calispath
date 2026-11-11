@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { clientKey, type BuilderBlock, type BuilderDay, type BuilderWeeks } from './types';
 
@@ -8,10 +9,60 @@ import { clientKey, type BuilderBlock, type BuilderDay, type BuilderWeeks } from
 // save_program_template RPC and the same "<Day> | <Block>" +
 // "[CONCEPT:{...}] notes" encoding.
 
+type BlockRow = { id: string; name: string | null; notes: string | null; order_index: number | null; week_number: number | null };
+
+/** Every block and exercise row of a template. Paged: a long program has
+ * more than 1,000 exercises, and a save of a partly loaded program deletes
+ * the rows it didn't load. */
+async function fetchTemplateRows(templateId: string): Promise<{ blocks: BlockRow[]; exercises: Array<Record<string, unknown>> }> {
+  const blocks = await fetchAllRows<BlockRow>(
+    (from, to) =>
+      supabase
+        .from('program_blocks')
+        .select('id, name, notes, order_index, week_number')
+        .eq('template_id', templateId)
+        .order('order_index', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+  );
+
+  const exercises = await fetchByIds<Record<string, unknown>>(blocks.map((b) => b.id), (chunk, from, to) =>
+    supabase
+        .from('block_exercises')
+        .select('id, block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index, exercise_library(name)')
+        .in('block_id', chunk)
+        .order('order_index', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
+  return { blocks, exercises };
+}
+
+/** What the program looked like, as one string: changes when any block or
+ * exercise is added, removed or edited (by the athlete, the AI Coach, a
+ * review or another admin). Compared right before a save so the save never
+ * overwrites changes made after the editor loaded. */
+function fingerprintOf(rows: { blocks: BlockRow[]; exercises: Array<Record<string, unknown>> }): string {
+  const blocks = rows.blocks
+    .map((b) => [b.id, b.name, b.notes, b.week_number, b.order_index].join('\u0001'))
+    .sort();
+  const exercises = rows.exercises
+    .map((e) =>
+      [e.id, e.block_id, e.exercise_id, e.sets, e.reps, e.rest_seconds, e.hold_seconds, e.is_weighted, e.notes, e.order_index].join('\u0001'),
+    )
+    .sort();
+  return `${blocks.join('\u0002')}\u0003${exercises.join('\u0002')}`;
+}
+
+export async function fetchTemplateFingerprint(templateId: string): Promise<string> {
+  return fingerprintOf(await fetchTemplateRows(templateId));
+}
+
 export async function loadTemplateWeeks(templateId: string): Promise<{
   name: string;
   description: string;
   weeks: BuilderWeeks;
+  fingerprint: string;
 }> {
   const { data: template, error: templateErr } = await supabase
     .from('program_templates')
@@ -20,45 +71,31 @@ export async function loadTemplateWeeks(templateId: string): Promise<{
     .single();
   if (templateErr) throw new Error(templateErr.message);
 
-  const { data: blocks, error: blocksErr } = await supabase
-    .from('program_blocks')
-    .select('id, name, notes, order_index, week_number')
-    .eq('template_id', templateId)
-    .order('order_index', { ascending: true });
-  if (blocksErr) throw new Error(blocksErr.message);
-
-  const blockIds = (blocks ?? []).map((b) => b.id);
-  let exByBlock = new Map<string, BuilderBlock['exercises']>();
-  if (blockIds.length > 0) {
-    const { data: exs, error: exErr } = await supabase
-      .from('block_exercises')
-      .select('id, block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, notes, order_index, exercise_library(name)')
-      .in('block_id', blockIds)
-      .order('order_index', { ascending: true });
-    if (exErr) throw new Error(exErr.message);
-    exByBlock = new Map();
-    for (const raw of (exs ?? []) as Array<Record<string, unknown>>) {
-      const blockId = raw.block_id as string;
-      const list = exByBlock.get(blockId) ?? [];
-      list.push({
-        id: clientKey(),
-        exercise_id: raw.exercise_id as string,
-        exercise_name: (raw.exercise_library as { name?: string } | null)?.name,
-        sets: raw.sets as number | null,
-        reps: raw.reps as number | null,
-        rest_seconds: raw.rest_seconds as number | null,
-        hold_seconds: raw.hold_seconds as number | null,
-        notes: (raw.notes as string | null) ?? '',
-      });
-      exByBlock.set(blockId, list);
-    }
+  const rows = await fetchTemplateRows(templateId);
+  const { blocks } = rows;
+  const exByBlock = new Map<string, BuilderBlock['exercises']>();
+  for (const raw of rows.exercises) {
+    const blockId = raw.block_id as string;
+    const list = exByBlock.get(blockId) ?? [];
+    list.push({
+      id: clientKey(),
+      exercise_id: raw.exercise_id as string,
+      exercise_name: (raw.exercise_library as { name?: string } | null)?.name,
+      sets: raw.sets as number | null,
+      reps: raw.reps as number | null,
+      rest_seconds: raw.rest_seconds as number | null,
+      hold_seconds: raw.hold_seconds as number | null,
+      is_weighted: Boolean(raw.is_weighted),
+      notes: (raw.notes as string | null) ?? '',
+    });
+    exByBlock.set(blockId, list);
   }
 
   // Group blocks by week_number → day name (parsed from "<Day> | <Block>").
   const weekDayMaps = new Map<number, Map<string, BuilderDay>>();
   const weekDayOrder = new Map<number, string[]>();
 
-  for (const b of blocks ?? []) {
+  for (const b of blocks) {
     const weekNum = b.week_number ?? 1;
     const raw = b.name ?? '';
     let dayName = raw;
@@ -99,7 +136,17 @@ export async function loadTemplateWeeks(templateId: string): Promise<{
   }
   if (Object.keys(weeks).length === 0) weeks[1] = [];
 
-  return { name: template.name, description: template.description ?? '', weeks };
+  return { name: template.name, description: template.description ?? '', weeks, fingerprint: fingerprintOf(rows) };
+}
+
+/** Thrown when the program changed since the editor loaded it. */
+export class StaleProgramError extends Error {
+  constructor() {
+    super(
+      'This program changed after you opened it (the athlete, the AI Coach or another admin edited it). Nothing was saved. Reload to see the latest version, or save anyway to replace it with yours.',
+    );
+    this.name = 'StaleProgramError';
+  }
 }
 
 export interface SaveResult {
@@ -112,6 +159,8 @@ export async function saveTemplateWeeks(params: {
   name: string;
   description: string;
   weeks: BuilderWeeks;
+  /** From loadTemplateWeeks; omit for a new template or "Save anyway". */
+  expectedFingerprint?: string;
 }): Promise<SaveResult> {
   const name = params.name.trim();
   if (!name) throw new Error('Program template name is required.');
@@ -182,13 +231,22 @@ export async function saveTemplateWeeks(params: {
             reps: ex.reps,
             rest_seconds: ex.rest_seconds,
             hold_seconds: ex.hold_seconds,
-            is_weighted: !!block.metadata.is_weighted,
+            // Each exercise keeps its own flag (the AI Coach and reviews set
+            // it per exercise); the block flag is only the fallback.
+            is_weighted: ex.is_weighted ?? !!block.metadata.is_weighted,
             notes: ex.notes.trim(),
             order_index: exIdx,
           })),
         });
         blockIdx++;
       }
+    }
+  }
+
+  // Checked last, right before writing, to keep the window small.
+  if (params.templateId && params.expectedFingerprint !== undefined) {
+    if ((await fetchTemplateFingerprint(params.templateId)) !== params.expectedFingerprint) {
+      throw new StaleProgramError();
     }
   }
 

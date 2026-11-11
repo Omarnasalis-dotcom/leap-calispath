@@ -33,6 +33,7 @@ import { fetchExercises } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { BlockCard, fromClipboardBlock } from './builder/BlockCard';
@@ -525,8 +526,17 @@ function SkillTagCell({ workout }: { workout: StandaloneWorkoutRow }) {
 export function WorkoutLibraryPage() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
+  // The draft as opened, to tell whether it has unsaved edits.
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const openDraft = (d: Draft) => {
+    setDraft(d);
+    setBaseline(JSON.stringify(d));
+  };
+  const dirty = draft !== null && JSON.stringify(draft) !== baseline;
+  const unsaved = useUnsavedChanges(dirty, 'this workout');
   const [kindFilter, setKindFilter] = useState<'all' | StandaloneWorkoutKind>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | StandaloneWorkoutStatus>('draft');
+  // All statuses by default: opening on Drafts only hid every published workout.
+  const [statusFilter, setStatusFilter] = useState<'all' | StandaloneWorkoutStatus>('all');
   const [exerciseToAdd, setExerciseToAdd] = useState<Record<string, string>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -573,7 +583,7 @@ export function WorkoutLibraryPage() {
       };
 
       if (detail.kind === 'workout') {
-        setDraft({
+        openDraft({
           ...base,
           blocks: detail.blocks.map((block) => {
             const { metadata, cleanNotes } = BlockConceptParser.parse(block.notes);
@@ -592,6 +602,7 @@ export function WorkoutLibraryPage() {
                 rest_seconds: ex.rest_seconds,
                 hold_seconds: ex.hold_seconds,
                 work_seconds: ex.work_seconds,
+                is_weighted: ex.is_weighted,
                 notes: ex.notes ?? '',
               })),
             };
@@ -599,7 +610,7 @@ export function WorkoutLibraryPage() {
           quickBlocks: [emptyQuickBlock('Warm-Up'), emptyQuickBlock('Strength'), emptyQuickBlock('Cool-Down')],
         });
       } else {
-        setDraft({
+        openDraft({
           ...base,
           blocks: [newBlock('Warm-Up'), newBlock('Strength'), newBlock('Cool-Down')],
           quickBlocks: detail.blocks.map((block) => ({
@@ -640,10 +651,9 @@ export function WorkoutLibraryPage() {
               rest_seconds: ex.rest_seconds,
               hold_seconds: ex.hold_seconds,
               work_seconds: ex.work_seconds ?? null,
-              // Weighted is a per-block concept-wizard flag here, applied to
-              // every exercise in the block — exactly how builderIO.ts
-              // derives block_exercises.is_weighted for Program Builder.
-              is_weighted: !!block.metadata.is_weighted,
+              // Per exercise, like builderIO.ts: the block's Weighted tick
+              // sets every exercise, and each one can still differ.
+              is_weighted: ex.is_weighted ?? !!block.metadata.is_weighted,
               notes: ex.notes.trim() || null,
               order_index: i,
             })),
@@ -883,7 +893,7 @@ export function WorkoutLibraryPage() {
       align: 'right',
       render: (w) => (
         <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
-          <button className="btn small" onClick={(e) => { e.stopPropagation(); loadMutation.mutate(w.id); }}>
+          <button className="btn small" onClick={(e) => { e.stopPropagation(); unsaved.confirmDiscard(() => loadMutation.mutate(w.id)); }}>
             Edit
           </button>
           <ConfirmButton
@@ -928,7 +938,7 @@ export function WorkoutLibraryPage() {
             ))}
           </select>
           <ImportWorkoutModal />
-          <button className="btn primary" onClick={() => setDraft(newDraft())}>
+          <button className="btn primary" onClick={() => unsaved.confirmDiscard(() => openDraft(newDraft()))}>
             + New workout
           </button>
         </div>
@@ -1212,7 +1222,7 @@ export function WorkoutLibraryPage() {
             </div>
 
             <div className="row" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
+              <button className="btn" onClick={() => unsaved.confirmDiscard(() => setDraft(null))}>Cancel</button>
               <button
                 className="btn primary"
                 disabled={saveDisabled}
@@ -1277,6 +1287,7 @@ export function WorkoutLibraryPage() {
           emptyHint="Add the first Workout or Quick Workout."
         />
       </div>
+      {unsaved.dialog}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export function AccessDenied() {
           Access denied
         </span>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-2)' }}>
-          This account is not an admin. Signing you out.
+          This account isn't an admin, coach or coach assistant. Signing you out.
         </p>
       </div>
     </div>

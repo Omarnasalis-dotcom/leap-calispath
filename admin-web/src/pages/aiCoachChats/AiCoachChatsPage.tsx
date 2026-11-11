@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -17,7 +17,7 @@ import type {
   CoachTurnOutcome,
 } from '@/shared/types';
 import { formatDateTime } from '@/shared/constants';
-import { Badge, ErrorNote } from '@/components/bits';
+import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import './AiCoachChatsPage.css';
 
 export const FLAG_KIND_LABEL: Record<CoachChatFlagKind, string> = {
@@ -141,17 +141,34 @@ export function AiCoachChatsPage() {
 
 function Thread({ userId }: { userId: string }) {
   const [before, setBefore] = useState<string | null>(null);
-  useEffect(() => setBefore(null), [userId]);
+  // Pages walked back while looking for a linked turn (#turn-<id>).
+  const searchedPages = useRef(0);
+  useEffect(() => {
+    setBefore(null);
+    searchedPages.current = 0;
+  }, [userId]);
 
   const thread = useQuery({
     queryKey: ['coach-chat-thread', userId, before],
     queryFn: () => fetchCoachChatThread(userId, before),
   });
 
-  // Jump to a turn linked from the flags page (#turn-<id>).
+  // Jump to a turn linked from the flags page (#turn-<id>). Only the newest
+  // 100 load first, so an older turn means walking back page by page
+  // (bounded, in case the turn was deleted).
   useEffect(() => {
-    if (!thread.data || !window.location.hash) return;
-    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'center' });
+    const hash = window.location.hash;
+    if (!thread.data || !hash.startsWith('#turn-')) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) {
+      el.scrollIntoView({ block: 'center' });
+      return;
+    }
+    const turns = thread.data.turns;
+    if (turns.length === 100 && searchedPages.current < 20) {
+      searchedPages.current += 1;
+      setBefore(turns[0].created_at);
+    }
   }, [thread.data]);
 
   if (thread.error) return <ErrorNote error={thread.error} />;
@@ -363,14 +380,15 @@ export function FlagRow({ flag, userId }: { flag: CoachChatFlag; userId: string 
         <span className="dim" style={{ fontSize: 12 }}>
           {formatDateTime(flag.created_at)}
         </span>
-        <button
-          type="button"
-          className="btn small ghost"
+        <ConfirmButton
+          label="Delete"
+          title="Delete this flag?"
+          body="The flag and its note are removed. The chat message stays."
+          confirmLabel="Delete"
+          danger
           disabled={remove.isPending}
-          onClick={() => window.confirm('Delete this flag?') && remove.mutate()}
-        >
-          Delete
-        </button>
+          onConfirm={() => remove.mutateAsync()}
+        />
       </div>
       {flag.note && (
         <div className="chat-flag-note" dir="auto">

@@ -8,22 +8,24 @@ import {
   fetchExercises,
   fetchProgramTemplates,
 } from '@/api/coaching';
-import { formatDate } from '@/shared/constants';
+import { formatDate, isLeftoverCopy, isMasterTemplate } from '@/shared/constants';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import {
   downloadMasterTemplateExportPayload,
   fetchMasterTemplateExportPayload,
   buildMasterTemplateBlocksPayload,
 } from '@/shared/MasterTemplateTransfer';
 import { resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
-import { loadTemplateWeeks, saveTemplateWeeks } from './builder/builderIO';
+import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builder/builderIO';
+import { StaleNotice } from './builder/StaleNotice';
 import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
 import type { BuilderWeeks } from './builder/types';
 
-type ListTab = 'master' | 'assigned' | 'library';
+type ListTab = 'master' | 'assigned' | 'leftover' | 'library';
 
 /** Creates a brand-new master template from a week-export-shaped JSON file
  * (this page's own ExportTemplateButton output, a client-week export, or a
@@ -135,6 +137,7 @@ export function ProgramBuilderPage() {
   const [flash, setFlash] = useState<string | null>(null);
 
   const clipboard = useBuilderClipboard();
+  const unsaved = useUnsavedChanges(selectedId !== null && dirty, 'this template');
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
   const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
@@ -227,12 +230,14 @@ export function ProgramBuilderPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: () =>
+    // force: "Save anyway" after a stale-check refusal.
+    mutationFn: (force: boolean = false) =>
       saveTemplateWeeks({
         templateId: selectedId === 'new' ? null : (selectedId as string),
         name,
         description,
         weeks,
+        expectedFingerprint: force || selectedId === 'new' ? undefined : loadQ.data?.fingerprint,
       }),
     onSuccess: (result) => {
       setSaveError(null);
@@ -253,15 +258,15 @@ export function ProgramBuilderPage() {
   // ---------- list view ----------
   if (!selectedId) {
     const coachFiltered = (t: { coach_id: string }) => !coachFilterId || t.coach_id === coachFilterId;
-    const master = (templatesQ.data ?? []).filter(
-      (t) => !t.is_library_template && !assignedIdsQ.data?.has(t.id) && coachFiltered(t),
-    );
+    const master = (templatesQ.data ?? []).filter((t) => isMasterTemplate(t, assignedIdsQ.data) && coachFiltered(t));
     const assigned = (templatesQ.data ?? []).filter(
       (t) => !t.is_library_template && assignedIdsQ.data?.has(t.id) && coachFiltered(t),
     );
+    // Leap / AI Coach copies nobody's program points at any more.
+    const leftover = (templatesQ.data ?? []).filter((t) => isLeftoverCopy(t, assignedIdsQ.data));
     const library = (templatesQ.data ?? []).filter((t) => t.is_library_template);
-    const activeTab = tab === 'library' && !isAdmin ? 'master' : tab;
-    const rows = activeTab === 'master' ? master : activeTab === 'assigned' ? assigned : [];
+    const activeTab = (tab === 'library' || tab === 'leftover') && !isAdmin ? 'master' : tab;
+    const rows = activeTab === 'master' ? master : activeTab === 'assigned' ? assigned : activeTab === 'leftover' ? leftover : [];
 
     return (
       <div className="page">
@@ -322,6 +327,15 @@ export function ProgramBuilderPage() {
               Library ({library.length})
             </button>
           )}
+          {isAdmin && (
+            <button
+              className={`btn small${activeTab === 'leftover' ? ' primary' : ''}`}
+              title="Copies from ended self-selected or AI Coach programs that no athlete uses any more"
+              onClick={() => setTab('leftover')}
+            >
+              Leftover copies ({leftover.length})
+            </button>
+          )}
         </div>
 
         {activeTab === 'library' ? (
@@ -359,15 +373,19 @@ export function ProgramBuilderPage() {
                       <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <span className="row" style={{ justifyContent: 'flex-end', gap: 6, flexWrap: 'nowrap' }}>
                           <ExportTemplateButton templateId={t.id} name={t.name} description={t.description} />
-                          <ConfirmButton
-                            label="Delete"
-                            danger
-                            disabled={isCoachPaused}
-                            title={`Delete template "${t.name}"?`}
-                            body="Blocks with logged workouts will refuse to delete — client copies are separate rows and stay intact."
-                            confirmLabel="Delete"
-                            onConfirm={() => deleteMutation.mutateAsync(t.id)}
-                          />
+                          {/* An assigned copy IS an athlete's program: it's removed
+                              from Clients (Delete there), never from here. */}
+                          {(activeTab === 'master' || activeTab === 'leftover') && (
+                            <ConfirmButton
+                              label="Delete"
+                              danger
+                              disabled={isCoachPaused}
+                              title={`Delete template "${t.name}"?`}
+                              body="Deletes this template and all its weeks. Athletes' programs made from it are separate copies and stay as they are. If workouts were logged against it, nothing is deleted."
+                              confirmLabel="Delete"
+                              onConfirm={() => deleteMutation.mutateAsync(t.id)}
+                            />
+                          )}
                         </span>
                       </td>
                     </tr>
@@ -391,7 +409,16 @@ export function ProgramBuilderPage() {
     <div className="page wide">
       <div className="page-head">
         <div style={{ flex: 1, minWidth: 280 }}>
-          <button className="btn small" style={{ marginBottom: 8 }} onClick={() => setSelectedId(null)}>
+          <button
+            className="btn small"
+            style={{ marginBottom: 8 }}
+            onClick={() =>
+              unsaved.confirmDiscard(() => {
+                setDirty(false);
+                setSelectedId(null);
+              })
+            }
+          >
             ← Templates
           </button>
           <input
@@ -426,8 +453,10 @@ export function ProgramBuilderPage() {
           )}
           <button
             className="btn primary"
-            disabled={!name.trim() || saveMutation.isPending || isCoachPaused}
-            onClick={() => saveMutation.mutate()}
+            disabled={
+              !name.trim() || saveMutation.isPending || isCoachPaused || (selectedId !== 'new' && (!loadQ.data || loadQ.isFetching))
+            }
+            onClick={() => saveMutation.mutate(false)}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save template'}
           </button>
@@ -440,7 +469,20 @@ export function ProgramBuilderPage() {
         </div>
       )}
       {loadQ.error && <ErrorNote error={loadQ.error} />}
-      {saveError && <ErrorNote error={saveError} />}
+      {saveError instanceof StaleProgramError ? (
+        <StaleNotice
+          message={saveError.message}
+          reloading={loadQ.isFetching}
+          saving={saveMutation.isPending}
+          onReload={() => {
+            setSaveError(null);
+            void loadQ.refetch();
+          }}
+          onSaveAnyway={() => saveMutation.mutateAsync(true).then(() => undefined)}
+        />
+      ) : (
+        saveError && <ErrorNote error={saveError} />
+      )}
       {loadQ.isLoading && selectedId !== 'new' && <div className="skeleton" style={{ height: 160 }} />}
 
       <div className="row" style={{ borderBottom: '1px solid var(--hairline)', paddingBottom: 10 }}>
@@ -470,6 +512,7 @@ export function ProgramBuilderPage() {
       </div>
 
       <WeekGrid days={days} exerciseOptions={exerciseOptions} onCommit={setDays} readOnly={isCoachPaused} />
+      {unsaved.dialog}
     </div>
   );
 }

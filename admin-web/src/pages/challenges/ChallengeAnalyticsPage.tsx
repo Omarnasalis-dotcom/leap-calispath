@@ -5,6 +5,7 @@ import {
   CHALLENGE_GROUPS,
   currentWeekStart,
   formatDate,
+  formatSeconds,
   shiftWeekStart,
 } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
@@ -13,8 +14,10 @@ function groupName(id: number): string {
   return CHALLENGE_GROUPS.find((g) => g.id === id)?.name ?? `Group ${id}`;
 }
 
-function fmt(n: number | null | undefined): string {
+/** Reps/points as numbers; a time-scored challenge as m:ss. */
+function fmt(n: number | null | undefined, scoringType?: string): string {
   if (n == null) return '—';
+  if (scoringType === 'time') return formatSeconds(Math.round(Number(n)));
   return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
@@ -82,10 +85,10 @@ export function ChallengeAnalyticsPage() {
                     <td>{c.title}</td>
                     <td className="num" style={{ textAlign: 'right' }}>{c.entry_count}</td>
                     <td className="num" style={{ textAlign: 'right' }}>{c.participant_count}</td>
-                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.min_score)}</td>
-                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.median_score)}</td>
-                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.avg_score)}</td>
-                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.max_score)}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.min_score, c.scoring_type)}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.median_score, c.scoring_type)}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.avg_score, c.scoring_type)}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt(c.max_score, c.scoring_type)}</td>
                   </tr>
                 ))}
               </tbody>

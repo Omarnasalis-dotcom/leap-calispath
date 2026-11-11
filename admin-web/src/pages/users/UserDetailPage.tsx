@@ -249,7 +249,7 @@ export function UserDetailPage() {
               Expires {formatDateTime(u.access_expires_at)}
               {u.entitlement_source ? ` — source: ${u.entitlement_source}` : ''}
               {u.entitlement_source === 'rc_subscription' &&
-                ' (real Apple subscription — grants stack on top, but revoke must go through Apple/RevenueCat).'}
+                ' (real App Store / Google Play subscription: gifts add on top, but only the user can cancel it, in the store).'}
             </div>
             {u.duplicate_subscription_flagged_at && (
               <div className="dim" style={{ fontSize: 13, color: 'var(--warn, #b26a00)' }}>
@@ -300,7 +300,7 @@ export function UserDetailPage() {
                 danger
                 disabled={u.entitlement_source === 'rc_subscription'}
                 title={`Revoke access for ${u.display_name || u.email}?`}
-                body="Immediately expires their access. Refused if they have a real Apple subscription — that can only be cancelled through Apple/RevenueCat."
+                body="Immediately ends access given by a gift or code. Not possible for a real App Store / Google Play subscription: only the user can cancel that, in the store."
                 confirmLabel="Revoke"
                 onConfirm={() => revokeMutation.mutateAsync()}
               />

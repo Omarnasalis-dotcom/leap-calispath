@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  fetchGloryLeaderboard,
   fetchGlobalWellRounded,
   fetchOneMMWellRounded,
   fetchPowerLeaderboard,
   fetchStaticWellRounded,
   fetchTierLeaderboard,
 } from '@/api/leaderboards';
-import { TIER_NAMES, tierName } from '@/shared/constants';
+import { TIER_NAMES } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 
-type BoardKey = 'strength' | 'power' | 'static' | 'onemm' | 'wra' | 'glory';
+// Glory is left out: it ships with the V2 features (Tournament/Clash) and
+// isn't live in the app.
+type BoardKey = 'strength' | 'power' | 'static' | 'onemm' | 'wra';
+
+// Mirrors the app's POWER_LEVELS (src/lib/powerLogic.ts).
+const POWER_LEVEL_NAMES: Record<number, string> = { 1: 'Voltaic', 2: 'Ampere', 3: 'Tesla' };
 
 const BOARDS: { key: BoardKey; label: string }[] = [
   { key: 'strength', label: 'Strength' },
@@ -19,7 +23,6 @@ const BOARDS: { key: BoardKey; label: string }[] = [
   { key: 'static', label: 'Static' },
   { key: 'onemm', label: '1-Min-Max' },
   { key: 'wra', label: 'Well-Rounded' },
-  { key: 'glory', label: 'Glory' },
 ];
 
 /** Pick the first present key — the RPCs name their columns differently. */
@@ -40,40 +43,35 @@ function fmtTime(seconds: unknown): string {
 export function LeaderboardsPage() {
   const [board, setBoard] = useState<BoardKey>('strength');
   const [tier, setTier] = useState(1);
+  // 0 = all three levels in one list.
+  const [powerLevel, setPowerLevel] = useState(0);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['leaderboard', board, board === 'strength' ? tier : null],
+    queryKey: ['leaderboard', board, board === 'strength' ? tier : board === 'power' ? powerLevel : null],
     queryFn: () => {
       switch (board) {
         case 'strength':
           return fetchTierLeaderboard(tier);
         case 'power':
-          return fetchPowerLeaderboard();
+          return fetchPowerLeaderboard(powerLevel);
         case 'static':
           return fetchStaticWellRounded();
         case 'onemm':
           return fetchOneMMWellRounded();
         case 'wra':
           return fetchGlobalWellRounded();
-        case 'glory':
-          return fetchGloryLeaderboard();
       }
     },
   });
 
-  const scoreHeader =
-    board === 'strength'
-      ? 'Best time'
-      : board === 'glory'
-        ? 'Glory'
-        : 'Points';
+  const scoreHeader = board === 'strength' ? 'Best time' : 'Points';
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1>Leaderboards</h1>
-          <div className="sub">Live top-100 standings, straight from the app's RPCs.</div>
+          <div className="sub">The same boards athletes see in the app (hidden athletes left out).</div>
         </div>
         <div className="row">
           <select
@@ -88,6 +86,21 @@ export function LeaderboardsPage() {
               </option>
             ))}
           </select>
+          {board === 'power' && (
+            <select
+              className="field"
+              value={powerLevel}
+              onChange={(e) => setPowerLevel(Number(e.target.value))}
+              aria-label="Power level"
+            >
+              <option value={0}>All levels</option>
+              {[1, 2, 3].map((l) => (
+                <option key={l} value={l}>
+                  {POWER_LEVEL_NAMES[l]}
+                </option>
+              ))}
+            </select>
+          )}
           {board === 'strength' && (
             <select
               className="field"
@@ -147,21 +160,17 @@ export function LeaderboardsPage() {
                               't_score',
                               'total_points',
                               'power_points',
-                              'glory_score',
                               'points',
                               'score',
                             ]) ?? 0,
                           ),
                         ).toLocaleString();
-                  const detail =
-                    board === 'power'
-                      ? `Power tier ${val(row, ['power_tier']) ?? '—'}`
-                      : board === 'glory'
-                        ? tierName(val(row, ['strength_tier']) as number | null)
-                        : ((val(row, ['country', 'gender']) as string | null) ?? '');
+                  const level = val(row, ['power_level']) as number | null;
+                  const country = (val(row, ['country', 'gender']) as string | null) ?? '';
+                  const detail = level ? [POWER_LEVEL_NAMES[level], country].filter(Boolean).join(' · ') : country;
                   return (
                     <tr key={(val(row, ['user_id', 'u_id', 'id']) as string) ?? i}>
-                      <td className="num dim">{i + 1}</td>
+                      <td className="num dim">{(val(row, ['rank']) as number | null) ?? i + 1}</td>
                       <td style={{ fontWeight: 600 }}>{name || '—'}</td>
                       <td className="num" style={{ textAlign: 'right' }}>
                         {score}

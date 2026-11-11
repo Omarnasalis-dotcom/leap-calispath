@@ -29,6 +29,9 @@ export interface BuilderExercise {
   // Program Builder equivalent, so it's optional and ExerciseRow only
   // renders a field for it when explicitly asked to.
   work_seconds?: number | null;
+  /** Per exercise (block_exercises.is_weighted): the app asks for kg only on
+   * these. Undefined = not loaded yet, falls back to the block's flag. */
+  is_weighted?: boolean;
   notes: string;
 }
 

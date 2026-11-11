@@ -15,6 +15,24 @@ export interface MatchingCriteria {
   tier_range: TierRange;
 }
 
+/** The goals the app asks for (ProgramTemplatesScreen always passes
+ * 'strength'). A template with any other goal is never recommended. */
+export const LIBRARY_GOALS = [{ value: 'strength', label: 'Strength' }] as const;
+
+/** Every tier range in the app's TIER_LOOKUP (src/lib/templateLibrary.ts).
+ * Recommendations match a range exactly, so a range not on this list
+ * (e.g. 3–6) is never shown. Keep in sync with the app. */
+export const LIBRARY_TIER_RANGES: TierRange[] = [
+  { min: 0, max: 1 },
+  { min: 1, max: 2 },
+  { min: 2, max: 3 },
+  { min: 3, max: 4 },
+  { min: 4, max: 5 },
+  { min: 5, max: 6 },
+  { min: 6, max: 7 },
+  { min: 7, max: 9 },
+];
+
 /**
  * Recovers the distinct training-day count from block "name" strings
  * (stored as "DAY | BLOCK", per ProgramImportParser/MasterTemplateTransfer

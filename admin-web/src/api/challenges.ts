@@ -82,8 +82,36 @@ export async function upsertChallenges(rows: ChallengeUpsert[]): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Entries per challenge. Deleting a challenge deletes its entries too
+ * (weekly_entries FK is ON DELETE CASCADE), so the editor only offers
+ * Delete at 0 and Hide otherwise. */
+export async function fetchEntryCounts(challengeIds: string[]): Promise<Record<string, number>> {
+  const counts = await Promise.all(
+    challengeIds.map(async (id) => {
+      const { count, error } = await supabase
+        .from('weekly_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('challenge_id', id);
+      if (error) throw new Error(error.message);
+      return [id, count ?? 0] as const;
+    }),
+  );
+  return Object.fromEntries(counts);
+}
+
+/** Only for a challenge with no entries: the database deletes entries with it. */
 export async function deleteChallenge(id: string): Promise<void> {
+  const counts = await fetchEntryCounts([id]);
+  if ((counts[id] ?? 0) > 0) {
+    throw new Error('People already entered this challenge, so deleting it would erase their results. Hide it instead.');
+  }
   const { error } = await supabase.from('weekly_challenges').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/** Hidden challenges (is_active false) disappear from the app; their entries stay. */
+export async function setChallengeActive(id: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase.from('weekly_challenges').update({ is_active: isActive }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 

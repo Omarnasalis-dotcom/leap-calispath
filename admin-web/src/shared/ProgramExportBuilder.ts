@@ -2,6 +2,7 @@
 // query logic (kept in sync manually), trimmed of the native (expo-file-system
 // / expo-sharing) branch since admin-web only ever runs in a browser.
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser, type ConceptMetadata } from './BlockConceptParser';
 
 export interface ExportSetLog {
@@ -81,25 +82,26 @@ interface FetchWeekExportParams {
 }
 
 export async function fetchWeekExportPayload(params: FetchWeekExportParams): Promise<WeekExportPayload> {
-  const { data: blocksData, error: blocksError } = await supabase
-    .from('program_blocks')
-    .select('id, name, notes, order_index')
-    .eq('template_id', params.templateId)
-    .eq('week_number', params.weekNumber)
-    .order('order_index', { ascending: true });
-  if (blocksError) throw new Error(blocksError.message);
+  const blocksData = await fetchAllRows<{ id: string; name: string | null; notes: string | null; order_index: number | null }>((from, to) =>
+    supabase
+      .from('program_blocks')
+      .select('id, name, notes, order_index')
+      .eq('template_id', params.templateId)
+      .eq('week_number', params.weekNumber)
+      .order('order_index', { ascending: true })
+      .order('id')
+      .range(from, to),
+  );
 
-  const blockIds = (blocksData ?? []).map((b) => b.id);
-  let allExercisesData: Array<Record<string, unknown>> = [];
-  if (blockIds.length > 0) {
-    const { data, error } = await supabase
+  const allExercisesData = await fetchByIds<Record<string, unknown>>(blocksData.map((b) => b.id), (chunk, from, to) =>
+    supabase
       .from('block_exercises')
       .select('id, block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, order_index, exercise_library(name)')
-      .in('block_id', blockIds)
-      .order('order_index', { ascending: true });
-    if (error) throw new Error(error.message);
-    allExercisesData = (data ?? []) as Array<Record<string, unknown>>;
-  }
+      .in('block_id', chunk)
+      .order('order_index', { ascending: true })
+      .order('id')
+      .range(from, to),
+  );
 
   const exercisesByBlock = new Map<string, Array<Record<string, unknown>>>();
   for (const ex of allExercisesData) {
@@ -111,7 +113,7 @@ export async function fetchWeekExportPayload(params: FetchWeekExportParams): Pro
 
   const logsByBlockId = new Map(params.logs.map((l) => [l.blockId, l]));
 
-  const blocks: WeekExportBlock[] = (blocksData ?? []).map((block) => {
+  const blocks: WeekExportBlock[] = blocksData.map((block) => {
     const parsed = BlockConceptParser.parse(block.notes);
 
     let dayName = block.name ?? '';

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAll';
 
 // Fair Play (docs/features/FAIR_PLAY_MODERATION_PLAN.md). Flags, holds and
 // appeals are admin-readable tables; every action goes through a SECURITY
@@ -77,14 +78,15 @@ export interface InactiveAthlete {
 const NAME = 'profiles!user_id(display_name)';
 
 export async function fetchOpenFlags(): Promise<FairPlayFlag[]> {
-  const { data, error } = await supabase
-    .from('fair_play_flags')
-    .select(`*, ${NAME}`)
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-    .limit(500);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as FairPlayFlag[];
+  return fetchAllRows<FairPlayFlag>((from, to) =>
+    supabase
+      .from('fair_play_flags')
+      .select(`*, ${NAME}`)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to),
+  );
 }
 
 export async function fetchActiveHolds(): Promise<LeaderboardHold[]> {

@@ -329,15 +329,26 @@ export function ExerciseRow({
           onChange={(v) => onChange({ reps: v })}
         />
       )}
-      <input
-        className="field"
-        style={{ fontSize: 12 }}
-        placeholder="Execution notes, tempo, weights, or details…"
-        value={exercise.notes}
-        disabled={readOnly}
-        onChange={(e) => onChange({ notes: e.target.value })}
-        aria-label="Exercise notes"
-      />
+      <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+        <input
+          className="field"
+          style={{ fontSize: 12, flex: 1, minWidth: 0 }}
+          placeholder="Execution notes, tempo, weights, or details…"
+          value={exercise.notes}
+          disabled={readOnly}
+          onChange={(e) => onChange({ notes: e.target.value })}
+          aria-label="Exercise notes"
+        />
+        <label className="row" style={{ gap: 4, fontSize: 12, flexWrap: 'nowrap', whiteSpace: 'nowrap' }} title="The athlete logs kg for this exercise">
+          <input
+            type="checkbox"
+            checked={exercise.is_weighted ?? !!blockMetadata.is_weighted}
+            disabled={readOnly}
+            onChange={(e) => onChange({ is_weighted: e.target.checked })}
+          />
+          Weighted
+        </label>
+      </div>
     </div>
   );
 }

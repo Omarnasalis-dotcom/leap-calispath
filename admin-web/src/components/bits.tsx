@@ -178,3 +178,90 @@ export function ConfirmButton({
     </>
   );
 }
+
+/** A button that asks for one line of text (e.g. a template name) in a
+ * native <dialog>, in place of window.prompt. */
+export function PromptButton({
+  label,
+  title,
+  fieldLabel,
+  initialValue,
+  maxLength = 80,
+  confirmLabel = 'Save',
+  disabled,
+  onConfirm,
+}: {
+  label: string;
+  title: string;
+  fieldLabel: string;
+  initialValue: string;
+  maxLength?: number;
+  confirmLabel?: string;
+  disabled?: boolean;
+  onConfirm: (value: string) => void | Promise<void>;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [value, setValue] = useState(initialValue);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const v = value.trim();
+    if (!v) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm(v);
+      ref.current?.close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Action failed. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn small"
+        disabled={disabled}
+        onClick={() => {
+          setValue(initialValue);
+          setError(null);
+          ref.current?.showModal();
+        }}
+      >
+        {label}
+      </button>
+      <dialog className="confirm" ref={ref}>
+        <form
+          method="dialog"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <h2 style={{ marginBottom: 12 }}>{title}</h2>
+          <label className="label" style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
+            {fieldLabel}
+            <input className="field" autoFocus maxLength={maxLength} value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+          {error && (
+            <p role="alert" style={{ color: 'var(--danger)', fontSize: 13, margin: '0 0 16px' }}>
+              {error}
+            </p>
+          )}
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn small" onClick={() => ref.current?.close()} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" className="btn small primary" disabled={busy || !value.trim()}>
+              {busy ? 'Saving…' : confirmLabel}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}

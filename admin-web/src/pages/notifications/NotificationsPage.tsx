@@ -1,6 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { fetchNotifications, markAllRead, markRead, type NotificationRow } from '@/api/notifications';
+import { fetchNotifications, fetchUnreadCount, markAllRead, markRead, type NotificationRow } from '@/api/notifications';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/auth/AuthProvider';
 import { ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 
@@ -44,24 +47,42 @@ function NotificationIcon({ type }: { type: string }) {
   return <span className={`notif-icon ${tone}`}>{ICON_BY_TYPE[type] ?? '🔔'}</span>;
 }
 
+/** Where a notification leads: the review, the client's progress, or (admin)
+ * the user's profile. Null when there's nothing to open. */
+async function destinationFor(n: NotificationRow, isAdmin: boolean): Promise<string | null> {
+  const d = n.data ?? {};
+  if (typeof d.review_id === 'string') return `/program-reviews/${d.review_id}`;
+  const warriorId = typeof d.warriorId === 'string' ? d.warriorId : typeof d.client_id === 'string' ? d.client_id : null;
+  if (warriorId) {
+    // RLS scopes this to programs the viewer coaches (all, for an admin).
+    const { data } = await supabase
+      .from('warrior_programs')
+      .select('id, status')
+      .eq('warrior_id', warriorId)
+      .order('assigned_at', { ascending: false })
+      .limit(10);
+    const rows = (data ?? []) as Array<{ id: string; status: string | null }>;
+    const program = rows.find((r) => r.status === 'active') ?? rows[0];
+    if (program) return `/coaching/clients/${program.id}/progress`;
+    return isAdmin ? `/users/${warriorId}` : null;
+  }
+  if (isAdmin && typeof d.user_id === 'string') return `/users/${d.user_id}`;
+  return null;
+}
+
 function NotificationItem({
   notification,
-  onRead,
+  onOpen,
 }: {
   notification: NotificationRow;
-  onRead: (id: string) => void;
+  onOpen: (n: NotificationRow) => void;
 }) {
   const unread = !notification.read_at;
-  const navigate = useNavigate();
-  const reviewId = notification.data?.review_id;
   return (
     <button
       type="button"
       className={`notif-row${unread ? ' unread' : ''}`}
-      onClick={() => {
-        if (unread) onRead(notification.id);
-        if (typeof reviewId === 'string') navigate(`/program-reviews/${reviewId}`);
-      }}
+      onClick={() => onOpen(notification)}
     >
       <NotificationIcon type={notification.type} />
       <div className="notif-body">
@@ -78,63 +99,73 @@ function NotificationItem({
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const notificationsQ = useQuery({
     queryKey: ['notifications', 'list'],
     queryFn: () => fetchNotifications(),
   });
+  // The same count as the menu badge: every unread row, not only the 50 shown.
+  const unreadQ = useQuery({ queryKey: ['notifications', 'unread-count'], queryFn: fetchUnreadCount });
+  const unreadCount = unreadQ.data ?? 0;
 
-  const unreadCount = (notificationsQ.data ?? []).filter((n) => !n.read_at).length;
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  const readMutation = useMutation({ mutationFn: markRead, onSettled: invalidate });
+  const readAllMutation = useMutation({ mutationFn: markAllRead, onSettled: invalidate });
+  const [openError, setOpenError] = useState<Error | null>(null);
 
-  function invalidate() {
-    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  async function open(n: NotificationRow) {
+    setOpenError(null);
+    if (!n.read_at) readMutation.mutate(n.id);
+    try {
+      const to = await destinationFor(n, isAdmin);
+      if (to) navigate(to);
+    } catch (e) {
+      setOpenError(e instanceof Error ? e : new Error('Could not open this notification.'));
+    }
   }
 
-  async function handleRead(id: string) {
-    await markRead(id);
-    invalidate();
-  }
-
-  async function handleMarkAllRead() {
-    await markAllRead();
-    invalidate();
-  }
+  const error = notificationsQ.error ?? readMutation.error ?? readAllMutation.error ?? openError;
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Notifications</h2>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Notifications</h1>
+          <div className="sub num">
+            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} · the latest 50 are shown
+          </div>
+        </div>
         <button
           type="button"
           className="btn small"
-          disabled={unreadCount === 0}
-          onClick={() => void handleMarkAllRead()}
+          disabled={unreadCount === 0 || readAllMutation.isPending}
+          onClick={() => readAllMutation.mutate()}
         >
           Mark all read
         </button>
       </div>
-      <div className="panel-body" style={{ padding: 0 }}>
-        {notificationsQ.error && (
-          <div style={{ padding: 16 }}>
-            <ErrorNote error={notificationsQ.error} />
-          </div>
-        )}
-        {notificationsQ.isLoading && (
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="skeleton" style={{ height: 56 }} />
-            ))}
-          </div>
-        )}
-        {!notificationsQ.isLoading && (notificationsQ.data?.length ?? 0) === 0 && (
-          <div className="empty">
-            <span className="label">Nothing yet</span>
-            Client workout logs and achievements will show up here.
-          </div>
-        )}
-        {(notificationsQ.data ?? []).map((n) => (
-          <NotificationItem key={n.id} notification={n} onRead={handleRead} />
-        ))}
-      </div>
-    </section>
+      {error && <ErrorNote error={error} />}
+      <section className="panel">
+        <div className="panel-body" style={{ padding: 0 }}>
+          {notificationsQ.isLoading && (
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="skeleton" style={{ height: 56 }} />
+              ))}
+            </div>
+          )}
+          {!notificationsQ.isLoading && (notificationsQ.data?.length ?? 0) === 0 && (
+            <div className="empty">
+              <span className="label">Nothing yet</span>
+              Client workout logs and achievements will show up here.
+            </div>
+          )}
+          {(notificationsQ.data ?? []).map((n) => (
+            <NotificationItem key={n.id} notification={n} onOpen={(x) => void open(x)} />
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }

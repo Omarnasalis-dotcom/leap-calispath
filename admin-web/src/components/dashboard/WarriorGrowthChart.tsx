@@ -59,7 +59,7 @@ export function WarriorGrowthChart({ weeks }: { weeks: DashboardTrendWeek[] }) {
         onPointerMove={handleMove}
         onPointerLeave={() => setHoverIdx(null)}
         role="img"
-        aria-label="Cumulative warrior signups, last 8 weeks"
+        aria-label={`Cumulative warrior signups, last ${weeks.length} weeks`}
       >
         <defs>
           <linearGradient id="dvGrowthGrad" x1="0" y1="0" x2="0" y2="1">

@@ -8,6 +8,7 @@ export interface ClipboardExercise {
   reps: number | null;
   rest_seconds: number | null;
   hold_seconds: number | null;
+  is_weighted?: boolean;
   notes: string | null;
 }
 

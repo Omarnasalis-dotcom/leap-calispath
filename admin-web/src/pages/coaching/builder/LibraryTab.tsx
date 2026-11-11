@@ -12,6 +12,10 @@ import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { importLibraryTemplate } from '@/shared/TemplateLibraryImport';
 import { publishLibraryTemplate } from '@/shared/TemplateLibraryPublish';
+import { LIBRARY_GOALS, LIBRARY_TIER_RANGES } from '@/shared/templateLibrary';
+import { tierName } from '@/shared/constants';
+
+const rangeKey = (r: { min: number; max: number }) => `${r.min}-${r.max}`;
 
 // One cover slot (dark or light). Persists immediately on upload/remove —
 // same reuse-the-shared-bucket pattern as Workout Content's cover photo
@@ -100,16 +104,25 @@ function TemplateCoverSlot({ template, variant }: { template: LibraryTemplateRow
 function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
   const queryClient = useQueryClient();
   const ref = useRef<HTMLDialogElement>(null);
-  const [goal, setGoal] = useState(template.matching_criteria?.goal ?? '');
-  const [min, setMin] = useState(String(template.matching_criteria?.tier_range?.min ?? ''));
-  const [max, setMax] = useState(String(template.matching_criteria?.tier_range?.max ?? ''));
+  const [goal, setGoal] = useState(template.matching_criteria?.goal ?? LIBRARY_GOALS[0].value);
+  const current = template.matching_criteria?.tier_range;
+  const [range, setRange] = useState(current ? rangeKey(current) : '');
+  // A range saved before this picker existed that the app can't match.
+  const unmatchedRange = current && !LIBRARY_TIER_RANGES.some((r) => rangeKey(r) === rangeKey(current));
+  const unmatchedGoal = !LIBRARY_GOALS.some((g) => g.value === goal);
   const [tags, setTags] = useState(template.equipment_tags.join(', '));
 
   const saveMutation = useMutation({
     mutationFn: () =>
       saveLibraryCriteria(
         template.id,
-        { goal: goal.trim(), tier_range: { min: Number(min), max: Number(max) } },
+        {
+          goal,
+          tier_range: (() => {
+            const [min, max] = range.split('-').map(Number);
+            return { min, max };
+          })(),
+        },
         tags.split(',').map((t) => t.trim()).filter(Boolean),
       ),
     onSuccess: () => {
@@ -129,37 +142,33 @@ function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
         <TemplateCoverSlot template={template} variant="dark" />
         <TemplateCoverSlot template={template} variant="light" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
-          <input
-            className="field"
-            placeholder="Goal (e.g. strength)"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            aria-label="Goal"
-          />
-          <div className="row">
-            <input
-              className="field"
-              style={{ flex: 1 }}
-              type="number"
-              min={0}
-              max={9}
-              placeholder="Tier min"
-              value={min}
-              onChange={(e) => setMin(e.target.value)}
-              aria-label="Tier range minimum"
-            />
-            <input
-              className="field"
-              style={{ flex: 1 }}
-              type="number"
-              min={0}
-              max={9}
-              placeholder="Tier max"
-              value={max}
-              onChange={(e) => setMax(e.target.value)}
-              aria-label="Tier range maximum"
-            />
-          </div>
+          <label className="label" style={{ display: 'grid', gap: 4 }}>
+            Goal
+            <select className="field" value={goal} onChange={(e) => setGoal(e.target.value)}>
+              {unmatchedGoal && <option value={goal}>{goal} (the app never asks for this)</option>}
+              {LIBRARY_GOALS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="label" style={{ display: 'grid', gap: 4 }}>
+            Strength tiers it's recommended for
+            <select className="field" value={range} onChange={(e) => setRange(e.target.value)}>
+              <option value="">Choose a tier range…</option>
+              {unmatchedRange && current && (
+                <option value={rangeKey(current)} disabled>
+                  {`Tier ${current.min}–${current.max} (the app never shows this range)`}
+                </option>
+              )}
+              {LIBRARY_TIER_RANGES.map((r) => (
+                <option key={rangeKey(r)} value={rangeKey(r)}>
+                  {`Tier ${r.min}–${r.max} · ${tierName(r.min)} to ${tierName(r.max)}`}
+                </option>
+              ))}
+            </select>
+          </label>
           <input
             className="field"
             placeholder="Equipment tags, comma separated"
@@ -174,7 +183,7 @@ function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
           </button>
           <button
             className="btn small primary"
-            disabled={!goal.trim() || min === '' || max === '' || saveMutation.isPending}
+            disabled={unmatchedGoal || !range || !!(unmatchedRange && current && range === rangeKey(current)) || saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save'}

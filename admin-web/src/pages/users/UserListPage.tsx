@@ -69,7 +69,7 @@ const COLUMNS: Column<AdminUserRow>[] = [
   },
   {
     key: 'subscription_tier',
-    header: 'Tier',
+    header: 'Plan',
     render: (u) => {
       const label = subscriptionTierLabel(u.subscription_tier, u.access_expires_at);
       return <Badge color={SUBSCRIPTION_TIER_COLORS[label]}>{label}</Badge>;

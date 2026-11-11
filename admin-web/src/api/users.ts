@@ -110,7 +110,7 @@ export async function revokeAccess(userId: string): Promise<void> {
   if (!result?.success) {
     throw new Error(
       result?.error === 'REAL_SUBSCRIPTION_CANNOT_BE_REVOKED_HERE'
-        ? 'Refused: this user has a real Apple subscription. It can only be cancelled through Apple/RevenueCat directly.'
+        ? 'Refused: this user has a real store subscription (App Store or Google Play). Only they can cancel it, in the store.'
         : result?.error ?? 'Revoke failed',
     );
   }
