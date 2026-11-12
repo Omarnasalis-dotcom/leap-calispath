@@ -126,3 +126,51 @@ export async function clearDuplicateSubscriptionFlag(userId: string): Promise<vo
     throw new Error(result?.error ?? 'Clear failed');
   }
 }
+
+/** One athlete's programs, newest first (admin RLS reads all). */
+export interface UserProgramRow {
+  id: string;
+  template_id: string;
+  coach_id: string | null;
+  status: string | null;
+  current_week: number | null;
+  assigned_at: string;
+  template_name: string | null;
+  coach_name: string | null;
+}
+
+export async function fetchUserPrograms(userId: string): Promise<UserProgramRow[]> {
+  const { data, error } = await supabase
+    .from('warrior_programs')
+    .select(
+      'id, template_id, coach_id, status, current_week, assigned_at, ' +
+        'template:program_templates!warrior_programs_template_id_fkey(name), ' +
+        'coach:profiles!warrior_programs_coach_id_fkey(display_name)',
+    )
+    .eq('warrior_id', userId)
+    .order('assigned_at', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Array<
+    Omit<UserProgramRow, 'template_name' | 'coach_name'> & {
+      template: { name: string } | null;
+      coach: { display_name: string | null } | null;
+    }
+  >).map(({ template, coach, ...r }) => ({ ...r, template_name: template?.name ?? null, coach_name: coach?.display_name ?? null }));
+}
+
+/** The athlete's latest finished workout on any program (missed logs don't count). */
+export async function fetchLastWorkout(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('workout_logs')
+    .select('completed_at, notes')
+    .eq('warrior_id', userId)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  const row = ((data ?? []) as Array<{ completed_at: string; notes: string | null }>).find(
+    (r) => !(r.notes ?? '').startsWith('[STATUS:MISSED]'),
+  );
+  return row?.completed_at ?? null;
+}

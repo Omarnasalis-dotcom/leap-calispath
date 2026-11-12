@@ -14,6 +14,12 @@ import { PageHeader } from '@/components/layout';
 /** One athlete: strikes, holds, appeals, every flag; act on the open ones. */
 export function AthleteFairPlayPage() {
   const { id = '' } = useParams();
+  return <AthleteFairPlayContent id={id} />;
+}
+
+/** The athlete's Fair Play view: its own page, or (embedded) the user
+ * hub's Fair Play tab. */
+export function AthleteFairPlayContent({ id, embedded = false }: { id: string; embedded?: boolean }) {
   const q = useQuery({ queryKey: ['fair-play', 'athlete', id], queryFn: () => fetchAthleteFairPlay(id), enabled: !!id });
   const open = (q.data?.flags ?? []).filter((f) => f.status === 'open');
   const [selected, setSelected] = useState<Set<number> | null>(null);
@@ -32,7 +38,15 @@ export function AthleteFairPlayPage() {
   const actioned = new Set((q.data?.flags ?? []).filter((f) => f.status === 'actioned' && !inForce.has(f.id)).map((f) => f.id));
 
   return (
-    <div className="page">
+    <div className={embedded ? 'tab-stack' : 'page'}>
+      {embedded ? (
+        <div className="row" style={{ gap: 10 }}>
+          <Badge tone={strikes > 0 ? 'warn' : undefined}>{strikes} strike{strikes === 1 ? '' : 's'}</Badge>
+          <span className="dim" style={{ fontSize: 13 }}>
+            Wrong call? Lift a hold (looks real, or decide again), restore results after a reset, or reopen a flag below.
+          </span>
+        </div>
+      ) : (
       <PageHeader
         back={{ label: 'Fair Play flags', to: '/fair-play' }}
         title="Fair Play · Athlete"
@@ -44,6 +58,7 @@ export function AthleteFairPlayPage() {
         }
         actions={<Badge tone={strikes > 0 ? 'warn' : undefined}>{strikes} strike{strikes === 1 ? '' : 's'}</Badge>}
       />
+      )}
 
       {q.error && <ErrorNote error={q.error} />}
       {q.isLoading && <div className="skeleton" style={{ height: 200 }} />}

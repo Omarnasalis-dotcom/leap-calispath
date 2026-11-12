@@ -139,7 +139,8 @@ export function AiCoachChatsPage() {
   );
 }
 
-function Thread({ userId }: { userId: string }) {
+/** One user's chat with the coach (also the user hub's AI Coach tab). */
+export function Thread({ userId }: { userId: string }) {
   const [before, setBefore] = useState<string | null>(null);
   // Pages walked back while looking for a linked turn (#turn-<id>).
   const searchedPages = useRef(0);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   clearDuplicateSubscriptionFlag,
@@ -21,8 +21,9 @@ import {
 } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
-import { PerformancePanel } from '@/components/performance/PerformancePanel';
 import type { TrialHistoryRow } from '@/shared/types';
+import { AthleteFairPlayContent } from '@/pages/fairPlay/AthleteFairPlayPage';
+import { isUserTab, UserAiTab, UserOverview, UserProgramTab, UserTabs, type UserTab } from './userHub';
 import { PageHeader } from '@/components/layout';
 
 const TRIAL_COLUMNS: Column<TrialHistoryRow>[] = [
@@ -58,7 +59,8 @@ const TRIAL_COLUMNS: Column<TrialHistoryRow>[] = [
 ];
 
 export function UserDetailPage() {
-  const { id = '' } = useParams();
+  const { id = '', tab: tabParam } = useParams();
+  const tab: UserTab = isUserTab(tabParam) ? tabParam : 'overview';
   const { profile: me } = useAuth();
   const queryClient = useQueryClient();
   const [pauseReason, setPauseReason] = useState('');
@@ -132,8 +134,12 @@ export function UserDetailPage() {
               </span>
               {u.is_admin && <Badge tone="accent">admin</Badge>}
               {u.is_coach && <Badge>coach</Badge>}
-              <span>·</span>
-              <Link to={`/fair-play/athlete/${id}`}>Fair Play history</Link>
+              <Badge color={SUBSCRIPTION_TIER_COLORS[subscriptionTierLabel(u.subscription_tier, u.access_expires_at)]}>
+                {subscriptionTierLabel(u.subscription_tier, u.access_expires_at)}
+                {u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now()
+                  ? ` · ends ${formatDate(u.access_expires_at)}`
+                  : ''}
+              </Badge>
             </span>
           )
         }
@@ -176,6 +182,45 @@ export function UserDetailPage() {
 
       {!u && !profileQ.error && <div className="skeleton" style={{ height: 220 }} />}
 
+      {u && <UserTabs id={id} active={tab} />}
+
+      {u && tab === 'overview' && (
+        <>
+          <UserOverview id={id} u={u} />
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Account</h2>
+            </div>
+            <div className="panel-body">
+              <dl className="kv">
+                <dt>Email</dt>
+                <dd>{u.email ?? '—'}</dd>
+                <dt>Name</dt>
+                <dd>{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</dd>
+                <dt>Country</dt>
+                <dd>{u.country ?? '—'}</dd>
+                <dt>Gender</dt>
+                <dd>{u.gender ?? '—'}</dd>
+                <dt>Community</dt>
+                <dd>{u.community_name ?? '—'}</dd>
+                <dt>Signed up</dt>
+                <dd>{formatDate(u.auth_created_at)}</dd>
+                <dt>Last sign-in</dt>
+                <dd>{formatDateTime(u.last_sign_in_at)}</dd>
+                <dt>Last active</dt>
+                <dd>{formatDateTime(u.last_active)}</dd>
+                <dt>Invite code used</dt>
+                <dd>{u.invite_code_used ?? '—'}</dd>
+                <dt>Access expires</dt>
+                <dd>{formatDate(u.access_expires_at)}</dd>
+              </dl>
+            </div>
+          </section>
+        </>
+      )}
+
+      {u && tab === 'access' && (
+        <div className="tab-stack">
       {u && u.is_coach && (
         <section className="panel">
           <div className="panel-head">
@@ -308,38 +353,20 @@ export function UserDetailPage() {
         </section>
       )}
 
-      {u && (
-        <div className="grid-2">
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Account</h2>
-            </div>
-            <div className="panel-body">
-              <dl className="kv">
-                <dt>Email</dt>
-                <dd>{u.email ?? '—'}</dd>
-                <dt>Name</dt>
-                <dd>{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</dd>
-                <dt>Country</dt>
-                <dd>{u.country ?? '—'}</dd>
-                <dt>Gender</dt>
-                <dd>{u.gender ?? '—'}</dd>
-                <dt>Community</dt>
-                <dd>{u.community_name ?? '—'}</dd>
-                <dt>Signed up</dt>
-                <dd>{formatDate(u.auth_created_at)}</dd>
-                <dt>Last sign-in</dt>
-                <dd>{formatDateTime(u.last_sign_in_at)}</dd>
-                <dt>Last active</dt>
-                <dd>{formatDateTime(u.last_active)}</dd>
-                <dt>Invite code used</dt>
-                <dd>{u.invite_code_used ?? '—'}</dd>
-                <dt>Access expires</dt>
-                <dd>{formatDate(u.access_expires_at)}</dd>
-              </dl>
-            </div>
-          </section>
+        </div>
+      )}
 
+      {u && tab === 'program' && (
+        <UserProgramTab id={id} name={u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Athlete'} />
+      )}
+
+      {u && tab === 'ai-coach' && <UserAiTab id={id} />}
+
+      {u && tab === 'fair-play' && <AthleteFairPlayContent id={id} embedded />}
+
+      {tab === 'trials' && (
+        <div className="tab-stack">
+          {u && (
           <section className="panel">
             <div className="panel-head">
               <h2>Progression</h2>
@@ -379,11 +406,7 @@ export function UserDetailPage() {
               </dl>
             </div>
           </section>
-        </div>
-      )}
-
-      {u && <PerformancePanel userId={id} athleteName={u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Athlete'} />}
-
+          )}
       <section className="panel">
         <div className="panel-head">
           <h2>Trial history</h2>
@@ -405,6 +428,8 @@ export function UserDetailPage() {
           emptyHint="This warrior hasn't attempted a rite of passage."
         />
       </section>
+        </div>
+      )}
     </div>
   );
 }

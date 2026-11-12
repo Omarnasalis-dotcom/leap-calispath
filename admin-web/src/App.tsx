@@ -105,6 +105,7 @@ const router = createBrowserRouter(
                 <Route index element={<DashboardPage />} />
                 <Route path="users" element={<UserListPage />} />
                 <Route path="users/:id" element={<UserDetailPage />} />
+                <Route path="users/:id/:tab" element={<UserDetailPage />} />
                 <Route path="communities" element={<CommunitiesPage />} />
                 <Route path="challenges" element={<ChallengeWeekPage />} />
                 <Route path="challenges/templates" element={<TemplatesPage />} />

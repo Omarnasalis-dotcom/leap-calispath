@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, Search, X } from 'lucide-react';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/bits';
 import { fetchUnreadCount } from '@/api/notifications';
@@ -10,6 +10,7 @@ import { fetchProgramReviews } from '@/api/programReviews';
 import { fetchAiCoachReports } from '@/api/aiCoachReports';
 import { fetchCoachFlags } from '@/api/aiCoachChats';
 import { UpdateNotice } from './UpdateNotice';
+import { CommandPalette } from './CommandPalette';
 
 type BadgeKey = 'notifications' | 'reviews' | 'appeals' | 'flags' | 'aiReports' | 'chatFlags';
 
@@ -174,6 +175,21 @@ export function AppShell() {
 
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+  // ⌘K / Ctrl+K anywhere opens search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setMenuOpen(false);
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -227,6 +243,9 @@ export function AppShell() {
           LEAP
         </Link>
         <span className="topbar-title">{current?.label ?? ''}</span>
+        <button type="button" className="btn icon ghost topbar-search" aria-label="Search" onClick={() => setPaletteOpen(true)}>
+          <Search />
+        </button>
       </header>
 
       <div className="menu-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />
@@ -236,6 +255,19 @@ export function AppShell() {
           <span className="mark">LEAP</span>
           <span className="scope">{isAdmin ? 'Admin' : isCoach ? 'Coach' : 'Assistant'}</span>
         </div>
+
+        <button
+          type="button"
+          className="sidebar-search"
+          onClick={() => {
+            setMenuOpen(false);
+            setPaletteOpen(true);
+          }}
+        >
+          <Search aria-hidden="true" />
+          <span>{isAdmin ? 'Search people, pages' : 'Search pages'}</span>
+          <kbd>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
 
         <div className="nav-groups">
           {nav.map((group) => {
@@ -300,6 +332,13 @@ export function AppShell() {
         <UpdateNotice />
         <Outlet />
       </main>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        canSearchUsers={isAdmin}
+        pages={nav.flatMap((g) => g.items.map((item) => ({ to: item.to, label: item.label, group: g.label })))}
+      />
     </div>
   );
 }
