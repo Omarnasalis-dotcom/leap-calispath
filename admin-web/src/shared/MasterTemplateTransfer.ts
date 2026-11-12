@@ -10,6 +10,7 @@
 import { supabase } from '@/lib/supabase';
 import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser, type ConceptMetadata } from './BlockConceptParser';
+import { resolvedExerciseId, unresolvedError } from './ProgramImportParser';
 
 export interface MasterTemplateExportBlock {
   day_name: string;
@@ -137,7 +138,8 @@ export function downloadMasterTemplateExportPayload(payload: MasterTemplateExpor
  * to 1 — this creates a brand new multi-week template from scratch, not an
  * addition to an existing assignment. */
 export function buildMasterTemplateBlocksPayload(data: { blocks: unknown[] }, resolved: Map<string, string>) {
-  return (data.blocks as Array<Record<string, any>>).map((block, blockIdx) => {
+  const unresolved: string[] = [];
+  const payload = (data.blocks as Array<Record<string, any>>).map((block, blockIdx) => {
     const notes = block.metadata
       ? BlockConceptParser.stringify(block.metadata, block.coach_notes || '')
       : (block.coach_notes || block.notes || '');
@@ -154,9 +156,10 @@ export function buildMasterTemplateBlocksPayload(data: { blocks: unknown[] }, re
       week_number: block.week_number || 1,
       exercises: ((block.exercises ?? []) as Array<Record<string, any>>)
         .map((ex) => {
-          const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name || '').trim().toLowerCase()}`;
+          const exerciseId = resolvedExerciseId(resolved, ex);
+          if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
-            exercise_id: resolved.get(key),
+            exercise_id: exerciseId,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
@@ -168,4 +171,6 @@ export function buildMasterTemplateBlocksPayload(data: { blocks: unknown[] }, re
         .filter((ex) => !!ex.exercise_id),
     };
   });
+  if (unresolved.length > 0) throw unresolvedError(unresolved);
+  return payload;
 }

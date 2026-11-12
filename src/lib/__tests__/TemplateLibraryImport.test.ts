@@ -1,17 +1,14 @@
 import { buildLibraryTemplateBlocksPayload } from '../TemplateLibraryImport';
 
 describe('buildLibraryTemplateBlocksPayload', () => {
-  it('combines day_name and block_name into "DAY | BLOCK", defaults week_number to 1, and keeps only resolved exercises', () => {
+  it('combines day_name and block_name into "DAY | BLOCK" and defaults week_number to 1', () => {
     const data = {
       blocks: [
         {
           day_name: 'Monday',
           block_name: 'Push',
           order_index: 0,
-          exercises: [
-            { exercise_id: 'existing-id', sets: 3, reps: 10, rest_seconds: 60 },
-            { name: 'Unresolved Move', sets: 3, reps: 8 },
-          ],
+          exercises: [{ exercise_id: 'existing-id', sets: 3, reps: 10, rest_seconds: 60 }],
         },
       ],
     };
@@ -25,6 +22,25 @@ describe('buildLibraryTemplateBlocksPayload', () => {
     expect(result[0].exercises).toHaveLength(1);
     expect(result[0].exercises[0].exercise_id).toBe('existing-id');
     expect(result[0].exercises[0].sets).toBe(3);
+  });
+
+  // It used to drop an unmatched exercise silently, which left published
+  // library blocks with a note and no exercise (fixed 2026-11-12).
+  it('stops with the exercise name instead of dropping an exercise nothing matched', () => {
+    const data = {
+      blocks: [
+        {
+          day_name: 'Monday',
+          block_name: 'Push',
+          exercises: [
+            { exercise_id: 'existing-id', sets: 3, reps: 10 },
+            { name: 'Unresolved Move', sets: 3, reps: 8 },
+          ],
+        },
+      ],
+    };
+    const resolved = new Map([['id:existing-id', 'existing-id']]);
+    expect(() => buildLibraryTemplateBlocksPayload(data, resolved)).toThrow(/Unresolved Move/);
   });
 
   it('passes through an explicit week_number for multi-week templates', () => {

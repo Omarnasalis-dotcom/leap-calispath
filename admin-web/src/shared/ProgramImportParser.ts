@@ -104,7 +104,8 @@ export async function resolveImportedExercises(blocks: any[], coachId: string): 
 // treated as one week's worth of blocks (week_number 1 within this
 // source) — the RPC offsets it onto the client's next actual week number.
 export function buildImportBlocksPayload(data: any, resolved: Map<string, string>) {
-  return (data.blocks as any[]).map((block, blockIdx) => {
+  const unresolved: string[] = [];
+  const payload = (data.blocks as any[]).map((block, blockIdx) => {
     const notes = block.metadata
       ? BlockConceptParser.stringify(block.metadata, block.coach_notes || '')
       : (block.coach_notes || block.notes || '');
@@ -120,9 +121,10 @@ export function buildImportBlocksPayload(data: any, resolved: Map<string, string
       week_number: 1,
       exercises: (block.exercises || [])
         .map((ex: any) => {
-          const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name || '').trim().toLowerCase()}`;
+          const exerciseId = resolvedExerciseId(resolved, ex);
+          if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
-            exercise_id: resolved.get(key),
+            exercise_id: exerciseId,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
@@ -134,4 +136,21 @@ export function buildImportBlocksPayload(data: any, resolved: Map<string, string
         .filter((ex: any) => !!ex.exercise_id),
     };
   });
+  if (unresolved.length > 0) throw unresolvedError(unresolved);
+  return payload;
+}
+
+/** The exercise_library id an imported exercise resolved to: by its id when
+ * that id still exists, otherwise by its name. (Looking it up by a stale id
+ * only, as the builders used to, lost every exercise whose id had changed
+ * even though its name matched; the block kept its note and lost the
+ * exercise.) */
+export function resolvedExerciseId(resolved: Map<string, string>, ex: { exercise_id?: unknown; name?: unknown }): string | undefined {
+  const byId = ex.exercise_id ? resolved.get(`id:${ex.exercise_id}`) : undefined;
+  return byId ?? resolved.get(`name:${String(ex.name ?? '').trim().toLowerCase()}`);
+}
+
+/** Thrown instead of silently dropping exercises nothing matched. */
+export function unresolvedError(names: string[]): Error {
+  return new Error(`Could not match these exercises: ${[...new Set(names)].join(', ')}. Fix their exercise_id or name in the file and import again.`);
 }

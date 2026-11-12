@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { BlockConceptParser } from './BlockConceptParser';
+import { resolvedExerciseId, unresolvedError } from './ProgramImportParser';
 
 // Export/import for a coach's reusable master template — distinct from
 // ProgramExportBuilder/ProgramImportParser, which operate on one warrior's
@@ -145,7 +146,8 @@ export async function shareMasterTemplateExportPayload(
 // to 1 — this creates a brand new multi-week template from scratch, not an
 // addition to an existing assignment.
 export function buildMasterTemplateBlocksPayload(data: any, resolved: Map<string, string>) {
-  return (data.blocks as any[]).map((block, blockIdx) => {
+  const unresolved: string[] = [];
+  const payload = (data.blocks as any[]).map((block, blockIdx) => {
     const notes = block.metadata
       ? BlockConceptParser.stringify(block.metadata, block.coach_notes || '')
       : (block.coach_notes || block.notes || '');
@@ -162,9 +164,10 @@ export function buildMasterTemplateBlocksPayload(data: any, resolved: Map<string
       week_number: block.week_number || 1,
       exercises: (block.exercises || [])
         .map((ex: any) => {
-          const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name || '').trim().toLowerCase()}`;
+          const exerciseId = resolvedExerciseId(resolved, ex);
+          if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
-            exercise_id: resolved.get(key),
+            exercise_id: exerciseId,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
@@ -175,4 +178,6 @@ export function buildMasterTemplateBlocksPayload(data: any, resolved: Map<string
         .filter((ex: any) => !!ex.exercise_id),
     };
   });
+  if (unresolved.length > 0) throw unresolvedError(unresolved);
+  return payload;
 }
