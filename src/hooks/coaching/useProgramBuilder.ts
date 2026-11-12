@@ -392,42 +392,59 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         }
       }
 
-      // 2. Fetch blocks
-      const { data: blocksData, error: blocksError } = await supabase
-        .from('program_blocks')
-        .select('*')
-        .eq('template_id', tempId)
-        .order('order_index', { ascending: true });
+      // 2. Fetch blocks. Paged: the API returns at most 1,000 rows per
+      // request, and a save of a partly loaded program deletes the rows it
+      // never loaded (one athlete program already has 1,003 exercises).
+      const PAGE = 1000;
+      const blocksData: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error: blocksError } = await supabase
+          .from('program_blocks')
+          .select('*')
+          .eq('template_id', tempId)
+          .order('order_index', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (blocksError) throw blocksError;
+        blocksData.push(...(data || []));
+        if ((data || []).length < PAGE) break;
+      }
 
-      if (blocksError) throw blocksError;
+      // 3. FIX N+1: Batch Fetch all exercises for all blocks (block ids in
+      // chunks to keep the URL short, each chunk paged).
+      const blockIds = blocksData.map(b => b.id);
 
-      // 3. FIX N+1: Batch Fetch all exercises for all blocks
-      const blockIds = (blocksData || []).map(b => b.id);
-      
-      let allExercisesData: any[] = [];
-      if (blockIds.length > 0) {
-        const { data: exercisesBatchData, error: batchError } = await supabase
-          .from('block_exercises')
-          .select(`
-            id,
-            block_id,
-            exercise_id,
-            sets,
-            reps,
-            rest_seconds,
-            hold_seconds,
-            notes,
-            order_index,
-            exercise_library (
-              name,
-              youtube_url
-            )
-          `)
-          .in('block_id', blockIds)
-          .order('order_index', { ascending: true });
+      const allExercisesData: any[] = [];
+      for (let i = 0; i < blockIds.length; i += 150) {
+        const chunk = blockIds.slice(i, i + 150);
+        for (let from = 0; ; from += PAGE) {
+          const { data: exercisesBatchData, error: batchError } = await supabase
+            .from('block_exercises')
+            .select(`
+              id,
+              block_id,
+              exercise_id,
+              sets,
+              reps,
+              rest_seconds,
+              hold_seconds,
+              is_weighted,
+              notes,
+              order_index,
+              exercise_library (
+                name,
+                youtube_url
+              )
+            `)
+            .in('block_id', chunk)
+            .order('order_index', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1);
 
-        if (batchError) throw batchError;
-        allExercisesData = exercisesBatchData || [];
+          if (batchError) throw batchError;
+          allExercisesData.push(...(exercisesBatchData || []));
+          if ((exercisesBatchData || []).length < PAGE) break;
+        }
       }
       
       // Group exercises by block_id
@@ -454,6 +471,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           reps: String(ex.reps || ''),
           rest_seconds: String(ex.rest_seconds || ''),
           hold_seconds: String(ex.hold_seconds || ''),
+          // Per exercise: the athlete logs kg only where this is on.
+          is_weighted: !!ex.is_weighted,
           notes: ex.notes || ''
         }));
 
@@ -696,7 +715,15 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         if (d.id === dayId) {
           return {
             ...d,
-            blocks: d.blocks.map(b => (b.id === blockId ? { ...b, [field]: value } : b))
+            blocks: d.blocks.map(b => {
+              if (b.id !== blockId) return b;
+              // Ticking or unticking the block's Weighted sets every exercise
+              // in it; any other block setting leaves each one's flag alone.
+              if (field === 'metadata' && !!value?.is_weighted !== !!b.metadata?.is_weighted) {
+                return { ...b, metadata: value, exercises: b.exercises.map(ex => ({ ...ex, is_weighted: !!value?.is_weighted })) };
+              }
+              return { ...b, [field]: value };
+            })
           };
         }
         return d;
@@ -1058,6 +1085,9 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
               reps: parseInt(ex.reps) || null,
               rest_seconds: parseInt(ex.rest_seconds) || null,
               hold_seconds: parseInt(ex.hold_seconds) || null,
+              // Sent per exercise; save_program_template writes false when
+              // it's missing, which used to reset every exercise on save.
+              is_weighted: ex.is_weighted ?? !!metadata.is_weighted,
               notes: ex.notes.trim(),
               order_index: exIdx
             }))
