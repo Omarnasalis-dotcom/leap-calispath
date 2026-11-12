@@ -7,6 +7,7 @@ import {
   type FairPlayArea, type FairPlayFlag, type HoldScope, type LeaderboardHold,
 } from '@/api/fairPlay';
 import { HOLD_NOTE_PRESETS, noteLabel, TEMPLATE_PREFIX, type NotePreset } from '@/shared/fairPlayNotes';
+import { useToast } from '@/components/Toast';
 
 /** Invalidate every Fair Play view after an action. */
 export function useFairPlayInvalidate() {
@@ -93,11 +94,19 @@ export function ActionsBar({ userId, flags, selected }: { userId: string; flags:
     ? Array.from(new Set(strength.map((f) => flagTier(f) as number))).sort((a, b) => a - b)
     : null;
 
-  const dismiss = useMutation({ mutationFn: () => dismissFlags(ids, note), onSuccess: invalidate });
+  const toast = useToast();
+  const dismiss = useMutation({ mutationFn: () => dismissFlags(ids, note), onSuccess: () => {
+      toast('Flags dismissed');
+      invalidate();
+    },
+  });
   const hold = useMutation({
     mutationFn: (p: { scope: HoldScope; permanent: boolean; tiers?: number[] | null }) =>
       holdAthlete({ userId, scope: p.scope, flagIds: ids, strike, permanent: p.permanent, note, tiers: p.tiers }),
-    onSuccess: invalidate,
+    onSuccess: (_d, p) => {
+      toast(p.permanent ? 'Banned from leaderboards' : 'Hidden from leaderboards');
+      invalidate();
+    },
   });
   const busy = dismiss.isPending || hold.isPending;
   const none = ids.length === 0;
@@ -202,9 +211,22 @@ export function HoldRow({ hold, showName, canRestore, backToFlags }: {
   backToFlags?: number[];
 }) {
   const invalidate = useFairPlayInvalidate();
-  const reopen = useMutation({ mutationFn: () => reopenFlags(backToFlags ?? []), onSuccess: invalidate });
-  const lift = useMutation({ mutationFn: (reopen: boolean) => liftHold(hold.id, reopen), onSuccess: invalidate });
-  const restore = useMutation({ mutationFn: () => restoreReset(hold.id), onSuccess: invalidate });
+  const toast = useToast();
+  const reopen = useMutation({ mutationFn: () => reopenFlags(backToFlags ?? []), onSuccess: () => {
+      toast('Flags back in the queue');
+      invalidate();
+    },
+  });
+  const lift = useMutation({ mutationFn: (reopen: boolean) => liftHold(hold.id, reopen), onSuccess: () => {
+      toast('Hold lifted');
+      invalidate();
+    },
+  });
+  const restore = useMutation({ mutationFn: () => restoreReset(hold.id), onSuccess: () => {
+      toast('Results restored');
+      invalidate();
+    },
+  });
   const tone = hold.status === 'permanent' ? 'warn' : hold.status === 'active' ? 'accent' : undefined;
   const fairPlay = hold.reason === 'fair_play';
   return (

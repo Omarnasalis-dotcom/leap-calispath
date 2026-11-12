@@ -5,6 +5,8 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, CopyCode, ErrorNote } from '@/components/bits';
 import { formatDate } from '@/shared/constants';
 import { PageHeader } from '@/components/layout';
+import { Drawer } from '@/components/Drawer';
+import { useToast } from '@/components/Toast';
 
 interface FormState {
   create: boolean;
@@ -101,9 +103,11 @@ export function PromoCodesPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: savePromoCode,
     onSuccess: () => {
+      toast('Code saved');
       setForm(null);
       void queryClient.invalidateQueries({ queryKey: ['promo-codes'] });
     },
@@ -116,7 +120,10 @@ export function PromoCodesPage() {
       if (typeof input === 'string') throw new Error(input);
       return savePromoCode(input);
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['promo-codes'] }),
+    onSuccess: (_d, c) => {
+      toast(c.is_active ? `${c.code} switched off` : `${c.code} switched on`);
+      void queryClient.invalidateQueries({ queryKey: ['promo-codes'] });
+    },
   });
 
   function save() {
@@ -173,12 +180,7 @@ export function PromoCodesPage() {
       {toggleMutation.error && <ErrorNote error={toggleMutation.error} />}
 
       {form && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>{form.create ? 'New code' : `Edit ${form.code}`}</h2>
-            <button className="btn small" onClick={() => setForm(null)}>Cancel</button>
-          </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Drawer open title={form.create ? 'New code' : `Edit ${form.code}`} onClose={() => setForm(null)}>
             {locked && <div className="sub">People already claimed this code, so its offer can no longer change.</div>}
             <div className="row">
               <label className="row" style={{ gap: 6 }}>
@@ -248,8 +250,7 @@ export function PromoCodesPage() {
               </button>
             </div>
             {formError && <div className="error-note">{formError}</div>}
-          </div>
-        </section>
+          </Drawer>
       )}
 
       <section className="panel">

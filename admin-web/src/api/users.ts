@@ -6,7 +6,18 @@ import type {
   UserPerformance,
 } from '@/shared/types';
 
-export interface UserSearchParams {
+export type PlanFilter = 'free' | 'first' | 'pro' | 'max';
+export type RoleFilter = 'admin' | 'coach';
+export type ActiveFilter = '7d' | '30d' | 'inactive30';
+
+export interface UserFilters {
+  plan?: PlanFilter | null;
+  role?: RoleFilter | null;
+  active?: ActiveFilter | null;
+  tier?: number | null;
+}
+
+export interface UserSearchParams extends UserFilters {
   query: string;
   sort: string;
   desc: boolean;
@@ -21,9 +32,26 @@ export async function searchUsers(params: UserSearchParams): Promise<AdminUserRo
     p_desc: params.desc,
     p_limit: params.pageSize,
     p_offset: params.page * params.pageSize,
+    // Filters (migration 20261112130000) only when set, so a plain search
+    // never depends on them.
+    ...(params.plan ? { p_plan: params.plan } : {}),
+    ...(params.role ? { p_role: params.role } : {}),
+    ...(params.active ? { p_active: params.active } : {}),
+    ...(params.tier != null ? { p_tier: params.tier } : {}),
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as AdminUserRow[];
+}
+
+/** Every user matching a search + filters (200 per request), for export. */
+export async function searchAllUsers(params: Omit<UserSearchParams, 'page' | 'pageSize'>): Promise<AdminUserRow[]> {
+  const rows: AdminUserRow[] = [];
+  for (let page = 0; ; page++) {
+    const batch = await searchUsers({ ...params, page, pageSize: 200 });
+    rows.push(...batch);
+    const total = Number(batch[0]?.total_count ?? 0);
+    if (batch.length < 200 || rows.length >= total) return rows;
+  }
 }
 
 export async function fetchUserProfile(userId: string): Promise<AdminUserProfile> {

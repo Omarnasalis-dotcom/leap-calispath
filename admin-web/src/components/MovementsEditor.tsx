@@ -22,6 +22,15 @@ export function MovementsEditor({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span className="label">{title}</span>
+      {movements.length > 0 && (
+        // Column names for the two number fields (placeholders vanish once filled).
+        <div className="row movement-head" style={{ flexWrap: 'nowrap' }} aria-hidden="true">
+          <span style={{ flex: 1 }}>Movement</span>
+          <span style={{ width: 64 }}>{repsLabel}</span>
+          <span style={{ width: 64 }}>Pts / rep</span>
+          <span style={{ width: 34 }} />
+        </div>
+      )}
       {movements.map((m, i) => (
         <div key={i} className="row" style={{ flexWrap: 'nowrap' }}>
           <input

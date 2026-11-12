@@ -20,6 +20,9 @@ import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits
 import { DataTable, type Column } from '@/components/DataTable';
 import { MovementsEditor } from '@/components/MovementsEditor';
 import { PageHeader } from '@/components/layout';
+import { Drawer } from '@/components/Drawer';
+import { useToast } from '@/components/Toast';
+import { FeatureStatus } from '@/components/FeatureStatus';
 
 interface HalfForm {
   minutes: string;
@@ -176,6 +179,7 @@ export function LiveChallengesPage() {
     void queryClient.invalidateQueries({ queryKey: ['live-challenge-rooms'] });
   };
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: (f: Form) =>
       saveLiveChallenge({
@@ -191,6 +195,7 @@ export function LiveChallengesPage() {
         is_active: f.is_active,
       }),
     onSuccess: (id) => {
+      toast('Challenge saved');
       setForm(null);
       setSelectedId(id);
       refresh();
@@ -200,17 +205,23 @@ export function LiveChallengesPage() {
   const deleteMutation = useMutation({
     mutationFn: ({ id, includeRooms }: { id: string; includeRooms: boolean }) => deleteLiveChallenge(id, includeRooms),
     onSuccess: () => {
+      toast('Challenge deleted');
       setForm(null);
       setSelectedId(null);
       refresh();
     },
   });
 
-  const abandonMutation = useMutation({ mutationFn: abandonLiveRoom, onSuccess: refresh });
+  const abandonMutation = useMutation({ mutationFn: abandonLiveRoom, onSuccess: () => {
+      toast('Room ended for everyone in it');
+      refresh();
+    },
+  });
 
   const templateMutation = useMutation({
     mutationFn: saveLiveTemplate,
     onSuccess: () => {
+      toast('Saved as template');
       setTemplateSaved(true);
       void queryClient.invalidateQueries({ queryKey: ['live-challenge-templates'] });
     },
@@ -358,7 +369,7 @@ export function LiveChallengesPage() {
     <div className="page">
       <PageHeader
         title="Live challenges"
-        sub="Players open a room, join with a code, pick a side and play 2–3 timed halves together. Dates are UTC."
+        sub="Players open a room, join with a code and play 1–3 timed halves together: in teams, or each for themselves in a Solo Battle. Dates are UTC."
         actions={
           <>
             <button
@@ -374,38 +385,33 @@ export function LiveChallengesPage() {
         }
       />
 
+      <FeatureStatus flag="live_tournament_enabled" name="the LIVE tab" />
+
       {challengesQ.error && <ErrorNote error={challengesQ.error} />}
       {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}
       {abandonMutation.error && <ErrorNote error={abandonMutation.error} />}
 
       {form && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>{form.id ? 'Edit challenge' : copiedFrom ? `New challenge · copy of “${copiedFrom}”` : 'New challenge'}</h2>
-            <div className="row">
-              {form.id && (
-                <button
-                  className="btn small"
-                  title="Start a new challenge with this one's setup. This challenge and its rooms stay as they are."
-                  onClick={duplicate}
-                >
-                  Duplicate
-                </button>
-              )}
-              <PromptButton
-                label="Save as template"
-                title="Save as a reusable template (title, description, halves, rest, players per side)"
-                fieldLabel="Template name"
-                initialValue={form.title.trim()}
-                disabled={templateMutation.isPending}
-                onConfirm={saveAsTemplate}
-              />
-              <button className="btn small" onClick={() => openForm(null)}>
-                Cancel
+        <Drawer open title={form.id ? 'Edit challenge' : copiedFrom ? `New challenge · copy of “${copiedFrom}”` : 'New challenge'} onClose={() => openForm(null)}>
+          <div className="row">
+            {form.id && (
+              <button
+                className="btn small"
+                title="Start a new challenge with this one's setup. This challenge and its rooms stay as they are."
+                onClick={duplicate}
+              >
+                Duplicate
               </button>
-            </div>
+            )}
+            <PromptButton
+              label="Save as template"
+              title="Save as a reusable template (title, description, halves, rest, players per side)"
+              fieldLabel="Template name"
+              initialValue={form.title.trim()}
+              disabled={templateMutation.isPending}
+              onConfirm={saveAsTemplate}
+            />
           </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {templateSaved && <Badge tone="ok">saved as template</Badge>}
             {templateMutation.error && <ErrorNote error={templateMutation.error} />}
             {!form.id && (
@@ -612,7 +618,7 @@ export function LiveChallengesPage() {
                   </div>
                   <MovementsEditor
                     title="Exercises (any order; reps = max a player can log)"
-                    repsLabel="Max"
+                    repsLabel="Max reps"
                     movements={h.movements}
                     onChange={(m) => patchHalf(i, { movements: m })}
                   />
@@ -668,8 +674,7 @@ export function LiveChallengesPage() {
             </div>
             {formError && <div className="error-note">{formError}</div>}
             {saveMutation.error && <ErrorNote error={saveMutation.error} />}
-          </div>
-        </section>
+          </Drawer>
       )}
 
       <DataTable

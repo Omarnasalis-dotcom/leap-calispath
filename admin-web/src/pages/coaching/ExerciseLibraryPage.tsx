@@ -15,6 +15,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 import { PageHeader } from '@/components/layout';
+import { Drawer } from '@/components/Drawer';
+import { useToast } from '@/components/Toast';
 
 // Must match mobile's newCategory/newConcept enums exactly (src/screens/coaching/ExerciseLibraryScreen.tsx)
 // — the two apps read/write the same comma-joined exercise_library.category column.
@@ -145,6 +147,7 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
     setStep(2);
   }
 
+  const toast = useToast();
   const importMutation = useMutation({
     mutationFn: async () => {
       if (newRows.length > BULK_IMPORT_ROW_LIMIT) {
@@ -164,6 +167,7 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
       await bulkCreateExercises(rows);
     },
     onSuccess: () => {
+      toast('Exercises imported');
       void queryClient.invalidateQueries({ queryKey: ['exercises'] });
       dialogRef.current?.close();
       reset();
@@ -352,6 +356,7 @@ export function ExerciseLibraryPage() {
         (e) => e.created_by === profile?.id || assistingCoachIds.includes(e.created_by ?? ''),
       );
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: (d: Draft) =>
       saveExercise({
@@ -367,6 +372,7 @@ export function ExerciseLibraryPage() {
         ...(d.id ? {} : { created_by: newExerciseCoachId }),
       }),
     onSuccess: () => {
+      toast('Exercise saved');
       setDraft(null);
       void queryClient.invalidateQueries({ queryKey: ['exercises'] });
     },
@@ -374,7 +380,10 @@ export function ExerciseLibraryPage() {
 
   const removeMutation = useMutation({
     mutationFn: deleteExercise,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['exercises'] }),
+    onSuccess: () => {
+      toast('Exercise deleted');
+      void queryClient.invalidateQueries({ queryKey: ['exercises'] });
+    },
   });
 
   const filtered = own?.filter(
@@ -519,11 +528,8 @@ export function ExerciseLibraryPage() {
       {removeMutation.error && <ErrorNote error={removeMutation.error} />}
 
       {draft && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>{draft.id ? 'Edit exercise' : 'New exercise'}</h2>
-          </div>
-          <div className="panel-body row" style={{ alignItems: 'flex-end' }}>
+        <Drawer open title={draft.id ? 'Edit exercise' : 'New exercise'} onClose={() => setDraft(null)}>
+          <div className="drawer-form">
             {!draft.id && !isCoach && assistingCoachIds.length > 1 && (
               <select
                 className="field"
@@ -633,7 +639,7 @@ export function ExerciseLibraryPage() {
               Cancel
             </button>
           </div>
-        </section>
+        </Drawer>
       )}
 
       <div className="panel">

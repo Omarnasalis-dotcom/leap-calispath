@@ -7,6 +7,7 @@ import { AREA_LABEL, decideAppeal, fetchFlagsByIds, fetchPendingAppeals, type Fa
 import { APPEAL_REPLY_PRESETS, noteLabel } from '@/shared/fairPlayNotes';
 import { FlagTable, NotePicker, useFairPlayInvalidate } from './parts';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 /** Pending appeals, oldest first. Accept = unhide, no reset, strike removed. */
 export function AppealsPage() {
@@ -36,7 +37,12 @@ function AppealCard({ appeal: a }: { appeal: FairPlayAppeal }) {
     queryFn: () => fetchFlagsByIds(hold?.flag_ids ?? []),
     enabled: !!hold,
   });
-  const decide = useMutation({ mutationFn: (accept: boolean) => decideAppeal(a.id, accept, reply), onSuccess: invalidate });
+  const toast = useToast();
+  const decide = useMutation({ mutationFn: (accept: boolean) => decideAppeal(a.id, accept, reply), onSuccess: (_d, accept) => {
+      toast(accept ? 'Appeal accepted' : 'Appeal rejected');
+      invalidate();
+    },
+  });
   return (
     <section className="panel">
       <div className="panel-head">

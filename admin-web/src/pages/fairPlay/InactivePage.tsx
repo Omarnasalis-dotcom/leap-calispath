@@ -6,12 +6,18 @@ import { formatDate } from '@/shared/constants';
 import { fetchInactiveAthletes, hideInactive, type InactiveAthlete } from '@/api/fairPlay';
 import { useFairPlayInvalidate } from './parts';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 /** Athletes on a board with no activity for 45+ days (the setting), not already hidden. */
 export function InactivePage() {
   const invalidate = useFairPlayInvalidate();
   const q = useQuery({ queryKey: ['fair-play', 'inactive'], queryFn: fetchInactiveAthletes });
-  const hide = useMutation({ mutationFn: (userId: string) => hideInactive(userId), onSuccess: invalidate });
+  const toast = useToast();
+  const hide = useMutation({ mutationFn: (userId: string) => hideInactive(userId), onSuccess: () => {
+      toast('Hidden from leaderboards');
+      invalidate();
+    },
+  });
 
   return (
     <div className="page">

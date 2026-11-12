@@ -46,6 +46,7 @@ import { ClientProgramGrid } from '@/pages/coaching/builder/ClientProgramGrid';
 import { ClientProgressPage } from '@/pages/coaching/ClientProgressPage';
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { BuilderClipboardProvider } from '@/contexts/BuilderClipboardContext';
+import { ToastProvider } from '@/components/Toast';
 
 function Gate() {
   const { session, loading, denied, profileError, retryProfile, signOut } = useAuth();
@@ -165,7 +166,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

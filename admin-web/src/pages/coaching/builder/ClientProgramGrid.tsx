@@ -19,6 +19,7 @@ import { LoggedBlocksProvider } from './LoggedBlocks';
 import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 export function ClientProgramGrid() {
   const { profile, isAdmin, isCoachPaused } = useAuth();
@@ -121,11 +122,12 @@ export function ClientProgramGrid() {
     onSuccess: (result) => {
       setDirty(false);
       setSaveError(null);
-      setFlash(
+      const message =
         result.undeletableCount > 0
           ? `Saved — ${result.undeletableCount} removed block(s) kept (already logged)`
-          : 'Saved',
-      );
+          : 'Saved';
+      setFlash(message);
+      toast(message);
       window.setTimeout(() => setFlash(null), 3000);
       void queryClient.invalidateQueries({ queryKey: ['template-weeks', templateId] });
       void queryClient.invalidateQueries({ queryKey: ['logged-blocks', assignmentId] });
@@ -133,9 +135,11 @@ export function ClientProgramGrid() {
     onError: (err: Error) => setSaveError(err),
   });
 
+  const toast = useToast();
   const deleteWeekMutation = useMutation({
     mutationFn: () => deleteCoachWeekData(templateId!, activeWeek),
     onSuccess: () => {
+      toast('Week deleted');
       void queryClient.invalidateQueries({ queryKey: ['template-weeks', templateId] });
       void queryClient.invalidateQueries({ queryKey: ['archived-weeks', templateId] });
     },
@@ -169,8 +173,7 @@ export function ClientProgramGrid() {
         }
         actions={
           <>
-            {flash && <Badge tone="ok">{flash}</Badge>}
-            {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+                        {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
             <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
               {showApply ? 'Close' : 'Apply template…'}
             </button>

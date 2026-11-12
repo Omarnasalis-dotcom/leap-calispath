@@ -21,6 +21,7 @@ import { Badge, ConfirmButton, ErrorNote, PromptButton } from '@/components/bits
 import { MovementsEditor } from '@/components/MovementsEditor';
 import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 interface GroupForm {
   existingId: string | null;
@@ -53,7 +54,6 @@ export function ChallengeWeekPage() {
     3: EMPTY_FORM,
   });
   const [templateChoice, setTemplateChoice] = useState<Record<number, string>>({});
-  const [savedFlash, setSavedFlash] = useState(false);
   // The forms as last loaded, to tell whether anything is unsaved.
   const [seeded, setSeeded] = useState<string | null>(null);
 
@@ -92,11 +92,11 @@ export function ChallengeWeekPage() {
   const unsaved = useUnsavedChanges(dirty, `the challenges for ${formatDate(week)}`);
   const goToWeek = (w: string) => unsaved.confirmDiscard(() => setWeek(w));
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: (rows: ChallengeUpsert[]) => upsertChallenges(rows),
     onSuccess: () => {
-      setSavedFlash(true);
-      window.setTimeout(() => setSavedFlash(false), 2000);
+      toast('Week saved');
       void queryClient.invalidateQueries({ queryKey: ['week-challenges', week] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
@@ -105,6 +105,7 @@ export function ChallengeWeekPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteChallenge(id),
     onSuccess: () => {
+      toast('Challenge deleted');
       void queryClient.invalidateQueries({ queryKey: ['week-challenges', week] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
@@ -112,7 +113,8 @@ export function ChallengeWeekPage() {
 
   const activeMutation = useMutation({
     mutationFn: (vars: { id: string; isActive: boolean }) => setChallengeActive(vars.id, vars.isActive),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
+      toast(vars.isActive ? 'Shown in the app' : 'Hidden from the app');
       void queryClient.invalidateQueries({ queryKey: ['week-challenges', week] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
@@ -120,8 +122,10 @@ export function ChallengeWeekPage() {
 
   const templateMutation = useMutation({
     mutationFn: saveTemplate,
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['challenge-templates'] }),
+    onSuccess: () => {
+      toast('Template saved');
+      void queryClient.invalidateQueries({ queryKey: ['challenge-templates'] });
+    },
   });
 
   const filledGroups = useMemo(
@@ -363,7 +367,6 @@ export function ChallengeWeekPage() {
       </div>
 
       <div className="row" style={{ justifyContent: 'flex-end' }}>
-        {savedFlash && <Badge tone="ok">saved</Badge>}
         <button
           className="btn primary"
           disabled={filledGroups.length === 0 || saveMutation.isPending}

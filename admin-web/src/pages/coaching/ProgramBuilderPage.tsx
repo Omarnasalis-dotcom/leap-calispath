@@ -25,6 +25,7 @@ import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
 import type { BuilderWeeks } from './builder/types';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 type ListTab = 'master' | 'assigned' | 'leftover' | 'library';
 
@@ -221,9 +222,11 @@ export function ProgramBuilderPage() {
     setDirty(true);
   }
 
+  const toast = useToast();
   const deleteMutation = useMutation({
     mutationFn: deleteProgramTemplate,
     onSuccess: () => {
+      toast('Template deleted');
       setSelectedId(null);
       void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
       void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
@@ -244,11 +247,12 @@ export function ProgramBuilderPage() {
       setSaveError(null);
       setDirty(false);
       setSelectedId(result.templateId);
-      setFlash(
+      const message =
         result.undeletableCount > 0
           ? `Saved — ${result.undeletableCount} removed block(s) kept (already logged by a warrior)`
-          : 'Saved',
-      );
+          : 'Saved';
+      setFlash(message);
+      toast(message);
       window.setTimeout(() => setFlash(null), 3000);
       void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
       void queryClient.invalidateQueries({ queryKey: ['template-weeks', result.templateId] });
@@ -447,8 +451,7 @@ export function ProgramBuilderPage() {
         }
         actions={
           <>
-            {flash && <Badge tone="ok">{flash}</Badge>}
-            {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+                        {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
             {clipboard.clipboard && <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>}
             <button
               className="btn primary"

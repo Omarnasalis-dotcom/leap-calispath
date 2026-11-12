@@ -39,6 +39,7 @@ import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { BlockCard, fromClipboardBlock } from './builder/BlockCard';
 import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './builder/types';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 // Admin-only page (wrapped in RequireAdmin in App.tsx, unlike the mobile-app
 // LIBRARY tab equivalent for Programs, which is visible to every coach and
@@ -194,6 +195,7 @@ function ImportWorkoutModal() {
     setPreview(parsed);
   }
 
+  const toast = useToast();
   const importMutation = useMutation({
     mutationFn: () => {
       if (!preview) throw new Error('Nothing to import.');
@@ -201,6 +203,7 @@ function ImportWorkoutModal() {
       return importStandaloneWorkoutFromJson(preview, profile.id);
     },
     onSuccess: () => {
+      toast('Workout imported as a draft');
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
       dialogRef.current?.close();
       reset();
@@ -635,6 +638,7 @@ export function WorkoutLibraryPage() {
     },
   });
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: async (d: Draft) => {
       const isWorkout = d.kind === 'workout';
@@ -702,6 +706,7 @@ export function WorkoutLibraryPage() {
       return savedId;
     },
     onSuccess: () => {
+      toast('Workout saved');
       setDraft(null);
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
     },
@@ -710,6 +715,7 @@ export function WorkoutLibraryPage() {
   const removeMutation = useMutation({
     mutationFn: deleteStandaloneWorkout,
     onSuccess: (_data, id) => {
+      toast('Workout deleted');
       setSelectedIds((prev) => {
         if (!prev.has(id)) return prev;
         const next = new Set(prev);
@@ -723,6 +729,7 @@ export function WorkoutLibraryPage() {
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => bulkDeleteStandaloneWorkouts(ids),
     onSuccess: () => {
+      toast('Workouts deleted');
       setSelectedIds(new Set());
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
     },
@@ -730,7 +737,8 @@ export function WorkoutLibraryPage() {
 
   const bulkStatusMutation = useMutation({
     mutationFn: (status: StandaloneWorkoutStatus) => bulkSetStandaloneWorkoutStatus(Array.from(selectedIds), status),
-    onSuccess: () => {
+    onSuccess: (_d, status) => {
+      toast(`Workouts set to ${status}`);
       setSelectedIds(new Set());
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
     },

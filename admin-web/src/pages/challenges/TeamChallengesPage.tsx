@@ -17,6 +17,9 @@ import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { DataTable, type Column } from '@/components/DataTable';
 import { MovementsEditor } from '@/components/MovementsEditor';
 import { PageHeader } from '@/components/layout';
+import { Drawer } from '@/components/Drawer';
+import { useToast } from '@/components/Toast';
+import { FeatureStatus } from '@/components/FeatureStatus';
 
 const FORMATS: Record<TeamFormat, { label: string; help: string }> = {
   sync: {
@@ -157,6 +160,7 @@ export function TeamChallengesPage() {
     void queryClient.invalidateQueries({ queryKey: ['team-challenge-teams'] });
   };
 
+  const toast = useToast();
   const saveMutation = useMutation({
     mutationFn: (f: Form) =>
       saveTeamChallenge({
@@ -176,6 +180,7 @@ export function TeamChallengesPage() {
         is_active: f.is_active,
       }),
     onSuccess: (id) => {
+      toast('Challenge saved');
       setForm(null);
       setSelectedId(id);
       refresh();
@@ -186,13 +191,18 @@ export function TeamChallengesPage() {
     mutationFn: ({ id, includeTeams }: { id: string; includeTeams: boolean }) =>
       deleteTeamChallenge(id, includeTeams),
     onSuccess: () => {
+      toast('Challenge deleted');
       setForm(null);
       setSelectedId(null);
       refresh();
     },
   });
 
-  const deleteTeamMutation = useMutation({ mutationFn: deleteTeam, onSuccess: refresh });
+  const deleteTeamMutation = useMutation({ mutationFn: deleteTeam, onSuccess: () => {
+      toast('Team deleted');
+      refresh();
+    },
+  });
 
   function patch(p: Partial<Form>) {
     setForm((f) => (f ? { ...f, ...p } : f));
@@ -313,19 +323,14 @@ export function TeamChallengesPage() {
         }
       />
 
+      <FeatureStatus flag="team_challenge_enabled" name="Team Challenge" />
+
       {challengesQ.error && <ErrorNote error={challengesQ.error} />}
       {deleteChallengeMutation.error && <ErrorNote error={deleteChallengeMutation.error} />}
       {deleteTeamMutation.error && <ErrorNote error={deleteTeamMutation.error} />}
 
       {form && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>{form.id ? 'Edit challenge' : 'New challenge'}</h2>
-            <button className="btn small" onClick={() => setForm(null)}>
-              Cancel
-            </button>
-          </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Drawer open title={form.id ? 'Edit challenge' : 'New challenge'} onClose={() => setForm(null)}>
             {scoringLocked && (
               <div className="sub">
                 Teams have joined, so only the title, description, end date and visibility can change.
@@ -535,8 +540,7 @@ export function TeamChallengesPage() {
             </div>
             {formError && <div className="error-note">{formError}</div>}
             {saveMutation.error && <ErrorNote error={saveMutation.error} />}
-          </div>
-        </section>
+          </Drawer>
       )}
 
       <DataTable

@@ -25,6 +25,7 @@ import type { TrialHistoryRow } from '@/shared/types';
 import { AthleteFairPlayContent } from '@/pages/fairPlay/AthleteFairPlayPage';
 import { isUserTab, UserAiTab, UserOverview, UserProgramTab, UserTabs, type UserTab } from './userHub';
 import { PageHeader } from '@/components/layout';
+import { useToast } from '@/components/Toast';
 
 const TRIAL_COLUMNS: Column<TrialHistoryRow>[] = [
   {
@@ -76,10 +77,12 @@ export function UserDetailPage() {
     enabled: !!id,
   });
 
+  const toast = useToast();
   const roleMutation = useMutation({
     mutationFn: (vars: { role: 'admin' | 'coach'; enabled: boolean }) =>
       grantRole(id, vars.role, vars.enabled),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
+      toast(`${vars.enabled ? 'Made' : 'Removed as'} ${vars.role}`);
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
       void queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -88,7 +91,8 @@ export function UserDetailPage() {
   const pauseMutation = useMutation({
     mutationFn: (vars: { paused: boolean; reason: string | null }) =>
       setCoachingPaused(id, vars.paused, vars.reason),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
+      toast(vars.paused ? 'Coaching access paused' : 'Coaching access resumed');
       setPauseReason('');
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
@@ -100,6 +104,7 @@ export function UserDetailPage() {
     mutationFn: (durationType: '1month' | '3month' | '6month') =>
       grantAccess(id, grantTier, durationType),
     onSuccess: () => {
+      toast('Access gifted');
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
   });
@@ -107,6 +112,7 @@ export function UserDetailPage() {
   const revokeMutation = useMutation({
     mutationFn: () => revokeAccess(id),
     onSuccess: () => {
+      toast('Access revoked');
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
   });
@@ -114,6 +120,7 @@ export function UserDetailPage() {
   const clearDuplicateFlagMutation = useMutation({
     mutationFn: () => clearDuplicateSubscriptionFlag(id),
     onSuccess: () => {
+      toast('Duplicate-subscription flag cleared');
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
   });
