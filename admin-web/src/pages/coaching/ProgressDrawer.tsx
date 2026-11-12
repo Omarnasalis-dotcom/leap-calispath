@@ -12,36 +12,12 @@ import {
 } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/shared/constants';
-import { Badge, ErrorNote } from '@/components/bits';
+import { ErrorNote } from '@/components/bits';
 import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/ProgramExportBuilder';
 import { buildImportBlocksPayload, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
 import { loadTemplateWeeks } from './builder/builderIO';
-
-/** program_blocks.name is stored as "<Day> | <Block>" (see builderIO.ts /
- * useProgramBuilder.ts) — this is the same string get_warrior_progress
- * returns as block_name, so it's split back apart here to lay logs out into
- * day columns. The day half is returned verbatim (not matched against a
- * fixed weekday list) — a real program can name a day anything ("DAY 1",
- * "Push"), and forcing it through a weekday-only filter was silently
- * dropping every day that didn't match, which looked like blocks with no
- * exercises since the whole day never rendered. */
-function splitBlockName(blockName: string | null): { day: string | null; label: string } {
-  if (!blockName) return { day: null, label: 'Workout' };
-  const sep = blockName.indexOf(' | ');
-  if (sep === -1) return { day: null, label: blockName };
-  const day = blockName.slice(0, sep).trim();
-  const label = blockName.slice(sep + 3).trim() || 'Workout';
-  return { day: day || null, label };
-}
-
-// Mirrors ProgressTrackingScreen.tsx's FEEL_LABELS/MISSED_LABELS.
-const FEEL_LABELS: Record<string, string> = { hard: 'Hard', ok: 'OK', good: 'Good', strong: 'Strong', beast: 'Beast' };
-const MISSED_LABELS: Record<string, string> = {
-  no_time: 'No time',
-  too_tired: 'Too tired',
-  injury: 'Injury',
-  other: 'Other',
-};
+import { blockStatus, buildWeek, SegmentBar, WeekLogs } from './WeekLogs';
+import { buildHistory, computeInsights, weekTotals } from './weekInsights';
 
 function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; weekNumber: number }) {
   const { profile } = useAuth();
@@ -91,81 +67,6 @@ function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; 
         >
           {saveMutation.isPending ? 'Saving…' : 'Save note'}
         </button>
-      )}
-    </div>
-  );
-}
-
-/** `label` is the block name with its "<Day> | " prefix already stripped —
- * the day is implied by the column this card sits in, so repeating it here
- * would be noise. Falls back to the raw block_name for logs whose block
- * doesn't parse into a known weekday (see the "Other logs" section below). */
-function LogRow({ log, label }: { log: WarriorProgressLog; label: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const isMissed = log.status === 'missed';
-  const hasSets = log.sets.length > 0;
-
-  return (
-    <div
-      style={{
-        padding: '8px 0',
-        borderBottom: '1px solid var(--hairline)',
-        cursor: hasSets ? 'pointer' : 'default',
-      }}
-      onClick={() => hasSets && setExpanded((v) => !v)}
-    >
-      <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'nowrap' }}>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>
-        <Badge tone={isMissed ? undefined : 'ok'}>{isMissed ? 'Missed' : 'Done'}</Badge>
-      </div>
-      <div className="dim" style={{ fontSize: 11, marginTop: 2 }}>
-        {formatDate(log.completed_at)}
-      </div>
-      {isMissed ? (
-        <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>
-          {log.missed_reason ? MISSED_LABELS[log.missed_reason] ?? log.missed_reason : 'No reason given'}
-          {log.missed_detail ? ` — ${log.missed_detail}` : ''}
-        </div>
-      ) : (
-        <div className="row" style={{ gap: 10, marginTop: 4, fontSize: 12 }}>
-          {log.feel && <span>{FEEL_LABELS[log.feel] ?? log.feel}</span>}
-          {log.rpe !== null && <span className="dim">RPE {log.rpe}</span>}
-          {log.exercise_rpe &&
-            Object.entries(log.exercise_rpe).map(([name, rpe]) => (
-              <span key={name} className="dim">
-                {name} · RPE {rpe}
-              </span>
-            ))}
-        </div>
-      )}
-      {expanded && hasSets && (
-        <div
-          style={{
-            marginTop: 8,
-            paddingTop: 8,
-            borderTop: '1px solid var(--hairline)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-          }}
-        >
-          {log.sets.map((s, i) => (
-            <div key={i} style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span className="dim">Set {s.set_index ?? i + 1}</span>
-              <span>{s.exercise_name ?? 'Exercise'}</span>
-              <span>
-                {s.reps_completed !== null ? `${s.reps_completed} reps` : ''}
-                {s.weight_used !== null ? ` @ ${s.weight_used}kg` : ''}
-                {s.hold_seconds !== null ? ` ${s.hold_seconds}s hold` : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {hasSets && (
-        <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-          {expanded ? '▲ Hide sets' : `▼ ${log.sets.length} set${log.sets.length === 1 ? '' : 's'} logged`}
-        </div>
       )}
     </div>
   );
@@ -308,84 +209,136 @@ function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
   );
 }
 
+/** "▲ 12%" / "▼ 0.8" against last week. `neutral`: no good/bad colour (RPE). */
+function Delta({
+  now,
+  before,
+  percent = false,
+  neutral = false,
+  format,
+  sameText = '= last week',
+}: {
+  now: number;
+  before: number;
+  percent?: boolean;
+  neutral?: boolean;
+  format?: (d: number) => string;
+  sameText?: string;
+}) {
+  const d = percent ? (before ? (now - before) / before : 0) : now - before;
+  if (Math.abs(d) < 0.0001) return <span className="wl-delta same">{sameText}</span>;
+  const text = format ? format(d) : percent ? `${Math.round(Math.abs(d) * 100)}%` : `${Math.round(Math.abs(d) * 10) / 10}`;
+  return (
+    <span className={`wl-delta ${neutral ? 'same' : d > 0 ? 'up' : 'down'}`} title="Change from last week">
+      {d > 0 ? '▲' : '▼'} {text}
+    </span>
+  );
+}
+
 export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['warrior-progress', assignment.id],
     queryFn: () => fetchWarriorProgress(assignment.id),
   });
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
-
-  const availableWeeks = useMemo(() => {
-    if (!data) return [];
-    return [...new Set(data.logs.map((l) => l.week_number ?? 1))].sort((a, b) => a - b);
-  }, [data]);
-
-  useEffect(() => {
-    if (selectedWeek === null && availableWeeks.length > 0) {
-      setSelectedWeek(availableWeeks[availableWeeks.length - 1]);
-    }
-  }, [availableWeeks, selectedWeek]);
-
-  const visibleLogs = useMemo(() => {
-    if (!data) return [];
-    if (selectedWeek === null) return data.logs;
-    return data.logs.filter((l) => (l.week_number ?? 1) === selectedWeek);
-  }, [data, selectedWeek]);
-
-  // The real day columns for this week come from the assignment's own
-  // template structure (same source WeekGrid reads), not a fixed weekday
-  // list — a program can have any day names/count. Shares the
-  // ['template-weeks', templateId] cache key with the builder/client grid,
-  // so edits made there are already reflected here.
+  // The plan (days, blocks, exercises) for every week: shares the builder's
+  // cache, so edits made there show here.
   const templateWeeksQ = useQuery({
     queryKey: ['template-weeks', assignment.template_id],
     queryFn: () => loadTemplateWeeks(assignment.template_id),
   });
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
-  const dayColumns = useMemo(() => {
-    if (selectedWeek === null) return [];
-    return (templateWeeksQ.data?.weeks[selectedWeek] ?? []).map((d) => d.name);
-  }, [templateWeeksQ.data, selectedWeek]);
+  // Every program week, plus any week that only has logs.
+  const weeks = useMemo(() => {
+    const set = new Set<number>(Object.keys(templateWeeksQ.data?.weeks ?? {}).map(Number));
+    for (const l of data?.logs ?? []) set.add(l.week_number ?? 1);
+    return [...set].sort((a, b) => a - b);
+  }, [templateWeeksQ.data, data]);
 
-  // Logs whose block's day doesn't match any current column (the day was
-  // deleted from the template after being logged, or the block has no
-  // day prefix at all) fall into "unscheduled" instead of being dropped.
-  const { byDay, unscheduled } = useMemo(() => {
-    const byDay = new Map<string, Array<{ log: WarriorProgressLog; label: string }>>();
-    const unscheduled: Array<{ log: WarriorProgressLog; label: string }> = [];
-    const canonicalByKey = new Map(dayColumns.map((d) => [d.trim().toUpperCase(), d]));
-    for (const log of visibleLogs) {
-      const { day, label } = splitBlockName(log.block_name);
-      const canonical = day ? canonicalByKey.get(day.trim().toUpperCase()) : undefined;
-      if (canonical) {
-        const list = byDay.get(canonical) ?? [];
-        list.push({ log, label });
-        byDay.set(canonical, list);
-      } else {
-        unscheduled.push({ log, label: day ? `${day} — ${label}` : label });
-      }
-    }
-    return { byDay, unscheduled };
-  }, [visibleLogs, dayColumns]);
+  // Opens on the athlete's current week, else the latest week with a log.
+  useEffect(() => {
+    if (selectedWeek !== null || weeks.length === 0 || !data) return;
+    const current = assignment.current_week ?? null;
+    const lastLogged = Math.max(0, ...data.logs.map((l) => l.week_number ?? 1));
+    setSelectedWeek(current && weeks.includes(current) ? current : lastLogged || weeks[weeks.length - 1]);
+  }, [weeks, selectedWeek, data, assignment.current_week]);
+
+  const visibleLogs = useMemo(
+    () => (data?.logs ?? []).filter((l) => selectedWeek !== null && (l.week_number ?? 1) === selectedWeek),
+    [data, selectedWeek],
+  );
+  const days = selectedWeek !== null ? templateWeeksQ.data?.weeks[selectedWeek] ?? [] : [];
+  const idx = selectedWeek !== null ? weeks.indexOf(selectedWeek) : -1;
+  const week = buildWeek(days, visibleLogs);
+  const { summary } = week;
+
+  // Last week, for the change line and the two-weeks-running rules.
+  const prevWeek = idx > 0 ? weeks[idx - 1] : null;
+  const prevDays = prevWeek !== null ? templateWeeksQ.data?.weeks[prevWeek] ?? [] : [];
+  const prevLogs = (data?.logs ?? []).filter((l) => prevWeek !== null && (l.week_number ?? 1) === prevWeek);
+  const prev = prevWeek !== null ? buildWeek(prevDays, prevLogs).summary : null;
+  const totals = weekTotals(visibleLogs);
+  const prevTotals = prevWeek !== null ? weekTotals(prevLogs) : null;
+  const history = useMemo(() => buildHistory(data?.logs ?? []), [data]);
+  const insights =
+    selectedWeek !== null && data
+      ? computeInsights({
+          days,
+          logs: visibleLogs,
+          prevDays,
+          prevLogs,
+          allLogs: data.logs,
+          isCurrentWeek: selectedWeek === assignment.current_week,
+          history,
+        })
+      : [];
+
+  // Every week's completion, for the program timeline.
+  const timeline = weeks.map((w) => {
+    const wDays = templateWeeksQ.data?.weeks[w] ?? [];
+    const wLogs = (data?.logs ?? []).filter((l) => (l.week_number ?? 1) === w);
+    const sm = buildWeek(wDays, wLogs).summary;
+    return { week: w, pct: sm.planned ? Math.round((sm.done / sm.planned) * 100) : null, logged: wLogs.length > 0 };
+  });
+  // A training day counts as done when every block in it is done.
+  const dayGroups = days
+    .map((d) => d.blocks.filter((b) => b.db_id).map((b) => blockStatus(week.byBlock.get(b.db_id!)?.[0])))
+    .filter((g) => g.length > 0);
+  const daysDone = dayGroups.filter((g) => g.every((st) => st === 'done')).length;
+  const bodyweight = data?.bodyweight_trend[0];
 
   return (
-    <div className="panel-body">
-      {error && <ErrorNote error={error} />}
-      {isLoading && <div className="skeleton" style={{ height: 120 }} />}
-      {data && (
+    <div className="panel-body wl-root">
+      {(error || templateWeeksQ.error) && <ErrorNote error={error ?? templateWeeksQ.error} />}
+      {(isLoading || templateWeeksQ.isLoading) && <div className="skeleton" style={{ height: 160 }} />}
+      {data && templateWeeksQ.data && selectedWeek !== null && (
         <>
-          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
-            <div className="row" style={{ gap: 6 }}>
-              {availableWeeks.length > 1 &&
-                availableWeeks.map((w) => (
-                  <button
-                    key={w}
-                    className={`btn small${w === selectedWeek ? ' primary' : ''}`}
-                    onClick={() => setSelectedWeek(w)}
-                  >
+          <div className="wl-toolbar">
+            <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+              <button className="btn small" disabled={idx <= 0} onClick={() => setSelectedWeek(weeks[idx - 1])} aria-label="Previous week">
+                ‹
+              </button>
+              <select
+                className="field"
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                aria-label="Week"
+              >
+                {weeks.map((w) => (
+                  <option key={w} value={w}>
                     Week {w}
-                  </button>
+                    {w === assignment.current_week ? ' (current)' : ''}
+                  </option>
                 ))}
+              </select>
+              <button
+                className="btn small"
+                disabled={idx < 0 || idx >= weeks.length - 1}
+                onClick={() => setSelectedWeek(weeks[idx + 1])}
+                aria-label="Next week"
+              >
+                ›
+              </button>
             </div>
             <div className="row" style={{ gap: 8 }}>
               <ExportWeekButton
@@ -398,87 +351,127 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
             </div>
           </div>
 
-          {selectedWeek !== null && <WeekNote warriorProgramId={assignment.id} weekNumber={selectedWeek} />}
-
-          {data.bodyweight_trend.length > 0 && (
-            <div className="dim" style={{ fontSize: 12, marginBottom: 10 }}>
-              Latest bodyweight: <strong>{data.bodyweight_trend[0].weight_kg}kg</strong> (
-              {formatDate(data.bodyweight_trend[0].logged_at)})
-            </div>
-          )}
-
-          {visibleLogs.length === 0 ? (
-            <div className="empty">
-              <span className="label">
-                {data.logs.length === 0 ? 'No workout logs recorded yet' : 'Nothing logged this week yet'}
-              </span>
-            </div>
-          ) : dayColumns.length === 0 ? (
-            // Template structure for this week couldn't be resolved (deleted
-            // template, or the week was removed since) — fall back to a flat
-            // list instead of an empty-looking grid with nothing to show.
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {templateWeeksQ.isLoading && <div className="skeleton" style={{ height: 80 }} />}
-              {visibleLogs.map((log) => (
-                <LogRow key={log.id} log={log} label={splitBlockName(log.block_name).label} />
+          {timeline.length > 1 && (
+            <nav className="wl-timeline" aria-label="Program weeks">
+              {timeline.map((t) => (
+                <button
+                  key={t.week}
+                  type="button"
+                  className={`wl-tl-week${t.week === selectedWeek ? ' selected' : ''}`}
+                  aria-current={t.week === selectedWeek ? 'true' : undefined}
+                  title={t.pct == null ? `Week ${t.week}` : `Week ${t.week}: ${t.pct}% done`}
+                  onClick={() => setSelectedWeek(t.week)}
+                >
+                  <span className="wl-tl-bar">
+                    <span className={`wl-tl-fill${t.pct === 100 ? ' full' : ''}`} style={{ height: `${t.pct ?? 0}%` }} />
+                  </span>
+                  <span className="wl-tl-label num">
+                    W{t.week}
+                    {t.week === assignment.current_week && <span className="wl-tl-now" aria-label="current week" />}
+                  </span>
+                </button>
               ))}
-            </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: 'grid',
-                  gridAutoFlow: 'column',
-                  gridAutoColumns: 'minmax(150px, 1fr)',
-                  gap: 10,
-                  overflowX: 'auto',
-                }}
-              >
-                {dayColumns.map((dayName) => {
-                  const entries = byDay.get(dayName) ?? [];
-                  return (
-                    <div key={dayName} className="panel" style={{ background: 'var(--surface-2)' }}>
-                      <div className="panel-head" style={{ padding: '8px 10px' }}>
-                        <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '0.02em' }}>
-                          {dayName.toUpperCase()}
-                        </span>
-                      </div>
-                      <div
-                        className="panel-body"
-                        style={{
-                          padding: '6px 10px 10px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          maxHeight: 320,
-                          overflowY: 'auto',
-                        }}
-                      >
-                        {entries.length === 0 ? (
-                          <span className="dim" style={{ fontSize: 12 }}>
-                            No log
-                          </span>
-                        ) : (
-                          entries.map(({ log, label }) => <LogRow key={log.id} log={log} label={label} />)
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {unscheduled.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div className="label" style={{ marginBottom: 6 }}>
-                    Other logs
-                  </div>
-                  {unscheduled.map(({ log, label }) => (
-                    <LogRow key={log.id} log={log} label={label} />
-                  ))}
-                </div>
-              )}
-            </>
+            </nav>
           )}
+
+          <section className="wl-overview" aria-label={`Week ${selectedWeek} overview`}>
+            <div className="wl-overview-main">
+              <span className="label">Week {selectedWeek}{selectedWeek === assignment.current_week ? ' · current' : ''}</span>
+              <div className="wl-overview-headline">
+                <span className="num">{daysDone}</span>
+                <span className="wl-overview-of">
+                  of {dayGroups.length} training day{dayGroups.length === 1 ? '' : 's'} done
+                </span>
+              </div>
+              <span className="wl-change-line">
+                {summary.done} of {summary.planned} blocks
+                {prev && (
+                  <>
+                    <span aria-hidden="true">·</span> last week {prev.done} of {prev.planned}
+                    <Delta
+                      now={summary.planned ? summary.done / summary.planned : 0}
+                      before={prev.planned ? prev.done / prev.planned : 0}
+                      format={(d) => `${Math.round(Math.abs(d) * 100)} pts`}
+                      sameText="same rate"
+                    />
+                  </>
+                )}
+              </span>
+              <SegmentBar groups={dayGroups} label={`${summary.done} of ${summary.planned} blocks done this week, ${daysDone} of ${dayGroups.length} days`} />
+              <div className="wl-legend" aria-hidden="true">
+                <span><i className="wl-seg done" /> Done</span>
+                <span><i className="wl-seg missed" /> Missed</span>
+                <span><i className="wl-seg none" /> Not logged</span>
+              </div>
+            </div>
+            <dl className="wl-facts">
+              <div>
+                <dt>Missed</dt>
+                <dd className={`num${summary.missed > 0 ? ' warn' : ''}`}>{summary.missed}</dd>
+              </div>
+              <div>
+                <dt>Average RPE</dt>
+                <dd className="num">
+                  {summary.avgRpe ?? '—'}
+                  {prev?.avgRpe != null && summary.avgRpe != null && <Delta now={summary.avgRpe} before={prev.avgRpe} neutral />}
+                </dd>
+              </div>
+              {(summary.totalSeconds > 0 || (prev?.totalSeconds ?? 0) > 0) && (
+              <div>
+                <dt>Time trained</dt>
+                <dd className="num">
+                  {summary.totalSeconds > 0 ? `${Math.round(summary.totalSeconds / 60)} min` : '—'}
+                  {prev && prev.totalSeconds > 0 && <Delta now={summary.totalSeconds / 60} before={prev.totalSeconds / 60} format={(d) => `${Math.round(Math.abs(d))} min`} />}
+                </dd>
+              </div>
+              )}
+              <div>
+                <dt>Reps</dt>
+                <dd className="num">
+                  {totals.reps ? totals.reps.toLocaleString() : '—'}
+                  {prevTotals && prevTotals.reps > 0 && <Delta now={totals.reps} before={prevTotals.reps} percent />}
+                </dd>
+              </div>
+              <div>
+                <dt>Volume</dt>
+                <dd className="num">
+                  {totals.volume ? `${totals.volume.toLocaleString()} kg` : '—'}
+                  {prevTotals && prevTotals.volume > 0 && <Delta now={totals.volume} before={prevTotals.volume} percent />}
+                </dd>
+              </div>
+              <div>
+                <dt>Bodyweight</dt>
+                <dd className="num">
+                  {bodyweight ? `${bodyweight.weight_kg} kg` : '—'}
+                  {bodyweight && <span className="wl-fact-sub">{formatDate(bodyweight.logged_at)}</span>}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          {insights.length > 0 && (
+            <section className="wl-insights" aria-label="Insights">
+              <span className="label">Insights</span>
+              <ul>
+                {insights.map((i) => (
+                  <li key={i.text} className={i.tone}>
+                    <span className="wl-insight-dot" aria-hidden="true" />
+                    {i.text}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <WeekNote warriorProgramId={assignment.id} weekNumber={selectedWeek} />
+
+          <WeekLogs days={days} logs={visibleLogs} history={history} />
         </>
+      )}
+      {data && templateWeeksQ.data && weeks.length === 0 && (
+        <div className="empty">
+          <span className="label">No weeks in this program yet</span>
+        </div>
       )}
     </div>
   );

@@ -1705,3 +1705,709 @@ dialog.palette::backdrop {
   font-weight: 700;
   color: var(--ink-2);
 }
+
+/* ---------- client week logs (planned vs done, day by day) ---------- */
+
+.wl-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wl-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wl-toolbar select.field {
+  min-width: 150px;
+}
+
+.wl {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wl-day {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.wl-day-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-sm);
+}
+
+.wl-day-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.wl-day-date {
+  color: var(--ink-2);
+}
+
+.wl-head-spacer {
+  flex: 1;
+}
+
+.wl-day-head .wl-segments {
+  width: 120px;
+}
+
+.wl-day-count {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.wl-missed-count {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.wl-block {
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wl-block + .wl-block {
+  border-top: 1px solid var(--hairline);
+}
+
+/* Missed: a quiet warm tint over the whole block, so it reads at a glance. */
+.wl-block.missed {
+  background: color-mix(in srgb, var(--warn) 6%, transparent);
+}
+
+.wl-block.none .wl-table {
+  opacity: 0.6;
+}
+
+.wl-block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
+
+.wl-mark {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.wl-mark svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+.wl-mark.done {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.wl-mark.missed {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+
+.wl-mark.none {
+  background: var(--tint-08);
+  color: var(--ink-3);
+}
+
+.wl-block-name {
+  font-weight: 700;
+}
+
+.wl-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.wl-meta {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.wl-not-logged {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+table.data.wl-table {
+  table-layout: fixed;
+  min-width: 560px;
+}
+
+.wl-col-ex {
+  width: 28%;
+}
+
+.wl-col-plan {
+  width: 18%;
+}
+
+.wl-col-done {
+  width: 32%;
+}
+
+.wl-col-vs {
+  width: 14%;
+}
+
+.wl-col-rpe {
+  width: 8%;
+}
+
+table.data.wl-table th,
+table.data.wl-table td {
+  padding: 7px 10px 7px 0;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--hairline);
+}
+
+table.data.wl-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+table.data.wl-table th {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.wl-table .wl-ex {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.set-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.set-chip {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Under the planned reps: amber, so shortfalls stand out without reading numbers. */
+.set-chip.short {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+
+/* ---------- week overview + segment bars ---------- */
+
+.wl-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.wl-overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wl-overview-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wl-overview-headline .num {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.wl-overview-of {
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.wl-segments {
+  display: flex;
+  gap: 10px;
+}
+
+.wl-seg-group {
+  display: flex;
+  gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wl-seg {
+  flex: 1 1 0;
+  height: 8px;
+  min-width: 6px;
+  border-radius: 3px;
+  background: var(--tint-08);
+}
+
+.wl-seg.done {
+  background: var(--ok);
+}
+
+.wl-seg.missed {
+  background: var(--warn);
+}
+
+.wl-legend {
+  display: flex;
+  gap: 14px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.wl-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-legend i.wl-seg {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 8px;
+}
+
+.wl-facts {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 12px;
+  margin: 0;
+  justify-content: flex-end;
+}
+
+.wl-facts > div {
+  padding: 0 18px;
+}
+
+.wl-facts > div + div {
+  border-left: 1px solid var(--hairline);
+}
+
+.wl-facts dt {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.wl-facts dd {
+  margin: 4px 0 0;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.wl-facts dd.warn {
+  color: var(--warn);
+}
+
+.wl-fact-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+@media (max-width: 900px) {
+  .wl-overview {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .wl-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 12px;
+  }
+  .wl-facts > div {
+    padding: 0 12px 0 0;
+  }
+  .wl-facts > div + div {
+    border-left: 0;
+  }
+  .wl-day-head {
+    flex-wrap: wrap;
+  }
+  .wl-day-head .wl-segments {
+    width: 80px;
+  }
+}
+
+.wl-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.wl-note {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--tint-04);
+  max-width: 75ch;
+}
+
+/* One RPE for a block rated as a whole: a single merged cell, centred down
+   the block's rows, so it's in the RPE column without claiming each
+   exercise got that number. */
+table.data.wl-table td.wl-rpe-block {
+  vertical-align: middle;
+  text-align: right;
+  border-left: 1px solid var(--hairline);
+  padding-left: 8px;
+}
+
+.wl-rpe-block .num {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.wl-rpe-caption {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* Kept for screen readers, hidden on screen (e.g. repeated table headers). */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Block collapse: a small chevron before the status mark. */
+.wl-block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wl-block-body[hidden] {
+  display: none;
+}
+
+.wl-toggle {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  flex: none;
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.wl-toggle:hover {
+  color: var(--ink);
+  background: var(--tint-08);
+}
+
+.wl-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wl-toggle svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+  transition: transform 150ms ease-out;
+}
+
+.wl-toggle svg.open {
+  transform: rotate(0deg);
+}
+
+.wl-block.collapsed {
+  padding-bottom: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wl-toggle svg {
+    transition: none;
+  }
+}
+
+.wl-expand-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -6px;
+}
+
+/* ---------- week logs: timeline, change, insights, progress ---------- */
+
+/* Program timeline: one small bar per week (height = share done). */
+.wl-timeline {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+}
+
+.wl-tl-week {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 4px;
+  min-width: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.wl-tl-week:hover {
+  background: var(--tint-04);
+}
+
+.wl-tl-week.selected {
+  border-color: var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.wl-tl-week:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wl-tl-bar {
+  position: relative;
+  width: 14px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--tint-08);
+  overflow: hidden;
+}
+
+.wl-tl-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--ok) 55%, transparent);
+}
+
+.wl-tl-fill.full {
+  background: var(--ok);
+}
+
+.wl-tl-label {
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wl-tl-now {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.wl-change-line {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.wl-delta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wl-change-line .wl-delta {
+  display: inline;
+  margin: 0;
+}
+
+.wl-delta.up {
+  color: var(--ok);
+}
+
+.wl-delta.down {
+  color: var(--warn);
+}
+
+.wl-delta.same {
+  color: var(--ink-3);
+}
+
+.wl-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.wl-insights ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.wl-insights li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.wl-insight-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  transform: translateY(-1px);
+  background: var(--ink-3);
+}
+
+.wl-insights li.good .wl-insight-dot {
+  background: var(--ok);
+}
+
+.wl-insights li.watch .wl-insight-dot {
+  background: var(--warn);
+}
+
+.wl-vs {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wl-vs.up {
+  color: var(--ok);
+}
+
+.wl-vs.down {
+  color: var(--warn);
+}
+
+.wl-vs.same,
+.wl-vs.new {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+/* Personal best on this program: gold outline and a star. */
+.set-chip.pr {
+  border-color: color-mix(in srgb, #d4a017 70%, transparent);
+  background: color-mix(in srgb, #d4a017 14%, transparent);
+  color: var(--ink);
+}
+
+:root[data-theme='light'] .set-chip.pr {
+  border-color: #b8860b;
+}
+
+.wl-pr-count {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, #d4a017 18%, transparent);
+  white-space: nowrap;
+}
+
+.wl-day.collapsed .wl-day-head {
+  border-bottom: 0;
+}
+
+.wl-day-title {
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wl-day-title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
