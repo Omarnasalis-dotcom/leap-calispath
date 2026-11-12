@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchAssignment,
@@ -37,7 +38,17 @@ function CompletionBadge({ row }: { row: ClientAdherenceRow }) {
  * page): their week-by-week logs, or their Performance charts.
  * ClientAdherenceRow is a summary projection (no template_id), so the logs
  * tab fetches the complete assignment ProgressDrawer needs. */
-function InlineClient({ row, onClose }: { row: ClientAdherenceRow; onClose: () => void }) {
+function InlineClient({
+  row,
+  onClose,
+  initialWeek,
+  onWeekChange,
+}: {
+  row: ClientAdherenceRow;
+  onClose: () => void;
+  initialWeek: number | null;
+  onWeekChange: (week: number) => void;
+}) {
   const [tab, setTab] = useState<'logs' | 'performance'>('logs');
   const assignmentQ = useQuery({
     queryKey: ['assignment', row.assignment_id],
@@ -51,6 +62,7 @@ function InlineClient({ row, onClose }: { row: ClientAdherenceRow; onClose: () =
   // width and pin it to the left edge, keeping it fully on screen.
   const ref = useRef<HTMLDivElement>(null);
   const [fitWidth, setFitWidth] = useState<number | null>(null);
+
   useEffect(() => {
     const wrap = ref.current?.closest('.table-wrap');
     if (!wrap) return;
@@ -92,7 +104,9 @@ function InlineClient({ row, onClose }: { row: ClientAdherenceRow; onClose: () =
           </div>
           {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
           {assignmentQ.isLoading && <div className="skeleton" style={{ height: 120 }} />}
-          {assignmentQ.data && <ProgressDrawer assignment={assignmentQ.data} />}
+          {assignmentQ.data && (
+            <ProgressDrawer assignment={assignmentQ.data} initialWeek={initialWeek} onWeekChange={onWeekChange} />
+          )}
         </section>
       )}
       {tab === 'performance' && <PerformancePanel userId={row.warrior_id} athleteName={name} />}
@@ -109,8 +123,58 @@ const SOURCE_OPTIONS: Array<{ value: CoachSource; label: string }> = [
 ];
 
 export function CoachingAnalyticsPage() {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [source, setSource] = useState<CoachSource>(null);
+  // The open client (and its shown week) live in the address, so coming
+  // back from editing a week reopens the same client on the same week.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expandedId = searchParams.get('client');
+  const initialWeek = Number(searchParams.get('week')) || null;
+  const setExpandedId = useCallback(
+    (update: string | null | ((id: string | null) => string | null)) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          const id = typeof update === 'function' ? update(prev.get('client')) : update;
+          if (id) next.set('client', id);
+          else next.delete('client');
+          if (id !== prev.get('client')) next.delete('week');
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
+  const setWeek = useCallback(
+    (week: number) =>
+      setSearchParams(
+        (prev) => {
+          if (prev.get('week') === String(week)) return prev;
+          const next = new URLSearchParams(prev);
+          next.set('week', String(week));
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
+  // Source filter in the address too, so coming back keeps the same list.
+  const sourceParam = searchParams.get('source');
+  const source: CoachSource = sourceParam === 'self' || sourceParam === 'ai' || sourceParam === 'coach' ? sourceParam : null;
+  const setSource = (value: CoachSource) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set('source', value);
+        else next.delete('source');
+        next.delete('client');
+        next.delete('week');
+        return next;
+      },
+      { replace: true },
+    );
+
+  // Back from editing a week (?client=…&week=…): scroll to that client once
+  // everything above it has loaded, so later content doesn't push it away.
+  const pendingScroll = useRef(!!(expandedId && initialWeek));
   const { data, isLoading, error } = useQuery({
     queryKey: ['coaching-analytics', source],
     queryFn: () => fetchCoachingAnalytics(source),
@@ -119,6 +183,19 @@ export function CoachingAnalyticsPage() {
     queryKey: ['client-adherence', source],
     queryFn: () => fetchClientAdherence(source),
   });
+
+  useEffect(() => {
+    if (!pendingScroll.current || isLoading || !adherenceQ.data || !expandedId) return;
+    // After this render's layout, so the tables above have their real height.
+    const frame = window.requestAnimationFrame(() => {
+      const row = document.querySelector(`[data-client-row="${expandedId}"]`);
+      if (row) {
+        row.scrollIntoView({ block: 'start' });
+        pendingScroll.current = false;
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isLoading, adherenceQ.data, expandedId]);
 
   return (
     <div className="page">
@@ -136,10 +213,7 @@ export function CoachingAnalyticsPage() {
                     type="button"
                     className="seg-item"
                     aria-pressed={source === opt.value}
-                    onClick={() => {
-                      setSource(opt.value);
-                      setExpandedId(null);
-                    }}
+                    onClick={() => setSource(opt.value)}
                   >
                     {opt.label}
                   </button>
@@ -271,6 +345,7 @@ export function CoachingAnalyticsPage() {
                   {adherenceQ.data?.map((row) => (
                     <Fragment key={row.assignment_id}>
                     <tr
+                      data-client-row={row.assignment_id}
                       className={`clickable${expandedId === row.assignment_id ? ' row-open' : ''}`}
                       aria-expanded={expandedId === row.assignment_id}
                       onClick={() => setExpandedId((id) => (id === row.assignment_id ? null : row.assignment_id))}
@@ -293,7 +368,12 @@ export function CoachingAnalyticsPage() {
                     {expandedId === row.assignment_id && (
                       <tr className="row-expansion">
                         <td colSpan={8}>
-                          <InlineClient row={row} onClose={() => setExpandedId(null)} />
+                          <InlineClient
+                            row={row}
+                            onClose={() => setExpandedId(null)}
+                            initialWeek={initialWeek}
+                            onWeekChange={setWeek}
+                          />
                         </td>
                       </tr>
                     )}

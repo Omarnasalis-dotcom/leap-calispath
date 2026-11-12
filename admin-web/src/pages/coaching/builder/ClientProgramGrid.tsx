@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deleteCoachWeekData,
+  fetchWarriorProgress,
   fetchArchivedWeeks,
   fetchAssignment,
   fetchExercises,
@@ -16,6 +17,7 @@ import { ApplyTemplateForm } from './ApplyTemplateForm';
 import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builderIO';
 import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
+import { LastLogsProvider } from './LastLogs';
 import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
@@ -24,6 +26,24 @@ import { useToast } from '@/components/Toast';
 export function ClientProgramGrid() {
   const { profile, isAdmin, isCoachPaused } = useAuth();
   const { assignmentId = '' } = useParams();
+  const navigate = useNavigate();
+  // ?week=N opens that week; ?from=<path> is where "Save & return" and the
+  // back link go (e.g. Program analytics with this client open).
+  const [searchParams] = useSearchParams();
+  const weekParam = Number(searchParams.get('week')) || null;
+  const from = searchParams.get('from');
+  const safeFrom = from && from.startsWith('/') && !from.startsWith('//') ? from : null;
+  const backLabel = !safeFrom
+    ? 'Clients'
+    : safeFrom.startsWith('/coaching/analytics')
+      ? 'Program analytics'
+      : safeFrom.includes('/progress')
+        ? 'Week logs'
+        : 'Back';
+  // Set when "Save & return" is pressed; returns once the save cleared `dirty`.
+  const returnAfterSave = useRef(false);
+  const [saved, setSaved] = useState(0);
+  const weekInitialized = useRef(false);
   const queryClient = useQueryClient();
   const clipboard = useBuilderClipboard();
 
@@ -74,6 +94,12 @@ export function ClientProgramGrid() {
       ),
     [loadQ.data],
   );
+  // Every log of this program, for each block's "last time" button.
+  const progressQ = useQuery({
+    queryKey: ['warrior-progress', assignmentId],
+    queryFn: () => fetchWarriorProgress(assignmentId),
+    enabled: !!assignmentId,
+  });
   const archivedQ = useQuery({
     queryKey: ['archived-weeks', templateId],
     queryFn: () => fetchArchivedWeeks(templateId as string),
@@ -83,10 +109,27 @@ export function ClientProgramGrid() {
   useEffect(() => {
     if (!loadQ.data) return;
     setWeeks(loadQ.data.weeks);
-    setActiveWeek(Math.min(...Object.keys(loadQ.data.weeks).map(Number)));
+    const nums = Object.keys(loadQ.data.weeks).map(Number);
+    // First load: the week asked for, else the first. After a save (reload):
+    // stay on the week being edited instead of jumping back to week 1.
+    // Read the flag here, not inside the updater: React runs updaters later,
+    // after the flag below has already flipped.
+    const firstLoad = !weekInitialized.current;
+    weekInitialized.current = true;
+    const start = weekParam && nums.includes(weekParam) ? weekParam : Math.min(...nums);
+    setActiveWeek((current) => (!firstLoad && nums.includes(current) ? current : start));
     setDirty(false);
     setAcknowledged(new Set());
   }, [loadQ.data]);
+
+  // After "Save & return" succeeds: leave once `dirty` is false, so the
+  // unsaved-changes guard doesn't stop it.
+  useEffect(() => {
+    if (saved > 0 && returnAfterSave.current && !dirty && safeFrom) {
+      returnAfterSave.current = false;
+      navigate(safeFrom);
+    }
+  }, [saved, dirty, safeFrom, navigate]);
 
   const weekNums = useMemo(() => Object.keys(weeks).map(Number).sort((a, b) => a - b), [weeks]);
   const days = weeks[activeWeek] ?? [];
@@ -120,6 +163,7 @@ export function ClientProgramGrid() {
         expectedFingerprint: force ? undefined : loadQ.data?.fingerprint,
       }),
     onSuccess: (result) => {
+      setSaved((n) => n + 1);
       setDirty(false);
       setSaveError(null);
       const message =
@@ -158,7 +202,7 @@ export function ClientProgramGrid() {
   return (
     <div className="page wide">
       <PageHeader
-        back={{ label: 'Clients', to: '/coaching' }}
+        back={{ label: backLabel, to: safeFrom ?? '/coaching' }}
         title={a?.warrior_name ?? '…'}
         sub={
           <>
@@ -178,12 +222,30 @@ export function ClientProgramGrid() {
               {showApply ? 'Close' : 'Apply template…'}
             </button>
             <button
-              className="btn primary"
+              className={`btn${safeFrom ? '' : ' primary'}`}
               disabled={!templateId || !loadQ.data || loadQ.isFetching || saveMutation.isPending || isCoachPaused}
-              onClick={() => saveMutation.mutate(false)}
+              onClick={() => {
+                returnAfterSave.current = false;
+                saveMutation.mutate(false);
+              }}
             >
-              {saveMutation.isPending ? 'Saving…' : 'Save program'}
+              {saveMutation.isPending && !returnAfterSave.current ? 'Saving…' : safeFrom ? 'Save' : 'Save program'}
             </button>
+            {safeFrom && (
+              <button
+                className="btn primary"
+                disabled={!templateId || !loadQ.data || loadQ.isFetching || saveMutation.isPending || isCoachPaused}
+                title={`Save, then go back to ${backLabel}`}
+                onClick={() => {
+                  returnAfterSave.current = true;
+                  // Nothing to save: just go back.
+                  if (!dirty) navigate(safeFrom);
+                  else saveMutation.mutate(false);
+                }}
+              >
+                {saveMutation.isPending && returnAfterSave.current ? 'Saving…' : `Save & return`}
+              </button>
+            )}
           </>
         }
       />
@@ -261,6 +323,11 @@ export function ClientProgramGrid() {
             acknowledged={acknowledged}
             onAcknowledge={(blockDbId) => setAcknowledged((prev) => new Set(prev).add(blockDbId))}
           >
+            <LastLogsProvider
+              logs={progressQ.data?.logs ?? []}
+              activeWeek={activeWeek}
+              progressPath={`/coaching/clients/${assignmentId}/progress`}
+            >
             <WeekGrid
               days={days}
               exerciseOptions={exerciseOptions}
@@ -270,6 +337,7 @@ export function ClientProgramGrid() {
                 setDirty(true);
               }}
             />
+            </LastLogsProvider>
           </LoggedBlocksProvider>
         </>
       )}

@@ -17,6 +17,7 @@ import { Badge, ConfirmButton } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
 import { ExerciseRow } from './ExerciseRow';
 import { touchesLoggedFields, useLoggedBlockGuard } from './LoggedBlocks';
+import { LastLogButton } from './LastLogs';
 import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './types';
 
 /** Same prefix BlockConceptParser.getSubtitle composes (structure badge +
@@ -80,7 +81,10 @@ export function BlockCard({
   onChange,
   onRemove,
   onPasteAfter,
+  dayName,
 }: {
+  /** The day this block sits in (client programs: for the last-time button). */
+  dayName?: string;
   block: BuilderBlock;
   exerciseOptions: ExerciseOption[];
   readOnly?: boolean;
@@ -154,6 +158,7 @@ export function BlockCard({
             onChange={(e) => onChange({ name: e.target.value })}
             aria-label="Block name"
           />
+          {dayName && <LastLogButton dayName={dayName} blockName={block.name} />}
           <ConfirmButton
             icon={<Trash2 />}
             ariaLabel="Delete block"

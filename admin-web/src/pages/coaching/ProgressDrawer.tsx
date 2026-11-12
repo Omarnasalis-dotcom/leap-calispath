@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router-dom';
 import {
   appendWeekToClientProgram,
   fetchCoachWeekNote,
@@ -235,7 +236,18 @@ function Delta({
   );
 }
 
-export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
+export function ProgressDrawer({
+  assignment,
+  initialWeek,
+  onWeekChange,
+}: {
+  assignment: AssignmentRow;
+  /** Open on this week (e.g. coming back from editing it). */
+  initialWeek?: number | null;
+  /** Lets the page keep the shown week in its address. */
+  onWeekChange?: (week: number) => void;
+}) {
+  const location = useLocation();
   const { data, isLoading, error } = useQuery({
     queryKey: ['warrior-progress', assignment.id],
     queryFn: () => fetchWarriorProgress(assignment.id),
@@ -260,8 +272,28 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
     if (selectedWeek !== null || weeks.length === 0 || !data) return;
     const current = assignment.current_week ?? null;
     const lastLogged = Math.max(0, ...data.logs.map((l) => l.week_number ?? 1));
-    setSelectedWeek(current && weeks.includes(current) ? current : lastLogged || weeks[weeks.length - 1]);
-  }, [weeks, selectedWeek, data, assignment.current_week]);
+    setSelectedWeek(
+      initialWeek && weeks.includes(initialWeek)
+        ? initialWeek
+        : current && weeks.includes(current)
+          ? current
+          : lastLogged || weeks[weeks.length - 1],
+    );
+  }, [weeks, selectedWeek, data, assignment.current_week, initialWeek]);
+
+  useEffect(() => {
+    if (selectedWeek !== null) onWeekChange?.(selectedWeek);
+  }, [selectedWeek, onWeekChange]);
+
+  // "Edit week N program": opens the program editor on that week, with a
+  // way back to exactly here (this page, this client, this week).
+  const editWeekHref = (() => {
+    if (selectedWeek === null) return null;
+    const back = new URLSearchParams(location.search);
+    back.set('week', String(selectedWeek));
+    const from = `${location.pathname}?${back.toString()}`;
+    return `/coaching/clients/${assignment.id}?week=${selectedWeek}&from=${encodeURIComponent(from)}`;
+  })();
 
   const visibleLogs = useMemo(
     () => (data?.logs ?? []).filter((l) => selectedWeek !== null && (l.week_number ?? 1) === selectedWeek),
@@ -341,6 +373,11 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
               </button>
             </div>
             <div className="row" style={{ gap: 8 }}>
+              {editWeekHref && (
+                <Link className="btn small primary" to={editWeekHref}>
+                  Edit week {selectedWeek} program
+                </Link>
+              )}
               <ExportWeekButton
                 assignment={assignment}
                 selectedWeek={selectedWeek}

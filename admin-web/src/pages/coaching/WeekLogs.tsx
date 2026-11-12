@@ -24,15 +24,22 @@ function blockLabel(name: string | null): string {
 
 /** A saved note → the app's "[LOG] …" result lines and the athlete's own words
  * (same split as the app's lastTimeLog.splitLogNote). */
-function splitNote(notes: string | null): { results: string[]; own: string } {
+export function splitNote(notes: string | null): { results: string[]; own: string } {
   const results: string[] = [];
   const own: string[] = [];
   for (const raw of (notes ?? '').split('\n')) {
     const line = raw.trim();
     if (!line || line.startsWith('[STATUS:')) continue;
     const m = line.match(/^\[LOG\]\s*(.+)$/);
-    if (m) results.push(m[1].replace(/:\s*/, ' ').replace(/\s*Rounds\/Reps$/i, ' rounds').replace(/\s*KG$/i, ' kg'));
-    else own.push(line);
+    if (!m) {
+      own.push(line);
+      continue;
+    }
+    // The app's result lines: "Weight Used: 40 KG" (the block's top weight),
+    // "Completed: 3 Rounds/Reps", "Finished in: 0:14", "Ladder Progress: …".
+    const weight = m[1].match(/^Weight Used:\s*(.+?)\s*KG$/i);
+    if (weight) results.push(`Top weight ${weight[1]} kg`);
+    else results.push(m[1].replace(/:\s*/, ' ').replace(/\s*Rounds\/Reps$/i, ' rounds'));
   }
   return { results, own: own.join(' ') };
 }
@@ -55,7 +62,7 @@ function plannedText(ex: BuilderExercise, block: BuilderBlock): string {
 }
 
 /** One set as a chip: "8", "8 · 20 kg", "30s". Amber when under a reps target. */
-function SetChip({ s, targetReps, pr = false }: { s: WarriorProgressSet; targetReps: number | null; pr?: boolean }) {
+export function SetChip({ s, targetReps, pr = false }: { s: WarriorProgressSet; targetReps: number | null; pr?: boolean }) {
   const parts: string[] = [];
   if (s.reps_completed != null) parts.push(String(s.reps_completed));
   if (s.hold_seconds != null) parts.push(`${s.hold_seconds}s`);
@@ -269,7 +276,7 @@ function BlockLog({
           </table>
         </div>
 
-        {results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>Result: {r}</span>)}</div>}
+        {results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>{r}</span>)}</div>}
         {own && <div className="wl-note">“{own}”</div>}
       </div>
     </div>
@@ -302,7 +309,7 @@ function OrphanLog({ log }: { log: WarriorProgressLog }) {
           ))}
         </span>
       )}
-      {results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>Result: {r}</span>)}</div>}
+      {results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>{r}</span>)}</div>}
       {own && <div className="wl-note">“{own}”</div>}
     </div>
   );

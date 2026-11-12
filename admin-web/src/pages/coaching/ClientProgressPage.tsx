@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAssignment } from '@/api/coaching';
 import { ErrorNote } from '@/components/bits';
@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout';
 export function ClientProgressPage() {
   const { assignmentId = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const assignmentQ = useQuery({
     queryKey: ['assignment', assignmentId],
@@ -49,7 +50,7 @@ export function ClientProgressPage() {
           <div className="panel-head">
             <h2>Progress</h2>
           </div>
-          <ProgressDrawer assignment={a} />
+          <ProgressDrawer assignment={a} initialWeek={Number(searchParams.get('week')) || null} />
         </section>
       )}
     </div>

@@ -257,6 +257,7 @@ export function DayColumn({
                 <BlockCard
                   key={block.id}
                   block={block}
+                  dayName={day.name}
                   exerciseOptions={exerciseOptions}
                   readOnly={readOnly}
                   onChange={(patch) => patchBlock(block.id, patch)}
