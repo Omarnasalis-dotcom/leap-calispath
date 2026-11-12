@@ -100,14 +100,6 @@
   background: rgba(240, 169, 32, 0.1);
 }
 
-.dashboard-v2 .notice.dv-banner {
-  border-color: rgba(240, 169, 32, 0.35);
-  background: rgba(240, 169, 32, 0.08);
-}
-.dashboard-v2 .notice.dv-banner .label {
-  color: var(--dv-warn);
-}
-
 /* These two tint backgrounds are hardcoded to the dark theme's --dv-warn
    (f0a920 → rgb(240,169,32)) rather than deriving from the token, since a
    translucent tint needs its own rgb() triplet, not the hex custom
@@ -119,10 +111,6 @@
   background: rgba(156, 110, 21, 0.12);
 }
 
-:root[data-theme='light'] .dashboard-v2 .notice.dv-banner {
-  border-color: rgba(156, 110, 21, 0.35);
-  background: rgba(156, 110, 21, 0.1);
-}
 
 /* ---------- filter bar (range + tier-group) ---------- */
 /* Scopes Warrior growth, Weekly activity, Retention, World participation —
@@ -410,4 +398,189 @@
   height: 100%;
   border-radius: 999px;
   background: var(--dv-accent);
+}
+
+/* ---------- "Needs you" inbox ---------- */
+
+.dashboard-v2 .inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.dashboard-v2 .inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--text-md);
+  transition: background-color 150ms ease-out;
+}
+
+.dashboard-v2 .inbox-list li + li .inbox-row {
+  border-top: 1px solid var(--dv-card-border);
+}
+
+.dashboard-v2 .inbox-row:hover {
+  background: var(--tint-04);
+}
+
+.dashboard-v2 .inbox-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.dashboard-v2 .inbox-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-3);
+}
+
+.dashboard-v2 .inbox-row.urgent .inbox-dot {
+  background: var(--dv-accent);
+}
+
+.dashboard-v2 .inbox-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.dashboard-v2 .inbox-meta {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.dashboard-v2 .inbox-row.urgent .inbox-meta {
+  color: var(--dv-accent);
+  font-weight: 600;
+}
+
+.dashboard-v2 .inbox-chevron {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ink-3);
+}
+
+.dashboard-v2 .inbox-clear {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 600px) {
+  .dashboard-v2 .inbox-row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .dashboard-v2 .inbox-meta {
+    order: 3;
+    width: 100%;
+    padding-left: 20px;
+  }
+}
+
+/* ---------- AI Coach engagement ---------- */
+
+.dashboard-v2 .ai-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0;
+}
+
+.dashboard-v2 .ai-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 20px 4px 0;
+  min-width: 0;
+}
+
+.dashboard-v2 .ai-readout + .ai-readout {
+  padding-left: 20px;
+  border-left: 1px solid var(--dv-card-border);
+}
+
+.dashboard-v2 .ai-value {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.dashboard-v2 .ai-value.warn {
+  color: var(--dv-accent);
+}
+
+.dashboard-v2 .ai-sub {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.dashboard-v2 .ai-readout .dv-progress-track {
+  margin-top: 6px;
+}
+
+.dashboard-v2 .ai-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+  margin-top: 6px;
+}
+
+.dashboard-v2 .ai-spark-bar {
+  flex: 1;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--dv-fill);
+}
+
+.dashboard-v2 .ai-spark-bar:last-child {
+  background: var(--dv-accent);
+}
+
+.dashboard-v2 .ai-outcomes {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.dashboard-v2 .ai-outcomes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dashboard-v2 .ai-link {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--dv-accent);
+  text-decoration: none;
+}
+
+.dashboard-v2 .ai-link:hover {
+  text-decoration: underline;
+}
+
+/* Stacked on narrow screens: dividers move to the top. */
+@media (max-width: 900px) {
+  .dashboard-v2 .ai-readout,
+  .dashboard-v2 .ai-readout + .ai-readout {
+    padding: 14px 0;
+    border-left: 0;
+  }
+  .dashboard-v2 .ai-readout + .ai-readout {
+    border-top: 1px solid var(--dv-card-border);
+  }
 }

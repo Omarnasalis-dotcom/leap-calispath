@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import './DashboardPage.css';
 import {
+  fetchAiCoachEngagement,
   fetchDashboardOverview,
+  fetchHumanCoachCount,
   fetchDashboardTrends,
   fetchRecentPulse,
   fetchRetentionCurve,
@@ -21,6 +23,13 @@ import { CoachEngagementChart } from '@/components/dashboard/CoachEngagementChar
 import { RetentionCurveChart } from '@/components/dashboard/RetentionCurveChart';
 import { TierDistributionChart } from '@/components/dashboard/TierDistributionChart';
 import { RecentPulseChart } from '@/components/dashboard/RecentPulseChart';
+import { AiCoachPanel } from '@/components/dashboard/AiCoachPanel';
+import { NeedsYouPanel, type InboxItem } from '@/components/dashboard/NeedsYouPanel';
+import { fetchProgramReviews } from '@/api/programReviews';
+import { fetchFairPlayCounts } from '@/api/fairPlay';
+import { fetchAiCoachReports } from '@/api/aiCoachReports';
+import { fetchCoachFlags } from '@/api/aiCoachChats';
+import { fetchPromoCodes } from '@/api/promoCodes';
 import { PageHeader } from '@/components/layout';
 
 function WeekRow({
@@ -58,6 +67,11 @@ function WeekRow({
 }
 
 const WEEK_RANGE_OPTIONS = [1, 4, 8, 12, 26];
+
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+const REVIEW_PROMISE_HOURS = 48;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** A panel's body: the chart, its load error with Retry, or a skeleton. A
  * failed query used to leave the skeleton up forever. */
@@ -120,6 +134,15 @@ export function DashboardPage() {
     queryKey: ['recent-pulse', pulseHours],
     queryFn: () => fetchRecentPulse(pulseHours),
   });
+  const aiQ = useQuery({ queryKey: ['ai-coach-engagement', 7], queryFn: () => fetchAiCoachEngagement(7) });
+  const humanCoachesQ = useQuery({ queryKey: ['human-coach-count'], queryFn: fetchHumanCoachCount });
+
+  // "Needs you": same query keys as the menu badges, so they share the cache.
+  const reviewsQ = useQuery({ queryKey: ['program-reviews', 'open'], queryFn: () => fetchProgramReviews('open') });
+  const fairPlayQ = useQuery({ queryKey: ['fair-play', 'counts'], queryFn: fetchFairPlayCounts });
+  const aiReportsQ = useQuery({ queryKey: ['ai-coach-reports', false], queryFn: () => fetchAiCoachReports(false) });
+  const chatFlagsQ = useQuery({ queryKey: ['coach-flags', 'open'], queryFn: () => fetchCoachFlags('open'), retry: false });
+  const promoQ = useQuery({ queryKey: ['promo-codes'], queryFn: fetchPromoCodes });
   const trends = trendsQ.data;
   const retention = retentionQ.data;
   const tierDistribution = tierQ.data;
@@ -139,21 +162,57 @@ export function DashboardPage() {
     : undefined;
   const weeklyActivityWeeks = trends?.slice(-6);
 
-  const missingNextWeek =
-    data && CHALLENGE_GROUPS.some((g) => !data.next_week_challenge_groups.includes(g.id));
+  const inbox: InboxItem[] = [];
+  const now = Date.now();
+  const reviews = reviewsQ.data ?? [];
+  if (reviews.length > 0) {
+    const hoursLeft = reviews.map((r) => (new Date(r.requested_at).getTime() + REVIEW_PROMISE_HOURS * HOUR - now) / HOUR);
+    const overdue = hoursLeft.filter((h) => h < 0).length;
+    const soonest = Math.round(Math.min(...hoursLeft));
+    inbox.push({
+      key: 'reviews',
+      to: '/program-reviews',
+      text: `${plural(reviews.length, 'program review', 'program reviews')} waiting`,
+      meta: overdue > 0 ? `${overdue} past ${REVIEW_PROMISE_HOURS}h` : `next due in ${soonest}h`,
+      urgent: overdue > 0 || soonest <= 12,
+    });
+  }
+  const flags = fairPlayQ.data?.flags ?? 0;
+  if (flags > 0) inbox.push({ key: 'flags', to: '/fair-play', text: `${plural(flags, 'Fair Play flag', 'Fair Play flags')} to review` });
+  const appeals = fairPlayQ.data?.appeals ?? 0;
+  if (appeals > 0) inbox.push({ key: 'appeals', to: '/fair-play/appeals', text: `${plural(appeals, 'appeal', 'appeals')} waiting for a decision` });
+  const reports = aiReportsQ.data?.length ?? 0;
+  if (reports > 0) inbox.push({ key: 'ai-reports', to: '/ai-coach-reports', text: `${plural(reports, 'AI Coach reply', 'AI Coach replies')} reported by users` });
+  const chatFlags = chatFlagsQ.data?.length ?? 0;
+  if (chatFlags > 0) inbox.push({ key: 'chat-flags', to: '/ai-coach-chats/flags', text: `${plural(chatFlags, 'open AI chat flag', 'open AI chat flags')}` });
+  if (data) {
+    const missing = CHALLENGE_GROUPS.filter((g) => !data.next_week_challenge_groups.includes(g.id));
+    if (missing.length > 0) {
+      const startsIn = new Date(`${data.next_week_start}T00:00:00Z`).getTime() - now;
+      inbox.push({
+        key: 'challenge-gap',
+        to: '/challenges',
+        text: `Next week's challenge missing for ${missing.map((g) => g.name).join(', ')}`,
+        meta: `starts ${formatDate(data.next_week_start)}`,
+        urgent: startsIn < 2 * DAY,
+      });
+    }
+  }
+  for (const c of promoQ.data ?? []) {
+    if (!c.is_active) continue;
+    if (c.max_redemptions != null && c.claimed_count >= c.max_redemptions) {
+      inbox.push({ key: `promo-full-${c.code}`, to: '/promo-codes', text: `Promo code ${c.code} is used up`, meta: `${c.claimed_count} claimed` });
+    } else if (c.ends_at) {
+      const left = new Date(c.ends_at).getTime() - now;
+      if (left > 0 && left < 7 * DAY) {
+        inbox.push({ key: `promo-end-${c.code}`, to: '/promo-codes', text: `Promo code ${c.code} ends soon`, meta: `ends ${formatDate(c.ends_at)}` });
+      }
+    }
+  }
+  const inboxLoading = reviewsQ.isLoading || fairPlayQ.isLoading || !data;
 
   return (
     <div className="page dashboard-v2">
-      {missingNextWeek && (
-        <div className="notice dv-banner">
-          <span className="label">Challenge gap</span>
-          <span>
-            No challenge configured for every group for the week starting{' '}
-            {formatDate(data.next_week_start)}.
-          </span>
-        </div>
-      )}
-
       <PageHeader
         title="Dashboard"
         sub="Arena-wide activity at a glance."
@@ -172,6 +231,8 @@ export function DashboardPage() {
 
       {error && <ErrorNote error={error} />}
 
+      <NeedsYouPanel items={inbox} loading={inboxLoading} />
+
       <div className="stat-strip" role="group" aria-label="Headline stats">
         <StatCard
           label="Warriors"
@@ -186,7 +247,7 @@ export function DashboardPage() {
           hint="challenge week (Sat–Fri) · Growth's weekly active counts the last 7 days"
           delta={data?.active_this_week_delta}
         />
-        <StatCard label="Coaches" value={data?.coaches} />
+        <StatCard label="Coaches" value={humanCoachesQ.data} hint="people, not Leap or AI Coach" />
         <StatCard label="Communities" value={data?.community_count} />
         <StatCard
           label="Workouts this week"
@@ -299,6 +360,18 @@ export function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <section className="panel dv-chart-panel">
+        <div className="panel-head">
+          <h2>AI Coach engagement</h2>
+          <span className="label">last 7 days</span>
+        </div>
+        <div className="panel-body">
+          <PanelBody query={aiQ} height={120}>
+            {aiQ.data ? <AiCoachPanel data={aiQ.data} /> : null}
+          </PanelBody>
+        </div>
+      </section>
 
       <section className="panel dv-chart-panel">
         <div className="panel-head">
