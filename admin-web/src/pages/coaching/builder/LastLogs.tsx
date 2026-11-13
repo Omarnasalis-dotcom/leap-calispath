@@ -6,13 +6,14 @@ import type { WarriorProgressLog, WarriorProgressSet } from '@/api/coaching';
 import { formatDate } from '@/shared/constants';
 import { SetChip, splitNote } from '../WeekLogs';
 
-// Client programs only (ClientProgramGrid provides it): each block's header
-// gets a small button with the last earlier log of the same day + block, so
-// the coach sees what happened last time while writing the next week.
+// Client programs (ClientProgramGrid) and week logs (ProgressDrawer) provide
+// it: each block gets a small button with the last earlier log of the same
+// day + block, so the coach sees what happened last time.
 
 interface LastLogsState {
   find: (dayName: string, blockName: string) => { log: WarriorProgressLog; week: number } | null;
-  progressPath: string;
+  /** "Open week logs →" in the card; null where the card already sits in them. */
+  progressPath: string | null;
 }
 
 const Ctx = createContext<LastLogsState | null>(null);
@@ -29,7 +30,7 @@ export function LastLogsProvider({
 }: {
   logs: WarriorProgressLog[];
   activeWeek: number;
-  progressPath: string;
+  progressPath: string | null;
   children: ReactNode;
 }) {
   // block_name is "<Day> | <Block>"; match on both, before the week shown.
@@ -164,9 +165,11 @@ export function LastLogButton({ dayName, blockName }: { dayName: string; blockNa
                 {(own || log.missed_detail) && <div className="wl-note">“{own || log.missed_detail}”</div>}
               </>
             )}
-            <Link to={ctx.progressPath} className="last-log-link">
-              Open week logs →
-            </Link>
+            {ctx.progressPath && (
+              <Link to={ctx.progressPath} className="last-log-link">
+                Open week logs →
+              </Link>
+            )}
           </div>,
           document.body,
         )}

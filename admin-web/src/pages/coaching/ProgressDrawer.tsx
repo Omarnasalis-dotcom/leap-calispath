@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import {
   appendWeekToClientProgram,
   fetchCoachWeekNote,
@@ -17,7 +18,8 @@ import { ErrorNote } from '@/components/bits';
 import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/ProgramExportBuilder';
 import { buildImportBlocksPayload, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
 import { loadTemplateWeeks } from './builder/builderIO';
-import { blockStatus, buildWeek, SegmentBar, WeekLogs } from './WeekLogs';
+import { athleteNotes, blockStatus, buildWeek, SegmentBar, WeekLogs } from './WeekLogs';
+import { LastLogsProvider } from './builder/LastLogs';
 import { buildHistory, computeInsights, weekTotals } from './weekInsights';
 
 function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; weekNumber: number }) {
@@ -312,6 +314,12 @@ export function ProgressDrawer({
   const totals = weekTotals(visibleLogs);
   const prevTotals = prevWeek !== null ? weekTotals(prevLogs) : null;
   const history = useMemo(() => buildHistory(data?.logs ?? []), [data]);
+  // The athlete's notes this week; clicking one opens its block below.
+  const notes = useMemo(() => athleteNotes(days, visibleLogs), [days, visibleLogs]);
+  const [focus, setFocus] = useState<{ blockId: string; nonce: number } | null>(null);
+  // More than one note: collapsed until opened (like the days and blocks).
+  const [notesOpen, setNotesOpen] = useState(false);
+  const showNotes = notes.length === 1 || notesOpen;
   const insights =
     selectedWeek !== null && data
       ? computeInsights({
@@ -500,9 +508,47 @@ export function ProgressDrawer({
             </section>
           )}
 
+          {notes.length > 0 && (
+            <section className="wl-insights wl-notes" aria-label="Athlete notes">
+              {notes.length > 1 ? (
+                <button
+                  type="button"
+                  className="wl-notes-toggle"
+                  aria-expanded={notesOpen}
+                  aria-controls="wl-notes-list"
+                  onClick={() => setNotesOpen((o) => !o)}
+                >
+                  <ChevronDown className={notesOpen ? 'open' : undefined} aria-hidden="true" />
+                  <span className="label">Athlete notes · {notes.length}</span>
+                </button>
+              ) : (
+                <span className="label">Athlete note</span>
+              )}
+              <ul id="wl-notes-list" hidden={!showNotes}>
+                {notes.map((n) => (
+                  <li key={n.blockId}>
+                    <button
+                      type="button"
+                      className="wl-note-link"
+                      onClick={() => setFocus((f) => ({ blockId: n.blockId, nonce: (f?.nonce ?? 0) + 1 }))}
+                    >
+                      <span className="wl-note-where">
+                        {n.dayName} · {n.blockName}
+                        {n.missed ? ' · missed' : ''} · {formatDate(n.at)}
+                      </span>
+                      <span className="wl-note-text">“{n.text}”</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <WeekNote warriorProgramId={assignment.id} weekNumber={selectedWeek} />
 
-          <WeekLogs days={days} logs={visibleLogs} history={history} />
+          <LastLogsProvider logs={data.logs} activeWeek={selectedWeek} progressPath={null}>
+            <WeekLogs days={days} logs={visibleLogs} history={history} focus={focus} />
+          </LastLogsProvider>
         </>
       )}
       {data && templateWeeksQ.data && weeks.length === 0 && (

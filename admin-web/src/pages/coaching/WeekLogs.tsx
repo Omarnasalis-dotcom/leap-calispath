@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { WarriorProgressLog, WarriorProgressSet } from '@/api/coaching';
 import { Check, ChevronDown, Minus, X } from 'lucide-react';
 import { Badge } from '@/components/bits';
@@ -6,6 +6,7 @@ import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { formatDate } from '@/shared/constants';
 import type { BuilderBlock, BuilderDay, BuilderExercise } from './builder/types';
 import { progressFor, type ExerciseProgress } from './weekInsights';
+import { LastLogButton } from './builder/LastLogs';
 
 type History = ReturnType<typeof import('./weekInsights').buildHistory>;
 
@@ -115,20 +116,22 @@ export function SegmentBar({ groups, label }: { groups: Status[][]; label: strin
 /** One planned block next to what the athlete logged for it. */
 function BlockLog({
   block,
+  dayName,
   logs,
-  showHead,
   dayDate,
   open,
   onToggle,
   history,
+  flash,
 }: {
   history: History;
+  dayName: string;
+  /** Just opened from an athlete note: highlighted for a moment. */
+  flash: boolean;
   block: BuilderBlock;
   logs: WarriorProgressLog[];
   open: boolean;
   onToggle: () => void;
-  /** Column names only above a day's first block (same columns below). */
-  showHead: boolean;
   /** The day's date: a block logged that same day doesn't repeat it. */
   dayDate: string | undefined;
 }) {
@@ -170,7 +173,7 @@ function BlockLog({
   ].filter(Boolean);
 
   return (
-    <div className={`wl-block ${status}${open ? '' : ' collapsed'}`}>
+    <div className={`wl-block ${status}${open ? '' : ' collapsed'}${flash ? ' flash' : ''}`} data-block-id={block.db_id ?? undefined}>
       <div className="wl-block-head">
         <button
           type="button"
@@ -208,12 +211,17 @@ function BlockLog({
               <col className="wl-col-vs" />
               <col className="wl-col-rpe" />
             </colgroup>
-            <thead className={showHead ? undefined : 'visually-hidden'}>
+            <thead>
               <tr>
                 <th>Exercise</th>
                 <th>Planned</th>
                 <th>Done</th>
-                <th>vs last</th>
+                <th>
+                  <span className="wl-vs-head">
+                    vs last
+                    <LastLogButton dayName={dayName} blockName={block.name ?? ''} />
+                  </span>
+                </th>
                 <th style={{ textAlign: 'right' }}>{showRpeColumn ? 'RPE' : ''}</th>
               </tr>
             </thead>
@@ -353,8 +361,45 @@ export function buildWeek(days: BuilderDay[], logs: WarriorProgressLog[]) {
   return { byBlock, orphans, summary };
 }
 
-/** The week, day by day: every planned block with what was logged for it. */
-export function WeekLogs({ days, logs, history }: { days: BuilderDay[]; logs: WarriorProgressLog[]; history: History }) {
+/** The athlete's own words this week (notes, and why a block was missed),
+ * in program order, each pointing at its block. */
+export interface AthleteNote {
+  blockId: string;
+  dayName: string;
+  blockName: string;
+  text: string;
+  missed: boolean;
+  at: string;
+}
+
+export function athleteNotes(days: BuilderDay[], logs: WarriorProgressLog[]): AthleteNote[] {
+  const { byBlock } = buildWeek(days, logs);
+  const out: AthleteNote[] = [];
+  for (const day of days) {
+    for (const b of day.blocks) {
+      const log = b.db_id ? byBlock.get(b.db_id)?.[0] : undefined;
+      if (!log) continue;
+      const missed = log.status === 'missed';
+      const text = missed ? log.missed_detail?.trim() ?? '' : splitNote(log.notes).own;
+      if (text) out.push({ blockId: b.db_id!, dayName: day.name, blockName: blockLabel(b.name), text, missed, at: log.completed_at });
+    }
+  }
+  return out;
+}
+
+/** The week, day by day: every planned block with what was logged for it.
+ * `focus` (from an athlete note) opens that block and scrolls to it. */
+export function WeekLogs({
+  days,
+  logs,
+  history,
+  focus,
+}: {
+  days: BuilderDay[];
+  logs: WarriorProgressLog[];
+  history: History;
+  focus?: { blockId: string; nonce: number } | null;
+}) {
   const { byBlock, orphans } = buildWeek(days, logs);
   // Blocks start collapsed (one-line summary each); this holds the ones opened.
   const [opened, setOpened] = useState<Set<string>>(new Set());
@@ -374,6 +419,28 @@ export function WeekLogs({ days, logs, history }: { days: BuilderDay[]; logs: Wa
       else next.add(name);
       return next;
     });
+  const [flashId, setFlashId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focus) return;
+    const day = days.find((d) => d.blocks.some((b) => b.db_id === focus.blockId));
+    if (!day) return;
+    setOpenDays((prev) => new Set(prev).add(day.name));
+    setOpened((prev) => new Set(prev).add(focus.blockId));
+    setFlashId(focus.blockId);
+    // After the day and block have rendered open.
+    const frame = window.requestAnimationFrame(() =>
+      document
+        .querySelector(`[data-block-id="${focus.blockId}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }),
+    );
+    const clear = window.setTimeout(() => setFlashId(null), 1600);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(clear);
+    };
+    // Only when a note is clicked (nonce changes), not when the week data refreshes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.nonce]);
   const allIds = days.flatMap((d) => d.blocks.map((b) => b.db_id).filter(Boolean) as string[]);
   const allDayNames = days.filter((d) => d.blocks.some((b) => b.db_id)).map((d) => d.name);
   const allOpen =
@@ -428,22 +495,20 @@ export function WeekLogs({ days, logs, history }: { days: BuilderDay[]; logs: Wa
                 {missedCount > 0 && <span className="wl-missed-count"> · {missedCount} missed</span>}
               </span>
             </div>
-            {openDays.has(day.name) && (() => {
-              // Column names go above the day's first open block.
-              const firstOpen = blocks.findIndex((b) => opened.has(b.db_id!));
-              return blocks.map((b, i) => (
+            {openDays.has(day.name) &&
+              blocks.map((b) => (
                 <BlockLog
                   key={b.id}
                   block={b}
+                  dayName={day.name}
                   logs={byBlock.get(b.db_id!) ?? []}
-                  showHead={i === firstOpen}
                   dayDate={date}
                   open={opened.has(b.db_id!)}
                   onToggle={() => toggle(b.db_id!)}
                   history={history}
+                  flash={flashId === b.db_id}
                 />
-              ));
-            })()}
+              ))}
           </section>
         );
       })}
