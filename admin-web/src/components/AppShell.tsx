@@ -39,6 +39,7 @@ const ADMIN_NAV: NavGroup[] = [
     label: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', activeWhen: exactly('/') },
+      { to: '/coaching', label: 'Coaching dashboard', activeWhen: exactly('/coaching') },
       { to: '/growth', label: 'Growth' },
       { to: '/notifications', label: 'Notifications', badge: 'notifications' },
     ],
@@ -75,7 +76,6 @@ const ADMIN_NAV: NavGroup[] = [
     id: 'programs',
     label: 'Programs',
     items: [
-      { to: '/coaching', label: 'Coaching dashboard', activeWhen: exactly('/coaching') },
       { to: '/coaching/clients', label: 'Clients', activeWhen: under('/coaching/clients') },
       { to: '/coaching/builder', label: 'Program builder' },
       { to: '/coaching/exercises', label: 'Exercise library' },

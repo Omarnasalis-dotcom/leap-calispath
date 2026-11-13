@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   assignTemplate,
   fetchAssignedTemplateIds,
@@ -10,7 +10,7 @@ import {
 } from '@/api/coaching';
 import { searchUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
-import { isMasterTemplate } from '@/shared/constants';
+import { isMasterTemplate, PROGRAM_SOURCE_LABEL, programSource } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 import { ApplyTemplateForm } from './builder/ApplyTemplateForm';
 
@@ -74,7 +74,19 @@ export function AssignForm({
   const existingActiveAssignment = assignmentsQ.data?.find(
     (a) => a.warrior_id === warriorId && a.status === 'active',
   );
+  // Their own program (library pick or AI Coach) vs a coach's.
+  const existingSource = existingActiveAssignment ? programSource(existingActiveAssignment.coach_id) : null;
+  const existingIsOwn = existingSource === 'library' || existingSource === 'ai';
+  const existingIsThisCoach = !!existingActiveAssignment && existingActiveAssignment.coach_id === coachId;
+  // "Start as a new program": assign_program_template completes the current
+  // program and creates the new one in one go; the old one stays in the
+  // athlete's past programs (restorable in the app, Activate in Clients).
+  // The server refuses it for an assistant replacing their coach's own
+  // program, so it isn't offered there.
+  const canStartNew = existingIsOwn || (existingIsThisCoach && (isAdmin || coachId === me?.id));
+  const who = presetWarriorName || warriorQuery || 'This warrior';
 
+  const queryClient = useQueryClient();
   const assignMutation = useMutation({
     mutationFn: () => {
       // assign_program_template clones the template under this name — the
@@ -92,7 +104,10 @@ export function AssignForm({
         customName: customName.trim() || `${templateName} — ${warriorName}`,
       });
     },
-    onSuccess: onDone,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] });
+      onDone();
+    },
   });
 
   return (
@@ -205,27 +220,58 @@ export function AssignForm({
           <div className="label">Search only finds warriors in your own community.</div>
         )}
 
-        {existingActiveAssignment && existingActiveAssignment.coach_id !== coachId && (
+        {existingActiveAssignment && !existingIsOwn && !existingIsThisCoach && (
           <div className="notice">
-            {presetWarriorName || warriorQuery || 'This warrior'} already has an active program with a different
-            coach ({existingActiveAssignment.coach_name ?? 'unknown'}). Assigning here would silently complete
-            that program — resolve it with that coach first.
+            {who} already has an active program with a different coach (
+            {existingActiveAssignment.coach_name ?? 'unknown'}). Resolve it with that coach first.
           </div>
         )}
 
-        {existingActiveAssignment && existingActiveAssignment.coach_id === coachId && templateId && (
-          <>
-            <div className="notice">
-              {presetWarriorName || warriorQuery || 'This warrior'} already has an active program. Assigning here
-              would clone a fresh copy and auto-complete their current one, orphaning its weeks and history —
-              choose how to combine it instead.
+        {existingActiveAssignment && (existingIsOwn || existingIsThisCoach) && templateId && (
+          <div className="assign-choice">
+            <p className="assign-choice-lead">
+              {who} is on{' '}
+              {existingIsOwn ? `their own ${PROGRAM_SOURCE_LABEL[existingSource!].toLowerCase()} program` : 'your program'}{' '}
+              <strong>{existingActiveAssignment.template_name ?? ''}</strong>
+              {existingActiveAssignment.current_week ? ` (week ${existingActiveAssignment.current_week})` : ''}.
+            </p>
+
+            <div className="assign-option">
+              <div>
+                <h3>Start as a new program</h3>
+                <p>
+                  The current program moves to their past programs with every week and logged workout. They can
+                  switch back from the app (Training Center, restore), and you can from Clients (Activate).
+                </p>
+              </div>
+              {canStartNew ? (
+                <button
+                  className="btn primary"
+                  disabled={!coachId || assignMutation.isPending || isCoachPaused}
+                  onClick={() => assignMutation.mutate()}
+                >
+                  {assignMutation.isPending ? 'Starting…' : 'Start new program'}
+                </button>
+              ) : (
+                <span className="label">Only the coach can replace their own program.</span>
+              )}
             </div>
-            <ApplyTemplateForm
-              warriorProgramId={existingActiveAssignment.id}
-              initialTemplateId={templateId}
-              onApplied={onDone}
-            />
-          </>
+
+            {existingIsThisCoach && (
+              <div className="assign-option stacked">
+                <div>
+                  <h3>Or add it to the current program</h3>
+                  <p>Keeps one program: add the weeks after the current ones, archive the current weeks first, or overwrite.</p>
+                </div>
+                <ApplyTemplateForm
+                  warriorProgramId={existingActiveAssignment.id}
+                  initialTemplateId={templateId}
+                  onApplied={onDone}
+                  embedded
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
     </section>

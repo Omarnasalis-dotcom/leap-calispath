@@ -537,7 +537,7 @@ export async function assignTemplate(params: {
   warriorId: string;
   templateId: string;
   customName: string | null;
-}): Promise<void> {
+}): Promise<string | null> {
   const { data: newTemplateId, error } = await supabase.rpc('assign_program_template', {
     p_coach_id: params.coachId,
     p_warrior_id: params.warriorId,
@@ -554,6 +554,7 @@ export async function assignTemplate(params: {
   if (newProgram?.id) {
     await notifyClientProgramUpdate(newProgram.id, 'program_assigned');
   }
+  return newProgram?.id ?? null;
 }
 
 export async function setAssignmentStatus(id: string, status: string): Promise<void> {

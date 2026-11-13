@@ -22,6 +22,7 @@ import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
+import { programSource } from '@/shared/constants';
 
 /** A week's days as new, unsaved copies numbered for week `nextNum`. */
 function cloneDays(days: BuilderWeeks[number], nextNum: number): BuilderWeeks[number] {
@@ -37,9 +38,15 @@ function cloneDays(days: BuilderWeeks[number], nextNum: number): BuilderWeeks[nu
   }));
 }
 
+/** Keyed by the program, so switching to another one (e.g. after "Start as
+ * a new program") starts the editor fresh instead of reusing its state. */
 export function ClientProgramGrid() {
-  const { profile, isAdmin, isCoachPaused } = useAuth();
   const { assignmentId = '' } = useParams();
+  return <ClientProgramEditor key={assignmentId} assignmentId={assignmentId} />;
+}
+
+function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
+  const { profile, isAdmin, isCoachPaused } = useAuth();
   const navigate = useNavigate();
   // ?week=N opens that week; ?from=<path> is where "Save & return" and the
   // back link go (e.g. Program analytics with this client open).
@@ -150,7 +157,11 @@ export function ClientProgramGrid() {
       if (isNew) toast(`Week ${nextNum} drafted from week ${last}. Edit it, then save.`);
       return;
     }
-    const start = weekParam && nums.includes(weekParam) ? weekParam : Math.min(...nums);
+    // Without ?week: the client's current week, like the app opens it (the
+    // last week when current_week isn't built), not week 1 (often archived).
+    const currentWeek = assignmentQ.data?.current_week;
+    const fallback = currentWeek && nums.includes(currentWeek) ? currentWeek : Math.max(...nums);
+    const start = weekParam && nums.includes(weekParam) ? weekParam : fallback;
     setActiveWeek((current) => (!firstLoad && nums.includes(current) ? current : start));
     setDirty(false);
     setAcknowledged(new Set());
@@ -301,7 +312,23 @@ export function ClientProgramGrid() {
       {showApply && (
         <ApplyTemplateForm
           warriorProgramId={assignmentId}
-          onApplied={() => {
+          startNew={
+            assignmentQ.data &&
+            (programSource(assignmentQ.data.coach_id) !== 'coach' || isAdmin || assignmentQ.data.coach_id === profile?.id)
+              ? {
+                  coachId:
+                    programSource(assignmentQ.data.coach_id) === 'coach' ? assignmentQ.data.coach_id : (profile?.id ?? ''),
+                  warriorId: assignmentQ.data.warrior_id,
+                  warriorName: assignmentQ.data.warrior_name ?? null,
+                }
+              : undefined
+          }
+          onApplied={(result) => {
+            if (result?.newProgramId) {
+              toast('New program started. The previous one is in their past programs.');
+              navigate(`/coaching/clients/${result.newProgramId}${safeFrom ? `?from=${encodeURIComponent(safeFrom)}` : ''}`);
+              return;
+            }
             setShowApply(false);
             void queryClient.invalidateQueries({ queryKey: ['template-weeks', templateId] });
             void queryClient.invalidateQueries({ queryKey: ['archived-weeks', templateId] });

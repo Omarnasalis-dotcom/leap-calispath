@@ -307,6 +307,24 @@ export function CoachDashboardPage() {
     [setParams],
   );
 
+  // The week shown in the open client's logs. Stable, and a no-op when the
+  // week is already in the address or no client is open: the logs panel
+  // reports its week after every render, and an unconditional update here
+  // kept re-adding ?client= right after the panel was closed.
+  const setWeek = useCallback(
+    (week: number) =>
+      setParams(
+        (prev) => {
+          if (!prev.get('client') || prev.get('week') === String(week)) return prev;
+          const next = new URLSearchParams(prev);
+          next.set('week', String(week));
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['coach-dashboard', source],
     queryFn: () => fetchCoachDashboard(source),
@@ -473,7 +491,7 @@ export function CoachDashboardPage() {
           key={openRow.assignment_id}
           row={openRow}
           week={openWeek}
-          onWeekChange={(w) => update({ week: String(w) })}
+          onWeekChange={setWeek}
           onClose={() => update({ client: null, week: null })}
         />
       )}
