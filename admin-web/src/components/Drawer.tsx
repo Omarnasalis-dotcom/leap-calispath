@@ -12,12 +12,15 @@ export function Drawer({
   onClose,
   children,
   footer,
+  wide,
 }: {
   open: boolean;
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Room for a whole view (e.g. week logs), not just a form. */
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
 
@@ -34,7 +37,7 @@ export function Drawer({
 
   if (!open) return null;
   return (
-    <aside ref={ref} className="drawer" role="dialog" aria-modal="false" aria-labelledby="drawer-title">
+    <aside ref={ref} className={`drawer${wide ? ' wide' : ''}`} role="dialog" aria-modal="false" aria-labelledby="drawer-title">
       <div className="drawer-head">
         <h2 id="drawer-title">{title}</h2>
         <button type="button" className="btn icon ghost drawer-close" aria-label="Close" onClick={onClose}>

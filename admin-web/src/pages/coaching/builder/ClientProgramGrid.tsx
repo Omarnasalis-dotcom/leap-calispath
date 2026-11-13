@@ -23,6 +23,20 @@ import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
 
+/** A week's days as new, unsaved copies numbered for week `nextNum`. */
+function cloneDays(days: BuilderWeeks[number], nextNum: number): BuilderWeeks[number] {
+  return days.map((d) => ({
+    ...d,
+    id: `${d.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
+    blocks: d.blocks.map((b) => ({
+      ...b,
+      id: `${b.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
+      db_id: null,
+      exercises: b.exercises.map((e) => ({ ...e, id: `${e.id}-${Math.random().toString(36).slice(2, 7)}` })),
+    })),
+  }));
+}
+
 export function ClientProgramGrid() {
   const { profile, isAdmin, isCoachPaused } = useAuth();
   const { assignmentId = '' } = useParams();
@@ -33,9 +47,14 @@ export function ClientProgramGrid() {
   const weekParam = Number(searchParams.get('week')) || null;
   const from = searchParams.get('from');
   const safeFrom = from && from.startsWith('/') && !from.startsWith('//') ? from : null;
+  // ?add=1 (from the coaching dashboard's "Build week N"): open with the
+  // next week already drafted as a copy of the last one, ready to edit.
+  const addParam = searchParams.get('add') === '1';
   const backLabel = !safeFrom
     ? 'Clients'
-    : safeFrom.startsWith('/coaching/analytics')
+    : safeFrom === '/coaching' || safeFrom.startsWith('/coaching?')
+      ? 'Dashboard'
+      : safeFrom.startsWith('/coaching/analytics')
       ? 'Program analytics'
       : safeFrom.includes('/progress')
         ? 'Week logs'
@@ -44,6 +63,9 @@ export function ClientProgramGrid() {
   const returnAfterSave = useRef(false);
   const [saved, setSaved] = useState(0);
   const weekInitialized = useRef(false);
+  // The load the ?add=1 draft was made from (re-applied if the same load
+  // runs again, never after a save brings a fresh one).
+  const draftFor = useRef<object | null>(null);
   const queryClient = useQueryClient();
   const clipboard = useBuilderClipboard();
 
@@ -116,6 +138,18 @@ export function ClientProgramGrid() {
     // after the flag below has already flipped.
     const firstLoad = !weekInitialized.current;
     weekInitialized.current = true;
+    if (addParam && (draftFor.current === null || draftFor.current === loadQ.data)) {
+      const isNew = draftFor.current === null;
+      draftFor.current = loadQ.data;
+      const last = Math.max(...nums);
+      const nextNum = last + 1;
+      setWeeks({ ...loadQ.data.weeks, [nextNum]: cloneDays(loadQ.data.weeks[last] ?? [], nextNum) });
+      setActiveWeek(nextNum);
+      setDirty(true);
+      setAcknowledged(new Set());
+      if (isNew) toast(`Week ${nextNum} drafted from week ${last}. Edit it, then save.`);
+      return;
+    }
     const start = weekParam && nums.includes(weekParam) ? weekParam : Math.min(...nums);
     setActiveWeek((current) => (!firstLoad && nums.includes(current) ? current : start));
     setDirty(false);
@@ -136,16 +170,7 @@ export function ClientProgramGrid() {
 
   function duplicateWeek() {
     const nextNum = Math.max(...weekNums, 0) + 1;
-    const cloned = days.map((d) => ({
-      ...d,
-      id: `${d.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
-      blocks: d.blocks.map((b) => ({
-        ...b,
-        id: `${b.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
-        db_id: null,
-        exercises: b.exercises.map((e) => ({ ...e, id: `${e.id}-${Math.random().toString(36).slice(2, 7)}` })),
-      })),
-    }));
+    const cloned = cloneDays(days, nextNum);
     setWeeks((w) => ({ ...w, [nextNum]: cloned }));
     setActiveWeek(nextNum);
     setDirty(true);
@@ -202,7 +227,7 @@ export function ClientProgramGrid() {
   return (
     <div className="page wide">
       <PageHeader
-        back={{ label: backLabel, to: safeFrom ?? '/coaching' }}
+        back={{ label: backLabel, to: safeFrom ?? '/coaching/clients' }}
         title={a?.warrior_name ?? '…'}
         sub={
           <>

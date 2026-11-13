@@ -33,7 +33,7 @@ export function ClientProgressPage() {
   return (
     <div className="page wide">
       <PageHeader
-        back={{ label: 'Clients', to: '/coaching' }}
+        back={{ label: 'Clients', to: '/coaching/clients' }}
         title={a?.warrior_name ?? '…'}
         sub={<>{a?.template_name} · coach {a?.coach_name ?? '—'}</>}
         actions={

@@ -75,7 +75,8 @@ const ADMIN_NAV: NavGroup[] = [
     id: 'programs',
     label: 'Programs',
     items: [
-      { to: '/coaching', label: 'Clients', activeWhen: (p) => p === '/coaching' || p.startsWith('/coaching/clients') },
+      { to: '/coaching', label: 'Coaching dashboard', activeWhen: exactly('/coaching') },
+      { to: '/coaching/clients', label: 'Clients', activeWhen: under('/coaching/clients') },
       { to: '/coaching/builder', label: 'Program builder' },
       { to: '/coaching/exercises', label: 'Exercise library' },
       { to: '/coaching/workouts', label: 'Workout content' },
@@ -115,7 +116,8 @@ const COACH_NAV: NavGroup[] = [
     id: 'coaching',
     label: 'Coaching',
     items: [
-      { to: '/coaching', label: 'Clients', activeWhen: (p) => p === '/coaching' || p.startsWith('/coaching/clients') },
+      { to: '/coaching', label: 'Dashboard', activeWhen: exactly('/coaching') },
+      { to: '/coaching/clients', label: 'Clients', activeWhen: under('/coaching/clients') },
       { to: '/coaching/community', label: 'Community' },
       { to: '/coaching/builder', label: 'Program builder' },
       { to: '/coaching/exercises', label: 'Exercise library' },

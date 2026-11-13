@@ -915,3 +915,80 @@ export async function fetchClientAdherence(source: CoachSource = null): Promise<
   if (error) throw new Error(error.message);
   return (data ?? []) as ClientAdherenceRow[];
 }
+
+// ---- Coaching dashboard (get_coach_dashboard) ----
+
+/** One training day of the client's current week, in program order. */
+export interface CoachDashboardDay {
+  day: string;
+  blocks: number;
+  logged: number;
+  completed: number;
+  last_at: string | null;
+}
+
+/** waiting = the coach has to add a week; the rest describe the athlete. */
+export type CoachClientStatus = 'waiting' | 'behind' | 'not_started' | 'quiet' | 'on_track' | 'week_done';
+export type CoachClientReason =
+  | 'week_missing'
+  | 'week_finished'
+  | 'quiet'
+  | 'not_moved_on'
+  | 'week_done'
+  | 'not_started'
+  | 'overdue'
+  | 'behind'
+  | 'on_track';
+
+/** One active program, as coach_client_state() works it out (the same rules
+ * the hourly coach reminders use). */
+export interface CoachClientState {
+  assignment_id: string;
+  warrior_id: string;
+  warrior_name: string | null;
+  coach_id: string;
+  coach_name: string | null;
+  template_id: string;
+  template_name: string | null;
+  assigned_at: string;
+  /** Raw week number (as the editor shows it). */
+  current_week: number;
+  /** Position among the weeks the athlete can see; null when this week isn't built. */
+  week_index: number | null;
+  week_count: number;
+  next_week: number | null;
+  last_week: number | null;
+  week_started_at: string;
+  /** Day of the week (1 = the day it started), in the athlete's timezone. */
+  day_no: number;
+  days: CoachDashboardDay[];
+  days_per_week: number;
+  days_logged: number;
+  days_trained: number;
+  blocks_total: number;
+  blocks_logged: number;
+  /** Workouts that should be done by now at this pace. */
+  due: number;
+  due_at: string | null;
+  week_finished: boolean;
+  finished_at: string | null;
+  last_log_at: string | null;
+  last_activity_at: string;
+  rpe_high: number;
+  notes_count: number;
+  missed_days: number;
+  done_28d: number;
+  /** Training days done in the last 28 days vs what the program asks (0–100); null under 7 days. */
+  commitment: number | null;
+  weeks_streak: number;
+  status: CoachClientStatus;
+  reason: CoachClientReason;
+}
+
+/** 'coach' = human coaches' clients (scoped to the caller unless admin);
+ * 'ai' = AI Coach programs (admin only). */
+export async function fetchCoachDashboard(source: 'coach' | 'ai' = 'coach'): Promise<CoachClientState[]> {
+  const { data, error } = await supabase.rpc('get_coach_dashboard', { p_source: source });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CoachClientState[];
+}
