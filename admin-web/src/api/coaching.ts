@@ -993,3 +993,35 @@ export async function fetchCoachDashboard(source: 'coach' | 'ai' = 'coach'): Pro
   if (error) throw new Error(error.message);
   return (data ?? []) as CoachClientState[];
 }
+
+/** Every program an athlete has had (newest first), for switching between
+ * them in the client editor. Deleted ones are left out. */
+export interface WarriorProgramSummary {
+  id: string;
+  status: string | null;
+  assigned_at: string;
+  coach_id: string;
+  current_week: number | null;
+  template_name: string | null;
+}
+
+export async function fetchWarriorPrograms(warriorId: string): Promise<WarriorProgramSummary[]> {
+  const { data, error } = await supabase
+    .from('warrior_programs')
+    .select('id, status, assigned_at, coach_id, current_week, program_templates:template_id ( name )')
+    .eq('warrior_id', warriorId)
+    .neq('status', 'deleted')
+    .order('assigned_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => {
+    const tpl = r.program_templates as { name: string | null } | { name: string | null }[] | null;
+    return {
+      id: r.id as string,
+      status: r.status as string | null,
+      assigned_at: r.assigned_at as string,
+      coach_id: r.coach_id as string,
+      current_week: r.current_week as number | null,
+      template_name: (Array.isArray(tpl) ? tpl[0]?.name : tpl?.name) ?? null,
+    };
+  });
+}

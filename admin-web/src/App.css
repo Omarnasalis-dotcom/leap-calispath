@@ -861,6 +861,20 @@ th.sortable:focus-visible {
   flex-wrap: wrap;
 }
 
+/* Client editor: switch between the athlete's programs. */
+.program-switch {
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: var(--text-sm);
+}
+.program-inactive {
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 /* Assign form: a warrior who already has a program — pick how. */
 .assign-choice {
   display: flex;

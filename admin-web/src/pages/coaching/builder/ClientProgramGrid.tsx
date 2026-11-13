@@ -8,6 +8,8 @@ import {
   fetchAssignment,
   fetchExercises,
   fetchLoggedBlocks,
+  fetchWarriorPrograms,
+  setAssignmentStatus,
 } from '@/api/coaching';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
@@ -22,7 +24,7 @@ import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
-import { programSource } from '@/shared/constants';
+import { formatDate, programSource } from '@/shared/constants';
 
 /** A week's days as new, unsaved copies numbered for week `nextNum`. */
 function cloneDays(days: BuilderWeeks[number], nextNum: number): BuilderWeeks[number] {
@@ -93,6 +95,14 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
     enabled: !!assignmentId,
   });
   const templateId = assignmentQ.data?.template_id;
+  // The athlete's other programs, to switch between them right here.
+  const programsQ = useQuery({
+    queryKey: ['warrior-programs', assignmentQ.data?.warrior_id],
+    queryFn: () => fetchWarriorPrograms(assignmentQ.data!.warrior_id),
+    enabled: !!assignmentQ.data?.warrior_id,
+  });
+  const programs = programsQ.data ?? [];
+  const activeProgram = programs.find((p) => p.status === 'active');
 
   const exercisesQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
   const exerciseOptions = useMemo(
@@ -242,7 +252,26 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
         title={a?.warrior_name ?? '…'}
         sub={
           <>
-            {a?.template_name} · coach {a?.coach_name ?? '—'}
+            {programs.length > 1 ? (
+              <select
+                className="field program-switch"
+                aria-label="Program"
+                value={assignmentId}
+                onChange={(e) =>
+                  navigate(`/coaching/clients/${e.target.value}${safeFrom ? `?from=${encodeURIComponent(safeFrom)}` : ''}`)
+                }
+              >
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.template_name ?? 'Program'} · {p.status === 'active' ? 'active' : p.status === 'paused' ? 'paused' : 'past'} ·
+                    since {formatDate(p.assigned_at)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              a?.template_name
+            )}{' '}
+            · coach {a?.coach_name ?? '—'}
             {clipboard.clipboard && (
               <>
                 {' '}
@@ -308,6 +337,34 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
         saveError && <ErrorNote error={saveError} />
       )}
       {(assignmentQ.isLoading || loadQ.isLoading) && <div className="skeleton" style={{ height: 200 }} />}
+
+      {a && a.status !== 'active' && (
+        <div className="notice program-inactive">
+          <span>
+            You're viewing a {a.status === 'paused' ? 'paused' : 'past'} program.{' '}
+            {activeProgram
+              ? `${a.warrior_name ?? 'The athlete'} is on "${activeProgram.template_name ?? 'another program'}".`
+              : `${a.warrior_name ?? 'The athlete'} has no active program.`}
+          </span>
+          <ConfirmButton
+            label="Make this the active program"
+            disabled={isCoachPaused}
+            title={`Switch ${a.warrior_name ?? 'the athlete'} to "${a.template_name ?? 'this program'}"?`}
+            body={`It becomes their program right away${activeProgram ? `, and "${activeProgram.template_name ?? 'the current one'}" moves to their past programs` : ''}. Nothing is deleted, and you can switch back anytime.`}
+            confirmLabel="Make active"
+            onConfirm={async () => {
+              await setAssignmentStatus(assignmentId, 'active');
+              toast(`${a.warrior_name ?? 'Athlete'} is now on "${a.template_name ?? 'this program'}".`);
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['assignment', assignmentId] }),
+                queryClient.invalidateQueries({ queryKey: ['warrior-programs'] }),
+                queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+                queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] }),
+              ]);
+            }}
+          />
+        </div>
+      )}
 
       {showApply && (
         <ApplyTemplateForm
