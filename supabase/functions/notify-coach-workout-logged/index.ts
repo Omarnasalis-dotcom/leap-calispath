@@ -377,8 +377,20 @@ Deno.serve(async (req) => {
     }
     if (isWeekComplete) {
       const dedupKey = `${log.warrior_program_id}:w${weekNumber}`;
-      const title = "Week Complete";
-      const body = `${displayName} finished Week ${weekNumber}! 🎉`;
+      // Is a later week already built? If not, the coach needs to add one
+      // (get_coach_reminders_due follows up a day later with the same key
+      // family, and skips its own "week finished" when this one was sent).
+      const { data: laterBlock } = await asClient
+        .from("program_blocks")
+        .select("id")
+        .eq("template_id", blockRow!.template_id)
+        .gt("week_number", weekNumber as number)
+        .limit(1)
+        .maybeSingle();
+      const title = laterBlock ? "Week Complete" : "Week Complete: add a new week";
+      const body = laterBlock
+        ? `${displayName} finished Week ${weekNumber}! 🎉`
+        : `${displayName} finished Week ${weekNumber}. Week ${(weekNumber as number) + 1} isn't built yet.`;
       for (const recipientId of recipientIds) {
         results.push(await sendNotification(admin, recipientId, WEEK_COMPLETE_TYPE, title, body, { ...notificationData, key: dedupKey }, dedupKey));
       }

@@ -5,6 +5,13 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_BATCH_SIZE = 100;
 const NOTIFICATION_TYPE = "client_needs_attention";
 
+// Smart coach reminders (20261113120000_coach_dashboard_and_reminders.sql):
+// client behind the week's pace, not started, week finished with no next
+// week (and still not built a day later), not moved on, gone quiet. The
+// rules and the dedupe live in get_coach_reminders_due(); this only fans
+// each one out to the coach and their assistants and pushes it.
+// Send {"dry_run": true} to see who would be notified without sending.
+//
 // Not user-triggered — invoked on a timer by a pg_cron job (see
 // 20260815140000_schedule_client_attention_cron.sql), authenticated by a
 // shared secret rather than a user JWT, same pattern as
@@ -35,7 +42,15 @@ function resolveServiceRoleKey(): string {
 }
 
 type ExpoTicket = { status: string; message?: string; details?: { error?: string } };
-type Target = { warrior_program_id: string; warrior_id: string; client_name: string; coach_id: string };
+type Target = {
+  warrior_program_id: string;
+  warrior_id: string;
+  coach_id: string;
+  reminder_key: string;
+  kind: string;
+  title: string;
+  body: string;
+};
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -48,10 +63,25 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey);
 
-  const { data: targets, error: targetsError } = await admin.rpc("get_clients_needing_attention");
+  let dryRun = false;
+  try {
+    dryRun = (await req.json())?.dry_run === true;
+  } catch {
+    // the cron sends {} (or nothing): a real run
+  }
+
+  const { data: targets, error: targetsError } = await admin.rpc("get_coach_reminders_due");
   if (targetsError) {
-    console.error("get_clients_needing_attention error:", targetsError);
+    console.error("get_coach_reminders_due error:", targetsError);
     return json({ error: "Failed to query targets" }, 500);
+  }
+  if (dryRun) {
+    return json({
+      success: true,
+      dry_run: true,
+      targeted: (targets ?? []).length,
+      targets: ((targets ?? []) as Target[]).map((t) => ({ coach_id: t.coach_id, kind: t.kind, key: t.reminder_key, body: t.body })),
+    });
   }
   if (!targets || targets.length === 0) {
     return json({ success: true, targeted: 0, recipients: 0, sent: 0, failed: 0 });
@@ -76,11 +106,17 @@ Deno.serve(async (req) => {
   const rows: Row[] = [];
   for (const t of targets as Target[]) {
     const recipients = [t.coach_id, ...(assistantsByCoach.get(t.coach_id) ?? [])];
-    const data = { screen: "progress-tracking", warriorId: t.warrior_id, client_id: t.warrior_id };
-    const title = "Client Needs Attention";
-    const body = `${t.client_name} hasn't logged any exercise since being assigned their program.`;
+    // `key` is what get_coach_reminders_due() checks so a reminder never repeats.
+    const data = {
+      screen: "progress-tracking",
+      warriorId: t.warrior_id,
+      client_id: t.warrior_id,
+      key: t.reminder_key,
+      kind: t.kind,
+      assignment_id: t.warrior_program_id,
+    };
     for (const recipientId of recipients) {
-      rows.push({ user_id: recipientId, type: NOTIFICATION_TYPE, title, body, data });
+      rows.push({ user_id: recipientId, type: NOTIFICATION_TYPE, title: t.title, body: t.body, data });
     }
   }
 
