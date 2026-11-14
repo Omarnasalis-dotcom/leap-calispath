@@ -1,5 +1,6 @@
 import type { ConceptMetadata } from '@/shared/BlockConceptParser';
 import { BlockConceptParser } from '@/shared/BlockConceptParser';
+import { TEST_KINDS, isTestKind, testMovementOptions } from '@/shared/testItems';
 
 // Mirrors src/components/coaching/BlockConfigWizard.tsx: timing system,
 // structure, and tier-trial routing for one block, with the same live
@@ -43,6 +44,66 @@ export function ConceptWizard({
     onChange({ ...metadata, ...p });
   }
 
+  const testKind = isTestKind(metadata.test_kind) ? metadata.test_kind : undefined;
+
+  function setTestKind(value: string) {
+    const next: ConceptMetadata = { ...metadata };
+    delete next.test_kind;
+    delete next.test_movement;
+    if (isTestKind(value)) {
+      // A test item is one plain block: the athlete logs one result.
+      next.test_kind = value;
+      next.test_movement = testMovementOptions(value)[0]?.value;
+      next.timing_system = 'straight_set';
+      next.structure = 'single';
+      delete next.is_tier_trial;
+      delete next.tier_trial_tier;
+    }
+    onChange(next);
+  }
+
+  const testSection = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <select
+        className="field"
+        value={testKind ?? ''}
+        disabled={readOnly}
+        onChange={(e) => setTestKind(e.target.value)}
+        aria-label="Test item"
+      >
+        <option value="">Normal block (not a test)</option>
+        {TEST_KINDS.map((k) => (
+          <option key={k.value} value={k.value}>
+            Test item · {k.label}
+          </option>
+        ))}
+      </select>
+      {testKind && testMovementOptions(testKind).length > 0 && (
+        <select
+          className="field"
+          value={metadata.test_movement ?? ''}
+          disabled={readOnly}
+          onChange={(e) => patch({ test_movement: e.target.value })}
+          aria-label="Test movement"
+        >
+          {testMovementOptions(testKind).map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {testKind && (
+        <span className="dim" style={{ fontSize: 12 }}>
+          {TEST_KINDS.find((k) => k.value === testKind)?.hint} Add one exercise for the name and demo video;
+          the block notes are the athlete's instructions. Works on programs you assign to a client.
+        </span>
+      )}
+    </div>
+  );
+
+  if (testKind) return testSection;
+
   const warnStructure =
     structure === 'superset' && exerciseCount !== 2
       ? 'Superset expects exactly 2 exercises'
@@ -52,6 +113,7 @@ export function ConceptWizard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {testSection}
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <select
           className="field"

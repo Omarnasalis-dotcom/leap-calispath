@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchAssignment } from '@/api/coaching';
 import { ErrorNote } from '@/components/bits';
 import { ProgressDrawer } from './ProgressDrawer';
+import { TestsPanel } from './TestsPanel';
 import { PageHeader } from '@/components/layout';
 
 /** Dedicated route for a client's log history — linked from the Client
@@ -53,6 +54,8 @@ export function ClientProgressPage() {
           <ProgressDrawer assignment={a} initialWeek={Number(searchParams.get('week')) || null} />
         </section>
       )}
+
+      {a && <TestsPanel assignment={a} />}
     </div>
   );
 }

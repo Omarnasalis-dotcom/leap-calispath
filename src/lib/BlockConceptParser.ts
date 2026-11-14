@@ -15,6 +15,10 @@ export interface ConceptMetadata {
   is_tier_trial?: boolean;
   tier_trial_tier?: number;
   focus_tag?: 'PULL' | 'PUSH' | 'LEGS' | 'FULL_BODY' | 'CORE' | 'NONE';
+  // Coach Test Week item (see src/lib/testItems.ts). Kept flat and
+  // free of arrays: the server reads this JSON with a non-greedy regex.
+  test_kind?: 'max_reps' | 'one_rm' | 'max_hold' | 'form_check';
+  test_movement?: string;
   
   // Legacy support for older blocks
   type?: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime';

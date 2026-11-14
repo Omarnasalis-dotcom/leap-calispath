@@ -36,6 +36,8 @@ import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
 import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, orderDaysForJourney, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import { BlockConceptParser } from '../lib/BlockConceptParser';
+import { isCoachAssigned, isTestDay } from '../lib/testItems';
 import {
   fetchQuestSlots,
   saveQuestSlots,
@@ -990,7 +992,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
   );
 }
 
-function DayNode({ number, state, title, image, isLast, containerRef, onPress, onSwitchDay, attachedQuest, doneTodayPoints, glowSignal }: {
+function DayNode({ number, state, title, image, isLast, containerRef, onPress, onSwitchDay, attachedQuest, doneTodayPoints, glowSignal, test }: {
   number: number;
   // 'complete' (already resolved, kept visible as history), 'active' (the
   // one current pointer position — the only one actually startable), or
@@ -1014,25 +1016,34 @@ function DayNode({ number, state, title, image, isLast, containerRef, onPress, o
   // The quest paired with this day, if any -- see buildWeekSequence's
   // afterDayIndex. Rendered below the card by NodeRow.
   attachedQuest?: AttachedQuestData;
+  // A Coach Test Week day (every block a test item): items logged so far.
+  test?: { done: number; total: number };
 }) {
+  // "TEST · <day>" unless the coach already put "test" in the day's name.
+  const shownTitle = test && !/test|اختبار/i.test(title) ? t('testWeek.journeyTitle', { name: title }) : title;
+  const testDesc = test
+    ? test.done === 0
+      ? t('testWeek.journeyActive', { count: test.total })
+      : t('testWeek.journeyProgress', { done: test.done, total: test.total })
+    : '';
   return (
     <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress} disabled={state === 'locked'}>
       <NodeRow
         number={number}
         state={state}
-        title={title}
+        title={shownTitle}
         desc={
           doneTodayPoints !== undefined && state === 'complete'
             ? t('journeyPoints.doneTodaySub', { pts: doneTodayPoints })
             : state === 'complete'
-            ? t('journey.dayCompleted')
+            ? test ? t('testWeek.journeyDone') : t('journey.dayCompleted')
             : state === 'active'
-            ? t('journey.dayUpNext')
-            : t('journey.dayLocked')
+            ? test ? testDesc : t('journey.dayUpNext')
+            : test ? testDesc : t('journey.dayLocked')
         }
         glowSignal={glowSignal}
         image={image}
-        ctaLabel={state === 'active' ? t('journey.startNow') : undefined}
+        ctaLabel={state === 'active' ? (test ? t('testWeek.startTest') : t('journey.startNow')) : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         onPressSwitch={state === 'active' ? onSwitchDay : undefined}
         isLast={isLast}
@@ -1108,9 +1119,19 @@ function getSideQuestForSlot(slotIndex: number, strengthTier: number): '1mm' | '
 // slot (not part of the rotation); every other between-day gap rotates, and
 // so does the end-of-week slot on a non-trial week (a trial week's
 // end-of-week slot is the strength trial itself, outside the rotation).
-function rotationSlotsUsed(dayCount: number, isTrialWeek: boolean): number {
-  const midWeekRotating = Math.max(dayCount - 2, 0);
-  return midWeekRotating + (isTrialWeek ? 0 : 1);
+//
+// A Coach Test Week day takes no quest (its items already go into the
+// worlds), so its gap is not counted either -- same rule as
+// buildWeekSequence, which this must always match.
+function rotationSlotsUsed(days: DayStateEntry[], isTrialWeek: boolean): number {
+  if (days.length === 0) return isTrialWeek ? 0 : 1;
+  let used = 0;
+  days.forEach((d, i) => {
+    if (isTestDay(d.day)) return;
+    const isLastDay = i === days.length - 1;
+    if (isLastDay ? !isTrialWeek : i > 0) used++;
+  });
+  return used;
 }
 
 type SequenceItem =
@@ -1139,15 +1160,17 @@ function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strength
   const items: SequenceItem[] = [];
   let rotationCounter = rotationSeed;
   let slotIndex = 0;
-  days.forEach((_, i) => {
+  days.forEach((d, i) => {
     items.push({ kind: 'day', dayIndex: i });
     const isLastDay = i === days.length - 1;
+    // Test days take no quest (see rotationSlotsUsed).
+    if (isTestDay(d.day)) return;
     if (!isLastDay) {
       const questKind: SideQuestKind = i === 0 ? 'weekly' : getSideQuestForSlot(rotationCounter++, strengthTier);
       items.push({ kind: 'quest', slotIndex: slotIndex++, questKind, afterDayIndex: i });
     }
   });
-  if (!isTrialWeek) {
+  if (!isTrialWeek && !(days.length > 0 && isTestDay(days[days.length - 1].day))) {
     items.push({
       kind: 'quest',
       slotIndex: slotIndex++,
@@ -1814,7 +1837,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       const [{ data: blocks, error: blocksError }, { data: logs, error: logsError }] = await Promise.all([
         supabase
           .from('program_blocks')
-          .select('id, name, week_number, order_index')
+          .select('id, name, notes, week_number, order_index')
           .eq('template_id', (program as any).template_id)
           .order('order_index', { ascending: true }),
         supabase
@@ -1855,6 +1878,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // below is equivalent to (and simpler than) grouping per-week.
       const grouped = groupRawBlocksIntoDays(rawBlocks);
       const blockById = new Map(pastAndCurrentBlocks.map((b: any) => [String(b.id), b]));
+      const coachProgram = isCoachAssigned((program as any).coach_id);
 
       const daysByWeek = new Map<number, ProgramDay[]>();
       for (const g of grouped) {
@@ -1866,6 +1890,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             notes: '',
             exercises: [],
             completedStatus: loggedBlockIds.has(String(id)) ? 'completed' : 'none',
+            // Only a real coach's test items make a test day (isTestDay).
+            metadata: coachProgram
+              ? BlockConceptParser.parse(blockById.get(String(id))?.notes).metadata
+              : undefined,
           })),
         };
         const list = daysByWeek.get(g.weekNumber) ?? [];
@@ -2238,7 +2266,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const latestWeekRotationSeed = journeyData
     ? journeyData.weeks
         .slice(0, journeyData.weeks.length - 1)
-        .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
+        .reduce((sum, w) => sum + rotationSlotsUsed(w.days, w.weekNumber % 2 === 1), 0)
     : 0;
   const latestWeekQuestByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
   if (latestWeek) {
@@ -2967,7 +2995,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   const weekIsTrialWeek = week.weekNumber % 2 === 1;
                   const weekRotationSeed = journeyData.weeks
                     .slice(0, weekIdx)
-                    .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0);
+                    .reduce((sum, w) => sum + rotationSlotsUsed(w.days, w.weekNumber % 2 === 1), 0);
                   const weekSequence = buildWeekSequence(week.days, weekIsTrialWeek, profile?.strength_tier || 0, weekRotationSeed);
                   const questByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
                   weekSequence.forEach((item) => {
@@ -3057,6 +3085,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           }
                           onSwitchDay={isLatestWeek && switchableDays.length > 1 ? () => setSwitchDayOpen(true) : undefined}
                           attachedQuest={attachedQuestFor(i, dayState)}
+                          test={
+                            isTestDay(d.day)
+                              ? { done: d.day.blocks.filter((b) => b.completedStatus !== 'none').length, total: d.day.blocks.length }
+                              : undefined
+                          }
                           doneTodayPoints={
                             // Only a day that actually earned today (all-missed days earn nothing).
                             isLatestWeek && showPointsBar && pointsSummary

@@ -66,6 +66,10 @@ import { DayCardList } from '../../components/coaching/DayCardList';
 import { t, FLIP_X } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
 import { offerRoute } from '../../lib/offerStore';
+import { TestItemCard } from '../../components/coaching/test/TestItemCard';
+import { TestItemSheet, TestSubmit } from '../../components/coaching/test/TestItemSheet';
+import { getTestItem, isCoachAssigned, isTestDay, TestCoach, TestResult } from '../../lib/testItems';
+import { TestItemService } from '../../services/TestItemService';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -181,6 +185,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [warriorProgramId, setWarriorProgramId] = useState<string>('');
   const [coachId, setCoachId] = useState<string | null>(null);
+  // Coach Test Week: results by block id, the coach's WhatsApp, and the
+  // test item whose sheet is open.
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [testCoach, setTestCoach] = useState<TestCoach | null>(null);
+  const [activeTestBlockId, setActiveTestBlockId] = useState<string | null>(null);
   const [minAccessTier, setMinAccessTier] = useState<'first' | 'pro' | null>(null);
   const [endingProgram, setEndingProgram] = useState(false);
   const [addingWeek, setAddingWeek] = useState(false);
@@ -1202,6 +1211,24 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         newWeeksMap[1] = [];
       }
       
+      // Coach Test Week results, only when this coach program has test
+      // items. A failure leaves the cards on 'not logged' (the block
+      // statuses above still show what's done) instead of failing the load.
+      const hasTests = isCoachAssigned(actualAssignment.coach_id) &&
+        (blocksData || []).some(b => !!getTestItem(BlockConceptParser.parse(b.notes).metadata));
+      if (hasTests) {
+        try {
+          const tests = await TestItemService.getProgramTests(actualAssignment.id);
+          setTestCoach(tests.coach);
+          setTestResults(Object.fromEntries(tests.results.filter(r => r.block_id).map(r => [r.block_id as string, r])));
+        } catch (testErr) {
+          console.error('Failed to load test results:', testErr);
+        }
+      } else {
+        setTestResults({});
+        setTestCoach(null);
+      }
+
       setWeeksData(newWeeksMap);
 
       // current_week is the source of truth for which week the athlete
@@ -2129,6 +2156,54 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (next) setTimerBanner({ blockId: next.id, blockName: next.name, kind: 'rest', id: Date.now() });
   };
 
+  // ---- Coach Test Week ----
+  // A test item only acts as one on a real coach's program (the server
+  // refuses the rest); anywhere else the block renders as a normal block.
+  const testItemOf = (block: ProgramBlock) => (isCoachAssigned(coachId) ? getTestItem(block.metadata) : null);
+
+  // Same optimistic status update as handleToggleBlockStatus: the server
+  // logged the block, so the day's progress moves without a reload.
+  const applyTestBlockStatus = (blockId: string, status: ProgramBlock['completedStatus']) => {
+    setWeeksData(prev => {
+      const next = { ...prev };
+      if (next[activeWeek]) {
+        next[activeWeek] = next[activeWeek].map(d => ({
+          ...d,
+          blocks: d.blocks.map(b => (String(b.id) === blockId ? { ...b, completedStatus: status } : b)),
+        }));
+      }
+      return next;
+    });
+  };
+
+  const handleTestSubmit = async (blockId: string, p: TestSubmit) => {
+    const { result, weekComplete } = await TestItemService.submit({
+      warriorProgramId,
+      blockId,
+      status: p.status,
+      value: p.value,
+      movementId: p.movementId,
+      skipReason: p.skipReason,
+      skipDetail: p.skipDetail,
+    });
+    if (result) setTestResults(prev => ({ ...prev, [blockId]: result }));
+    applyTestBlockStatus(blockId, p.status === 'done' ? 'completed' : 'missed');
+    setActiveTestBlockId(null);
+    track('test_item_logged', { status: p.status, kind: result?.test_kind ?? null, world: result?.world_status ?? null });
+    if (weekComplete) Alert.alert(t('testWeek.weekCompleteTitle'), t('testWeek.weekCompleteBody'));
+  };
+
+  const handleTestClear = async (blockId: string) => {
+    await TestItemService.submit({ warriorProgramId, blockId, status: 'none' });
+    setTestResults(prev => {
+      const next = { ...prev };
+      delete next[blockId];
+      return next;
+    });
+    applyTestBlockStatus(blockId, 'none');
+    setActiveTestBlockId(null);
+  };
+
   const handleToggleVideo = (exerciseId: string | number, url: string) => {
     if (!url) return;
     setActiveVideoExerciseId(prev => (prev === exerciseId ? null : exerciseId));
@@ -2198,7 +2273,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   </View>
                 </View>
                 <Text style={dbRunnerStyles.metaLine} numberOfLines={1}>
-                  {t('workout.dayMeta', { blocks: activeDay.blocks.length, moves: countMovements(activeDay), min: estimateSessionMinutes(activeDay) })}
+                  {isCoachAssigned(coachId) && isTestDay(activeDay)
+                    ? t('testWeek.dayProgress', {
+                        done: activeDay.blocks.filter(b => b.completedStatus !== 'none').length,
+                        total: activeDay.blocks.length,
+                      })
+                    : t('workout.dayMeta', { blocks: activeDay.blocks.length, moves: countMovements(activeDay), min: estimateSessionMinutes(activeDay) })}
                 </Text>
               </View>
               <DayBlocksProgressRing pct={runnerDayState?.progressPct ?? 0} mode={mode} />
@@ -2219,6 +2299,21 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               // want. handleWorkoutDonePress below nudges them to log any
               // still-unaddressed blocks before finishing instead.
               const isLocked = false;
+              const testItem = testItemOf(block);
+              if (testItem) {
+                return (
+                  <View key={block.id} ref={(view) => { blockViews.current[String(block.id)] = view; }} collapsable={false}>
+                    <TestItemCard
+                      block={block}
+                      index={index}
+                      item={testItem}
+                      result={testResults[String(block.id)] ?? null}
+                      mode={mode as 'light' | 'dark'}
+                      onOpen={() => setActiveTestBlockId(String(block.id))}
+                    />
+                  </View>
+                );
+              }
               return (
                 <React.Fragment key={block.id}>
                 <View ref={(view) => { blockViews.current[String(block.id)] = view; }} collapsable={false}>
@@ -2298,7 +2393,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   if (isWorkoutAddressed) { handleWorkoutDonePress(); return; }
                   if (runnerNotStarted) track('workout_started');
                   const target = runnerNextBlock || activeDay.blocks[0];
-                  if (target) setExpandedBlocks({ [target.id]: true });
+                  // A test item has no inline view: open its sheet.
+                  if (target && testItemOf(target)) setActiveTestBlockId(String(target.id));
+                  else if (target) setExpandedBlocks({ [target.id]: true });
                 }}
               >
                 <MaterialCommunityIcons name="play" size={14} color="#000" />
@@ -2621,6 +2718,28 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         onExpire={() => setUndoWeek(null)}
         busy={undoing}
       />
+
+      {/* COACH TEST WEEK ITEM */}
+      {(() => {
+        if (!activeTestBlockId) return null;
+        const block = days.flatMap(d => d.blocks).find(b => String(b.id) === activeTestBlockId);
+        const item = block ? testItemOf(block) : null;
+        if (!block || !item) return null;
+        return (
+          <TestItemSheet
+            key={activeTestBlockId}
+            visible
+            block={block}
+            item={item}
+            result={testResults[activeTestBlockId] ?? null}
+            coach={testCoach}
+            weekNumber={activeWeek}
+            onClose={() => setActiveTestBlockId(null)}
+            onSubmit={(p) => handleTestSubmit(activeTestBlockId, p)}
+            onClear={() => handleTestClear(activeTestBlockId)}
+          />
+        );
+      })()}
 
       {/* LOG DETAILS MODAL */}
       {(() => {
