@@ -60,6 +60,7 @@ import {
   resumeTrim,
   StoredRow,
 } from '../lib/coachRecovery';
+import { historyForCoach } from '../lib/coachHistory';
 import { t, FLIP_X } from '../i18n';
 import { stageVerb } from '../components/coach/ActivityBubble';
 
@@ -470,7 +471,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const callAiCoach = async (history: Message[], onStage: (s: Stage) => void, clientRequestId?: string): Promise<StreamResult | null> => {
     const { data, error } = await supabase.functions.invoke('ai-coach', {
       body: {
-        messages: history.map(({ role, content }) => ({ role, content })),
+        // The app's own error bubbles go as a neutral note, never as the coach's words.
+        messages: historyForCoach(history),
         platform: Platform.OS,
         ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
       },
