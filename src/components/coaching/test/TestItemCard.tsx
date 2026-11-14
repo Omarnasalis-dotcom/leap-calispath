@@ -62,14 +62,16 @@ export function testValueLabel(r: Pick<TestResult, 'value' | 'unit'>): string {
   return value;
 }
 
-/** "TEST · 1RM · Back Squat" */
-export function testKicker(item: TestItem, result?: TestResult | null): string {
+/** "TEST · 1RM · Back Squat" — without the movement when the title below
+ * already names it ("DIPS" under "TEST · MAX REPS · 1 MIN"). */
+export function testKicker(item: TestItem, result?: TestResult | null, title?: string): string {
   const kicker = t(`testWeek.kicker_${item.kind}`);
   const target =
     item.kind === 'max_hold'
       ? staticMovementName(result?.movement_id)
       : testMovementName(item);
-  return target ? `${kicker} · ${target.toUpperCase()}` : kicker;
+  if (!target || (title && title.toUpperCase().includes(target.toUpperCase()))) return kicker;
+  return `${kicker} · ${target.toUpperCase()}`;
 }
 
 export function TestItemCard({
@@ -116,7 +118,7 @@ export function TestItemCard({
       activeOpacity={0.8}
       onPress={onOpen}
       accessibilityRole="button"
-      accessibilityLabel={`${testKicker(item, result)}, ${title}`}
+      accessibilityLabel={`${testKicker(item, result, title)}, ${title}`}
       style={[s.card, { backgroundColor: C.card, borderColor: done ? C.borderDone : C.border }]}
     >
       <View style={[s.rail, { backgroundColor: skipped ? C.border : RED, opacity: done ? 1 : 0.6 }]} />
@@ -140,7 +142,7 @@ export function TestItemCard({
         </View>
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <Text style={[s.kicker, { color: C.accentText }]} numberOfLines={1}>
-            {testKicker(item, result)}
+            {testKicker(item, result, title)}
           </Text>
           <Text style={[s.title, { color: C.text }]} numberOfLines={2}>
             {title}
