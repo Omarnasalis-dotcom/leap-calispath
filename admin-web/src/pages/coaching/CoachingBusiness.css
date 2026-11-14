@@ -406,3 +406,52 @@ a.cb-review-name:hover {
   line-height: 1.5;
   color: var(--ink);
 }
+
+.cb-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.cb-collapse h2 {
+  margin: 0;
+}
+
+.cb-collapse:hover {
+  background: var(--tint-04);
+}
+
+.cb-collapse:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cb-collapse svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+  transform: rotate(-90deg);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cb-collapse svg.open {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-collapse svg {
+    transition: none;
+  }
+}
+
+.cb-reviews[hidden] {
+  display: none;
+}

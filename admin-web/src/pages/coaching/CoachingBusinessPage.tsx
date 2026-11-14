@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCoachingBusiness, fetchCoaches, type CoachingBusiness } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
@@ -256,14 +257,37 @@ function Scorecard({ r }: { r: CoachingBusiness['reviews'] }) {
 
 /** Every answered review in the range: who, when, what they said. */
 function RecentReviews({ rows, showCoach }: { rows: CoachingBusiness['recent_reviews']; showCoach: boolean }) {
+  // Collapsed until opened, like the other lists.
+  const [open, setOpen] = useState(false);
   if (rows.length === 0) return null;
+  const needLook = rows.filter((r) => isLow(r)).length;
   return (
     <section className="panel" aria-labelledby="cb-recent">
       <div className="panel-head">
-        <h2 id="cb-recent">Recent reviews</h2>
-        <span className="cb-head-meta">newest first</span>
+        <button
+          type="button"
+          className="cb-collapse"
+          aria-expanded={open}
+          aria-controls="cb-recent-list"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <ChevronDown className={open ? 'open' : undefined} aria-hidden="true" />
+          <h2 id="cb-recent">Recent reviews</h2>
+        </button>
+        <span className="cb-head-meta">
+          <span className="num">{rows.length}</span> review{rows.length === 1 ? '' : 's'}
+          {needLook > 0 && (
+            <>
+              {' · '}
+              <span className="cb-review-flag">
+                {needLook} need{needLook === 1 ? 's' : ''} a look
+              </span>
+            </>
+          )}
+          {open ? ' · newest first' : ''}
+        </span>
       </div>
-      <ul className="cb-reviews">
+      <ul className="cb-reviews" id="cb-recent-list" hidden={!open}>
         {rows.map((r) => {
           const name = r.warrior_name ?? 'Deleted account';
           const low = isLow(r);
