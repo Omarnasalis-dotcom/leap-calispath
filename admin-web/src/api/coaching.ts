@@ -995,7 +995,7 @@ export interface CoachClientState {
   /** The latest answered review in the current package. */
   review_kind: 'checkin' | 'final' | null;
   review_mood: number | null;
-  review_workload: 'easy' | 'right' | 'hard' | null;
+  review_progress: 'not_yet' | 'little' | 'clear' | null;
   review_rating: number | null;
   review_continue: 'yes' | 'break' | 'no' | null;
   review_recommend: number | null;
@@ -1129,7 +1129,7 @@ export interface CoachingReview {
   sent_at: string;
   answered_at: string | null;
   mood: number | null;
-  workload: 'easy' | 'right' | 'hard' | null;
+  progress: 'not_yet' | 'little' | 'clear' | null;
   rating: number | null;
   continue: 'yes' | 'break' | 'no' | null;
   recommend: number | null;
@@ -1174,9 +1174,9 @@ export interface CoachingBusiness {
     continue_no: number;
     checkin_answered: number;
     avg_mood: number | null;
-    workload_easy: number;
-    workload_right: number;
-    workload_hard: number;
+    progress_not_yet: number;
+    progress_little: number;
+    progress_clear: number;
   };
   by_coach: Array<{
     /** null: the coach deleted their account (their packages are kept, unlinked). */

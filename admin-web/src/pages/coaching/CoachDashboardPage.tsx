@@ -140,7 +140,7 @@ function packageChip(row: CoachClientState) {
 /** The latest answer: "Check-in 🙂", "Wants to continue", "Review 2★". */
 function reviewChip(row: CoachClientState) {
   if (!row.review_kind || !row.review_answered_at) return null;
-  const low = isLow({ mood: row.review_mood, rating: row.review_rating, recommend: row.review_recommend });
+  const low = isLow({ mood: row.review_mood, progress: row.review_progress, rating: row.review_rating, recommend: row.review_recommend });
   const title = `Answered ${new Date(row.review_answered_at).toLocaleDateString()}`;
   if (row.review_kind === 'checkin') {
     return (

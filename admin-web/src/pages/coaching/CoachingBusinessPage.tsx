@@ -230,9 +230,9 @@ function Scorecard({ r }: { r: CoachingBusiness['reviews'] }) {
                     <span className="dim">—</span>
                   ) : (
                     <>
-                      {moodFace} <span className="num">{r.avg_mood}</span>/5 mood · workload{' '}
-                      <span className="num">{r.workload_right}</span> just right, <span className="num">{r.workload_easy}</span> too easy,{' '}
-                      <span className="num">{r.workload_hard}</span> too hard
+                      {moodFace} <span className="num">{r.avg_mood}</span>/5 mood · progress{' '}
+                      <span className="num">{r.progress_clear}</span> clearly, <span className="num">{r.progress_little}</span> a little,{' '}
+                      <span className="num">{r.progress_not_yet}</span> not yet
                     </>
                   )}
                 </dd>

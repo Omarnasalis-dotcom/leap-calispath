@@ -3,18 +3,21 @@ import { fetchCoachingReviews, type CoachingReview } from '@/api/coaching';
 import { ErrorNote } from '@/components/bits';
 import { formatDate } from '@/shared/constants';
 
-// The athlete's answers: the 6-week check-in (mood + workload) and the
+// The athlete's answers: the 6-week check-in (mood + seeing progress) and the
 // end-of-package review (stars, continue, recommend), each with an optional
 // comment. Sent by the hourly job; answered in the app.
 
 export const MOOD_FACE = ['', '😫', '😕', '😐', '🙂', '🤩'] as const;
 const MOOD_WORD = ['', 'awful', 'not great', 'okay', 'good', 'great'] as const;
-const WORKLOAD = { easy: 'Too easy', right: 'Just right', hard: 'Too hard' } as const;
+const PROGRESS = { not_yet: 'No progress yet', little: 'A little progress', clear: 'Clear progress' } as const;
 export const CONTINUE_LABEL = { yes: 'Wants to continue', break: 'Wants a break', no: 'Not continuing' } as const;
 
-/** A sad face, 1-2 stars or 0-6 on recommend: worth a look. */
-export const isLow = (r: { mood: number | null; rating: number | null; recommend: number | null }) =>
-  (r.mood != null && r.mood <= 2) || (r.rating != null && r.rating <= 2) || (r.recommend != null && r.recommend <= 6);
+/** A sad face, "not seeing progress yet", 1-2 stars or 0-6 on recommend: worth a look. */
+export const isLow = (r: { mood: number | null; progress?: string | null; rating: number | null; recommend: number | null }) =>
+  (r.mood != null && r.mood <= 2) ||
+  r.progress === 'not_yet' ||
+  (r.rating != null && r.rating <= 2) ||
+  (r.recommend != null && r.recommend <= 6);
 
 function Answer({ r }: { r: CoachingReview }) {
   if (!r.answered_at) {
@@ -27,7 +30,7 @@ function Answer({ r }: { r: CoachingReview }) {
           {MOOD_FACE[r.mood ?? 0]}
         </span>
         <span>Feeling {MOOD_WORD[r.mood ?? 0]}</span>
-        {r.workload && <span className="rv-chip">{WORKLOAD[r.workload]}</span>}
+        {r.progress && <span className={`rv-chip${r.progress === 'not_yet' ? ' no' : r.progress === 'clear' ? ' yes' : ''}`}>{PROGRESS[r.progress]}</span>}
       </span>
     );
   }
