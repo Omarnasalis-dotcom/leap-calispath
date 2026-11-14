@@ -984,6 +984,14 @@ export interface CoachClientState {
   weeks_streak: number;
   status: CoachClientStatus;
   reason: CoachClientReason;
+  /** The client's current coaching package with this coach (set by the coach). */
+  package_id: string | null;
+  package_starts_on: string | null;
+  package_ends_on: string | null;
+  package_note: string | null;
+  /** Days until it ends, in the coach's timezone: 0 = today, negative = expired. */
+  package_days_left: number | null;
+  coach_tz: string;
 }
 
 /** 'coach' = human coaches' clients (scoped to the caller unless admin);
@@ -1024,4 +1032,82 @@ export async function fetchWarriorPrograms(warriorId: string): Promise<WarriorPr
       template_name: (Array.isArray(tpl) ? tpl[0]?.name : tpl?.name) ?? null,
     };
   });
+}
+
+// ---- Coaching packages (paid to the coach directly; set by the coach) ----
+
+export interface CoachingPackage {
+  id: string;
+  starts_on: string;
+  ends_on: string;
+  note: string | null;
+  /** What the client paid for this period (optional). */
+  amount: number | null;
+  currency: string;
+  created_at: string;
+  /** Freezes (each moved the end later by `weeks`). */
+  freezes: Array<{ starts_on: string; weeks: number }>;
+}
+
+/** A client's packages with one coach, newest first. */
+export async function fetchCoachingPackages(coachId: string, warriorId: string): Promise<CoachingPackage[]> {
+  const { data, error } = await supabase.rpc('get_coaching_packages', { p_coach_id: coachId, p_warrior_id: warriorId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CoachingPackage[];
+}
+
+/** A new package or renewal, or an edit when packageId is given. Dates are YYYY-MM-DD. */
+export async function setCoachingPackage(params: {
+  coachId: string;
+  warriorId: string;
+  startsOn: string;
+  endsOn: string;
+  note: string | null;
+  packageId?: string | null;
+  amount: number | null;
+  currency: string;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc('set_coaching_package', {
+    p_coach_id: params.coachId,
+    p_warrior_id: params.warriorId,
+    p_starts_on: params.startsOn,
+    p_ends_on: params.endsOn,
+    p_note: params.note,
+    p_package_id: params.packageId ?? null,
+    p_amount: params.amount,
+    p_currency: params.currency,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** Freezes a package for 1-4 weeks from startsOn; returns the new end date. */
+export async function freezeCoachingPackage(packageId: string, startsOn: string, weeks: number): Promise<string> {
+  const { data, error } = await supabase.rpc('freeze_coaching_package', {
+    p_package_id: packageId,
+    p_starts_on: startsOn,
+    p_weeks: weeks,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function cancelCoachingPackage(packageId: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_coaching_package', { p_package_id: packageId });
+  if (error) throw new Error(error.message);
+}
+
+export interface CurrentCoachingPackage {
+  coach_id: string;
+  warrior_id: string;
+  package_id: string;
+  starts_on: string;
+  ends_on: string;
+}
+
+/** Every current package the signed-in coach/assistant/admin can see. */
+export async function fetchCurrentCoachingPackages(): Promise<CurrentCoachingPackage[]> {
+  const { data, error } = await supabase.rpc('get_current_coaching_packages');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CurrentCoachingPackage[];
 }

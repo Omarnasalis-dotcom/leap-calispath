@@ -15,6 +15,7 @@ import { Drawer } from '@/components/Drawer';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useToast } from '@/components/Toast';
 import { ProgressDrawer } from './ProgressDrawer';
+import { PackagePanel } from './PackagePanel';
 import './CoachDashboard.css';
 
 // The coach's home: every active client in one status, most urgent first,
@@ -111,6 +112,32 @@ function DayDots({ days }: { days: CoachDashboardDay[] }) {
   );
 }
 
+/** "Package · 12 days left" (2 weeks or less), "expires today", "expired 3d ago". */
+function packageChip(row: CoachClientState) {
+  const left = row.package_days_left;
+  if (left == null || left > 14) return null;
+  const title = row.package_ends_on ? `Coaching package ends ${row.package_ends_on}` : undefined;
+  if (left < 0)
+    return (
+      <span title={title}>
+        <Badge tone="accent">Package expired {-left}d ago</Badge>
+      </span>
+    );
+  if (left === 0)
+    return (
+      <span title={title}>
+        <Badge tone="accent">Package expires today</Badge>
+      </span>
+    );
+  return (
+    <span title={title}>
+      <Badge tone="warn">Package · {left} day{left === 1 ? '' : 's'} left</Badge>
+    </span>
+  );
+}
+
+const needsRenewal = (r: CoachClientState) => r.package_days_left != null && r.package_days_left <= 14;
+
 function ClientRow({
   row,
   ai,
@@ -148,8 +175,9 @@ function ClientRow({
         </span>
         <span className="cd-reason">
           <span>{reasonText(row, ai)}</span>
-          {(row.rpe_high > 0 || row.notes_count > 0 || row.missed_days > 0) && (
+          {(row.rpe_high > 0 || row.notes_count > 0 || row.missed_days > 0 || packageChip(row)) && (
             <span className="cd-tags">
+              {packageChip(row)}
               {row.rpe_high > 0 && (
                 <span title={`${row.rpe_high} block${row.rpe_high === 1 ? '' : 's'} rated RPE 9 or more this week`}>
                   <Badge tone="warn">RPE 9+</Badge>
@@ -250,11 +278,13 @@ function CommitmentBoard({ rows, onOpen }: { rows: CoachClientState[]; onOpen: (
   );
 }
 
-function ClientDrawer({ row, onClose, week, onWeekChange }: {
+function ClientDrawer({ row, onClose, week, onWeekChange, ai, canEdit }: {
   row: CoachClientState;
   onClose: () => void;
   week: number | null;
   onWeekChange: (week: number) => void;
+  ai: boolean;
+  canEdit: boolean;
 }) {
   const assignmentQ = useQuery({
     queryKey: ['assignment', row.assignment_id],
@@ -262,6 +292,9 @@ function ClientDrawer({ row, onClose, week, onWeekChange }: {
   });
   return (
     <Drawer open wide title={`Week logs · ${row.warrior_name || 'athlete'}`} onClose={onClose}>
+      {!ai && (
+        <PackagePanel coachId={row.coach_id} warriorId={row.warrior_id} warriorName={row.warrior_name} canEdit={canEdit} />
+      )}
       {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
       {assignmentQ.isLoading && <div className="skeleton" style={{ height: 160 }} />}
       {assignmentQ.data && (
@@ -287,9 +320,12 @@ export function CoachDashboardPage() {
   const source: 'coach' | 'ai' = isAdmin && params.get('source') === 'ai' ? 'ai' : 'coach';
   const statusParam = params.get('status');
   const filter = GROUPS.some((g) => g.status === statusParam) ? (statusParam as CoachClientStatus) : null;
+
   const openId = params.get('client');
   const openWeek = Number(params.get('week')) || null;
   const ai = source === 'ai';
+  // Packages ending within 2 weeks or already expired (its own view).
+  const renewalsView = !ai && statusParam === 'renewals';
 
   const update = useCallback(
     (changes: Record<string, string | null>) =>
@@ -363,7 +399,10 @@ export function CoachDashboardPage() {
     );
   };
 
-  const groups = GROUPS.filter((g) => (filter ? g.status === filter : counts[g.status] > 0));
+  const groups = renewalsView ? [] : GROUPS.filter((g) => (filter ? g.status === filter : counts[g.status] > 0));
+  const renewals = rows
+    .filter(needsRenewal)
+    .sort((a, b) => (a.package_days_left ?? 0) - (b.package_days_left ?? 0));
 
   return (
     <div className="page cd-page">
@@ -395,7 +434,7 @@ export function CoachDashboardPage() {
       {error && <ErrorNote error={error} />}
 
       <div className="cd-chips" role="group" aria-label="Show">
-        <button type="button" className="cd-chip" aria-pressed={!filter} onClick={() => update({ status: null })}>
+        <button type="button" className="cd-chip" aria-pressed={!filter && !renewalsView} onClick={() => update({ status: null })}>
           All <span className="num">{rows.length}</span>
         </button>
         {GROUPS.map((g) => (
@@ -410,6 +449,18 @@ export function CoachDashboardPage() {
             {label(g)} <span className="num">{counts[g.status]}</span>
           </button>
         ))}
+        {!ai && (
+          <button
+            type="button"
+            className="cd-chip tone-accent"
+            aria-pressed={renewalsView}
+            title="Coaching packages ending within 2 weeks, or expired"
+            onClick={() => update({ status: renewalsView ? null : 'renewals' })}
+          >
+            <span className="cd-chip-dot" aria-hidden="true" />
+            Renewals <span className="num">{renewals.length}</span>
+          </button>
+        )}
       </div>
 
       <div className="cd-layout">
@@ -431,7 +482,41 @@ export function CoachDashboardPage() {
               </div>
             </section>
           )}
-          {!isLoading && rows.length > 0 && groups.length === 0 && (
+          {renewalsView && (
+            <section className="panel cd-group tone-accent" aria-labelledby="cd-renewals">
+              <div className="panel-head">
+                <h2 id="cd-renewals">
+                  <span className="cd-chip-dot" aria-hidden="true" />
+                  Renewals
+                </h2>
+                <span className="label num">{renewals.length}</span>
+              </div>
+              {renewals.length === 0 ? (
+                <div className="panel-body cd-board-empty">
+                  No package ends in the next 2 weeks. Set packages from a client's week logs.
+                </div>
+              ) : (
+                <ul className="cd-list">
+                  {renewals.map((r) => (
+                    <ClientRow
+                      key={r.assignment_id}
+                      row={r}
+                      ai={ai}
+                      showCoach={showCoach}
+                      canEdit={!isCoachPaused && !pausedAssistingCoachIds.includes(r.coach_id)}
+                      onOpen={() => update({ client: r.assignment_id, week: null })}
+                      onBuild={() => build(r)}
+                      onClose={async () => {
+                        await setAssignmentStatus(r.assignment_id, 'completed');
+                        await queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] });
+                      }}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+          {!isLoading && rows.length > 0 && !renewalsView && groups.length === 0 && (
             <section className="panel">
               <div className="empty">
                 <span className="label">Nobody here</span>
@@ -493,6 +578,8 @@ export function CoachDashboardPage() {
           week={openWeek}
           onWeekChange={setWeek}
           onClose={() => update({ client: null, week: null })}
+          ai={ai}
+          canEdit={!isCoachPaused && !pausedAssistingCoachIds.includes(openRow.coach_id)}
         />
       )}
     </div>

@@ -16,6 +16,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { ApplyTemplateForm } from './ApplyTemplateForm';
+import { PackagePanel } from '../PackagePanel';
 import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builderIO';
 import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
@@ -337,6 +338,15 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
         saveError && <ErrorNote error={saveError} />
       )}
       {(assignmentQ.isLoading || loadQ.isLoading) && <div className="skeleton" style={{ height: 200 }} />}
+
+      {a && programSource(a.coach_id) === 'coach' && (
+        <PackagePanel
+          coachId={a.coach_id}
+          warriorId={a.warrior_id}
+          warriorName={a.warrior_name ?? null}
+          canEdit={!isCoachPaused}
+        />
+      )}
 
       {a && a.status !== 'active' && (
         <div className="notice program-inactive">

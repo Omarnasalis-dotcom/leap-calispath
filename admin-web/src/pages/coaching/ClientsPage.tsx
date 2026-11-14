@@ -5,6 +5,7 @@ import {
   deleteClientData,
   fetchAssignments,
   fetchCoaches,
+  fetchCurrentCoachingPackages,
   setAssignmentStatus,
   type AssignmentRow,
 } from '@/api/coaching';
@@ -15,6 +16,7 @@ import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { AssignForm } from './AssignForm';
 import { ProgressDrawer } from './ProgressDrawer';
 import { PageHeader } from '@/components/layout';
+import { formatDay, packageState } from './PackagePanel';
 
 function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined {
   if (status === 'active') return 'ok';
@@ -43,6 +45,8 @@ export function ClientsPage() {
     queryFn: fetchAssignments,
   });
   const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches, enabled: isAdmin });
+  const packagesQ = useQuery({ queryKey: ['current-packages'], queryFn: fetchCurrentCoachingPackages });
+  const packageFor = new Map((packagesQ.data ?? []).map((p) => [`${p.coach_id}:${p.warrior_id}`, p]));
 
   const filteredData = data?.filter((a) => {
     if (!isAdmin) {
@@ -113,6 +117,21 @@ export function ClientsPage() {
       header: 'Week',
       align: 'right',
       render: (a) => <span className="num">{a.current_week ?? '—'}</span>,
+    },
+    {
+      key: 'package',
+      header: 'Package',
+      render: (a) => {
+        const p = packageFor.get(`${a.coach_id}:${a.warrior_id}`);
+        if (!p) return <span className="dim">—</span>;
+        const st = packageState(p);
+        return (
+          <span title={`${formatDay(p.starts_on)} – ${formatDay(p.ends_on)}`}>
+            <span className="dim">ends {formatDay(p.ends_on)}</span>{' '}
+            {st.tone !== 'ok' && <Badge tone={st.tone === 'expired' ? 'accent' : 'warn'}>{st.text}</Badge>}
+          </span>
+        );
+      },
     },
     {
       key: 'assigned_at',
