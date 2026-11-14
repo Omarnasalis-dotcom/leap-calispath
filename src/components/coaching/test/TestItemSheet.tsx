@@ -22,6 +22,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import type { ProgramBlock } from '../../../types/warriorProgram';
 import { GRADIENT, GRADIENT_STOPS, useSheetTheme, type Palette } from '../LogBlockSheet';
 import { InlineVideoPlayer } from '../InlineVideoPlayer';
+import { SoundServiceInstance } from '../../../lib/SoundService';
 import {
   SKIP_REASONS,
   formatTestValue,
@@ -57,6 +58,11 @@ const BODY = 'Barlow-Regular';
 // WhatsApp's dark teal: white bold text on it clears 4:1 (the bright
 // #25D366 green is under 2:1).
 const WHATSAPP_GREEN = '#128C7E';
+// Get-ready countdown before the minute / the hold starts.
+const PREP_SECONDS = 5;
+
+/** 60 -> "1:00", 9 -> "0:09". */
+const formatClock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
 export function TestItemSheet({
   visible,
@@ -98,7 +104,10 @@ export function TestItemSheet({
   const [showVideo, setShowVideo] = useState(false);
 
   // 60 s countdown (max reps) / stopwatch (max hold), from wall-clock time
-  // so a slow JS thread can't stretch the minute.
+  // so a slow JS thread can't stretch the minute. Both start after a
+  // 5-second get-ready countdown (prepStart), ticking each second.
+  const [prepStart, setPrepStart] = useState<number | null>(null);
+  const lastPrepTick = useRef<number | null>(null);
   const [clockStart, setClockStart] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [timeUp, setTimeUp] = useState(false);
@@ -111,17 +120,34 @@ export function TestItemSheet({
   useEffect(() => {
     if (!visible) {
       stopTick();
+      setPrepStart(null);
       setClockStart(null);
     }
   }, [visible]);
 
-  const elapsedMs = clockStart ? now - clockStart : 0;
+  const prepLeft = prepStart ? Math.max(0, PREP_SECONDS - Math.floor((now - prepStart) / 1000)) : 0;
+  useEffect(() => {
+    if (!prepStart) return;
+    if (prepLeft === 0) {
+      // Go: the clock starts exactly when the 5 seconds end.
+      setPrepStart(null);
+      setClockStart(prepStart + PREP_SECONDS * 1000);
+      SoundServiceInstance.playBoxingBell();
+      Vibration.vibrate(200);
+    } else if (lastPrepTick.current !== prepLeft) {
+      lastPrepTick.current = prepLeft;
+      SoundServiceInstance.playTick();
+    }
+  }, [prepLeft, prepStart]);
+
+  const elapsedMs = clockStart ? Math.max(0, now - clockStart) : 0;
   const countdownLeft = Math.max(0, 60 - Math.floor(elapsedMs / 1000));
   useEffect(() => {
     if (item.kind === 'max_reps' && clockStart && countdownLeft === 0) {
       stopTick();
       setClockStart(null);
       setTimeUp(true);
+      SoundServiceInstance.playDigitalBuzzer();
       Vibration.vibrate(500);
     }
   }, [countdownLeft, clockStart, item.kind]);
@@ -129,11 +155,24 @@ export function TestItemSheet({
   const startClock = () => {
     setTimeUp(false);
     const start = Date.now();
-    setClockStart(start);
+    lastPrepTick.current = null;
+    setPrepStart(start);
     setNow(start);
     stopTick();
     tick.current = setInterval(() => setNow(Date.now()), 200);
   };
+  const cancelClock = () => {
+    stopTick();
+    setPrepStart(null);
+    setClockStart(null);
+  };
+  const running = !!prepStart || !!clockStart;
+  const prepView = (
+    <>
+      <Text style={s.prepLabel}>{t('testWeek.getReady')}</Text>
+      <Text style={[base.timeNum, { color: C.coralText }]}>{prepLeft}</Text>
+    </>
+  );
   const stopStopwatch = () => {
     if (!clockStart) return;
     const secs = Math.floor((Date.now() - clockStart) / 1000);
@@ -142,7 +181,7 @@ export function TestItemSheet({
     if (secs > 0) setValueText(String(secs));
   };
 
-  const title = testItemTitle(block);
+  const title = testItemTitle(block, item) || t('testWeek.formCheckTitle');
   const demoUrl = block.exercises.find((e) => !!e.youtube_url)?.youtube_url || '';
   const instructions = [block.notes, ...block.exercises.map((e) => e.notes)].map((n) => (n || '').trim()).filter(Boolean);
   const waLink = whatsAppLink(
@@ -229,7 +268,7 @@ export function TestItemSheet({
             <View style={base.header}>
               <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
                 <Text style={s.kicker} numberOfLines={1}>
-                  {testKicker(item, result)}
+                  {testKicker(item, result, title)}
                 </Text>
                 <Text style={base.blockName} numberOfLines={2}>
                   {title.toUpperCase()}
@@ -267,16 +306,18 @@ export function TestItemSheet({
                 <View style={{ gap: 10 }}>
                   <Text style={s.body}>{t('testWeek.maxRepsHow')}</Text>
                   <View style={[base.card, s.clockCard]}>
-                    <Text style={[base.timeNum, timeUp && { color: C.coralText }]}>
-                      {timeUp ? t('testWeek.timerDone') : `0:${String(clockStart ? countdownLeft : 60).padStart(2, '0')}`}
-                    </Text>
+                    {prepStart ? prepView : (
+                      <Text style={[base.timeNum, timeUp && { color: C.coralText }]}>
+                        {timeUp ? t('testWeek.timerDone') : formatClock(clockStart ? countdownLeft : 60)}
+                      </Text>
+                    )}
                     <TouchableOpacity
                       style={s.clockBtn}
-                      onPress={() => (clockStart ? (stopTick(), setClockStart(null)) : startClock())}
+                      onPress={() => (running ? cancelClock() : startClock())}
                       accessibilityRole="button"
                     >
                       <Text style={s.clockBtnText}>
-                        {clockStart ? t('testWeek.timerStop') : timeUp ? t('testWeek.timerReset') : t('testWeek.timerStart')}
+                        {running ? t('testWeek.timerStop') : timeUp ? t('testWeek.timerReset') : t('testWeek.timerStart')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -314,13 +355,15 @@ export function TestItemSheet({
                     })}
                   </View>
                   <View style={[base.card, s.clockCard]}>
-                    <Text style={base.timeNum}>{clockStart ? Math.floor(elapsedMs / 1000) : formatTestValue(parseTestNumber(valueText)) || '0'}</Text>
+                    {prepStart ? prepView : (
+                      <Text style={base.timeNum}>{clockStart ? Math.floor(elapsedMs / 1000) : formatTestValue(parseTestNumber(valueText)) || '0'}</Text>
+                    )}
                     <TouchableOpacity
                       style={s.clockBtn}
-                      onPress={() => (clockStart ? stopStopwatch() : startClock())}
+                      onPress={() => (prepStart ? cancelClock() : clockStart ? stopStopwatch() : startClock())}
                       accessibilityRole="button"
                     >
-                      <Text style={s.clockBtnText}>{clockStart ? t('testWeek.stopwatchStop') : t('testWeek.stopwatchStart')}</Text>
+                      <Text style={s.clockBtnText}>{running ? t('testWeek.stopwatchStop') : t('testWeek.stopwatchStart')}</Text>
                     </TouchableOpacity>
                   </View>
                   <ValueInput label={unitLabel} value={valueText} onChange={setValueText} decimal C={C} s={s} />
@@ -488,6 +531,7 @@ const getStyles = (C: Palette) =>
     },
     ghostBtnText: { fontFamily: COND_700, fontSize: 14, letterSpacing: 1.5, color: C.secondary },
     clockCard: { alignItems: 'center', gap: 12 },
+    prepLabel: { fontFamily: COND_700, fontSize: 14, letterSpacing: 2, color: C.coralText },
     clockBtn: {
       minWidth: 140,
       height: 44,

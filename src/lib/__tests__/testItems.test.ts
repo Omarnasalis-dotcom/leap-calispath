@@ -121,6 +121,16 @@ describe('testItemTitle', () => {
       ),
     ).toBe('Wall Walk');
   });
+
+  it('names a default-named block by its movement', () => {
+    const plain = block(undefined, { name: 'Day 1 | Workout Routine' });
+    expect(testItemTitle(plain, { kind: 'max_reps', movement: 'dips' })).toBe('Dips');
+    expect(testItemTitle(plain, { kind: 'one_rm', movement: 'squat' })).toBe('Back Squat');
+    expect(testItemTitle(plain, { kind: 'max_hold', movement: 'handstand' })).toBe('Handstand hold');
+    expect(testItemTitle(plain, { kind: 'form_check' })).toBe('');
+    // A name the coach typed wins.
+    expect(testItemTitle(block(undefined, { name: 'Day 1 | Strict dips' }), { kind: 'max_reps', movement: 'dips' })).toBe('Strict dips');
+  });
 });
 
 describe('whatsAppLink', () => {

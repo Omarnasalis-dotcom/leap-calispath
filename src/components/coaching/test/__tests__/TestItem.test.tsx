@@ -5,6 +5,12 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 jest.mock('../../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark', theme: {} }) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('react-native-webview', () => ({ WebView: () => null }));
+const mockSound = { playTick: jest.fn(), playBoxingBell: jest.fn(), playDigitalBuzzer: jest.fn() };
+jest.mock('../../../../lib/SoundService', () => ({
+  get SoundServiceInstance() {
+    return mockSound;
+  },
+}));
 
 import { TestItemCard } from '../TestItemCard';
 import { TestItemSheet } from '../TestItemSheet';
@@ -81,8 +87,20 @@ const sheet = (item: TestItem, extra: Partial<React.ComponentProps<typeof TestIt
 describe('TestItemCard', () => {
   it('shows "not logged" before a result', () => {
     const r = mount(<TestItemCard block={block('Pull-ups')} index={0} item={{ kind: 'max_reps', movement: 'pull_ups' }} result={null} mode="dark" onOpen={jest.fn()} />);
-    expect(texts(r)).toContain('TEST · MAX REPS · 1 MIN · PULL-UPS');
+    // The title already says PULL-UPS, so the line above doesn't repeat it.
+    expect(texts(r)).toContain('TEST · MAX REPS · 1 MIN | PULL-UPS');
     expect(texts(r)).toContain('NOT LOGGED YET');
+  });
+
+  it('names a default-named block by its movement, once', () => {
+    const r = mount(<TestItemCard block={block('Workout Routine', { exercises: [] })} index={0} item={{ kind: 'max_reps', movement: 'dips' }} result={null} mode="dark" onOpen={jest.fn()} />);
+    expect(texts(r)).toContain('TEST · MAX REPS · 1 MIN | DIPS');
+    expect(texts(r)).not.toContain('WORKOUT ROUTINE');
+  });
+
+  it('keeps the movement in the line when the coach named the block', () => {
+    const r = mount(<TestItemCard block={block('Bar strength', { exercises: [] })} index={0} item={{ kind: 'one_rm', movement: 'squat' }} result={null} mode="dark" onOpen={jest.fn()} />);
+    expect(texts(r)).toContain('TEST · 1RM · BACK SQUAT | BAR STRENGTH');
   });
 
   it('shows the value, the world and a PB', () => {
@@ -126,10 +144,50 @@ describe('TestItemCard', () => {
 });
 
 describe('TestItemSheet', () => {
+  it('counts 5 get-ready seconds before the minute starts, then buzzes at the end', () => {
+    jest.useFakeTimers();
+    try {
+      const r = mount(sheet({ kind: 'max_reps', movement: 'pull_ups' }));
+      press(r, 'START 60 S');
+      expect(texts(r)).toContain('GET READY');
+      expect(texts(r)).toContain('5');
+      const second = () => act(() => { jest.advanceTimersByTime(1000); });
+      second(); second();
+      expect(texts(r)).toContain('3');
+      second(); second(); second();
+      expect(texts(r)).not.toContain('GET READY');
+      expect(mockSound.playBoxingBell).toHaveBeenCalled();
+      expect(mockSound.playTick.mock.calls.length).toBeGreaterThanOrEqual(5);
+      act(() => { jest.advanceTimersByTime(30000); });
+      expect(texts(r)).toMatch(/0:(29|30)/);
+      act(() => { jest.advanceTimersByTime(31000); });
+      expect(texts(r)).toContain('TIME!');
+      expect(mockSound.playDigitalBuzzer).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('hold: get-ready first, then the stopwatch fills the seconds', () => {
+    jest.useFakeTimers();
+    try {
+      const r = mount(sheet({ kind: 'max_hold', movement: 'front_lever' }));
+      press(r, 'START');
+      expect(texts(r)).toContain('GET READY');
+      act(() => { jest.advanceTimersByTime(5000 + 12400); });
+      press(r, 'STOP');
+      const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+      expect(input.props.value).toBe('12');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('max reps: refuses an empty result, then sends whole reps', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     const r = mount(sheet({ kind: 'max_reps', movement: 'pull_ups' }, { onSubmit }));
     expect(texts(r)).toContain('REPS IN 1 MINUTE');
+    expect(texts(r)).toContain('1:00');
     press(r, 'SAVE RESULT');
     expect(onSubmit).not.toHaveBeenCalled();
     expect(texts(r)).toContain('Enter your result first.');
