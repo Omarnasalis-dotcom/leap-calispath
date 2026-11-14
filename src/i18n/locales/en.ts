@@ -2918,6 +2918,8 @@ const en = {
     maxRepsHow: 'As many clean reps as you can in 60 seconds. Tap start, get ready for 5 seconds, go, then type your reps.',
     timerStart: 'START 60 S',
     getReady: 'GET READY',
+    minusSecond: 'One second less',
+    plusSecond: 'One second more',
     timerStop: 'STOP',
     timerDone: 'TIME!',
     timerReset: 'RESET',

@@ -23,8 +23,10 @@ import type { ProgramBlock } from '../../../types/warriorProgram';
 import { GRADIENT, GRADIENT_STOPS, useSheetTheme, type Palette } from '../LogBlockSheet';
 import { InlineVideoPlayer } from '../InlineVideoPlayer';
 import { SoundServiceInstance } from '../../../lib/SoundService';
+import { TestItemService } from '../../../services/TestItemService';
 import {
   SKIP_REASONS,
+  demoLookupFor,
   formatTestValue,
   holdOptions,
   isBarWeight,
@@ -182,7 +184,32 @@ export function TestItemSheet({
   };
 
   const title = testItemTitle(block, item) || t('testWeek.formCheckTitle');
-  const demoUrl = block.exercises.find((e) => !!e.youtube_url)?.youtube_url || '';
+  // The coach's exercise video; without one, the library's demo of the
+  // movement (for a hold: of the picked progression).
+  const coachDemoUrl = block.exercises.find((e) => !!e.youtube_url)?.youtube_url || '';
+  const [libraryDemoUrl, setLibraryDemoUrl] = useState('');
+  useEffect(() => {
+    if (coachDemoUrl) return;
+    const lookup = demoLookupFor(item, movementId);
+    if (!lookup) {
+      setLibraryDemoUrl('');
+      return;
+    }
+    let live = true;
+    TestItemService.findDemoVideo(lookup)
+      .then((url) => {
+        if (!live) return;
+        setLibraryDemoUrl((prev) => {
+          if (prev && prev !== (url || '')) setShowVideo(false);
+          return url || '';
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [coachDemoUrl, item, movementId]);
+  const demoUrl = coachDemoUrl || libraryDemoUrl;
   const instructions = [block.notes, ...block.exercises.map((e) => e.notes)].map((n) => (n || '').trim()).filter(Boolean);
   const waLink = whatsAppLink(
     coach?.whatsapp,
@@ -355,8 +382,29 @@ export function TestItemSheet({
                     })}
                   </View>
                   <View style={[base.card, s.clockCard]}>
-                    {prepStart ? prepView : (
-                      <Text style={base.timeNum}>{clockStart ? Math.floor(elapsedMs / 1000) : formatTestValue(parseTestNumber(valueText)) || '0'}</Text>
+                    {prepStart ? prepView : clockStart ? (
+                      <Text style={base.timeNum}>{Math.floor(elapsedMs / 1000)}</Text>
+                    ) : (
+                      // Stopped: nudge the time by a second either way.
+                      <View style={s.adjustRow}>
+                        <TouchableOpacity
+                          style={s.adjustBtn}
+                          onPress={() => setValueText(String(Math.max(0, Math.floor(parseTestNumber(valueText) ?? 0) - 1)))}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('testWeek.minusSecond')}
+                        >
+                          <Text style={s.adjustText}>−1</Text>
+                        </TouchableOpacity>
+                        <Text style={[base.timeNum, s.adjustValue]}>{formatTestValue(parseTestNumber(valueText)) || '0'}</Text>
+                        <TouchableOpacity
+                          style={s.adjustBtn}
+                          onPress={() => setValueText(String(Math.floor(parseTestNumber(valueText) ?? 0) + 1))}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('testWeek.plusSecond')}
+                        >
+                          <Text style={s.adjustText}>+1</Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                     <TouchableOpacity
                       style={s.clockBtn}
@@ -532,6 +580,19 @@ const getStyles = (C: Palette) =>
     ghostBtnText: { fontFamily: COND_700, fontSize: 14, letterSpacing: 1.5, color: C.secondary },
     clockCard: { alignItems: 'center', gap: 12 },
     prepLabel: { fontFamily: COND_700, fontSize: 14, letterSpacing: 2, color: C.coralText },
+    adjustRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18 },
+    adjustBtn: {
+      width: 52,
+      height: 52,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border3,
+      backgroundColor: C.control,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    adjustText: { fontFamily: COND_800, fontSize: 18, color: C.white },
+    adjustValue: { minWidth: 90, textAlign: 'center' },
     clockBtn: {
       minWidth: 140,
       height: 44,

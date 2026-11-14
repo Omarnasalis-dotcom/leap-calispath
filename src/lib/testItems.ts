@@ -185,3 +185,68 @@ export function testErrorKey(error: unknown): TestErrorKey {
   const hit = TEST_ERROR_CODES.find((c) => msg.includes(c));
   return hit ? `testWeek.errors.${hit}` : 'testWeek.errors.generic';
 }
+
+// ---------------------------------------------------------------------------
+// Demo video when the coach attached no exercise: the matching library
+// exercise, found by its movement tags (exercise_library.movement_family /
+// movement_variation), else by name. For a hold it follows the progression
+// the athlete picked.
+
+export type DemoLookup =
+  | { family: string; variations: string[] }
+  | { namePattern: string };
+
+const DEMO_BY_MOVEMENT: Record<string, DemoLookup> = {
+  // One Min Max + Power World
+  pull_ups: { family: 'pull_up', variations: ['Normal grip'] },
+  pull_up: { family: 'pull_up', variations: ['Normal grip'] },
+  dips: { family: 'dip', variations: ['Parallel bar'] },
+  dip: { family: 'dip', variations: ['Parallel bar'] },
+  push_ups: { family: 'push_up', variations: ['Standard'] },
+  muscle_ups: { family: 'muscle_up', variations: ['Strict'] },
+  muscle_up: { family: 'muscle_up', variations: ['Strict'] },
+  hspu: { family: 'handstand_push_up', variations: ['Standard'] },
+  goblet_squats: { family: 'squat', variations: ['Goblet'] },
+  air_squats: { family: 'squat', variations: ['Air'] },
+  squat: { family: 'squat', variations: ['Back'] },
+  deadlift: { family: 'deadlift', variations: ['Conventional'] },
+  incline_push_ups: { family: 'push_up', variations: ['Incline'] },
+  fl_press: { family: 'front_lever_press', variations: ['Full'] },
+  fl_pull_ups: { namePattern: 'front lever pull%' },
+  planche_push_ups: { namePattern: '%planche push%' },
+  knee_push_ups: { namePattern: 'knee push%' },
+  inverted_row: { namePattern: '%inverted row%' },
+  assisted_pull_ups: { namePattern: 'banded pull up%' },
+  bench_dips: { namePattern: '%bench dip%' },
+  // Static World progressions
+  tuck_front_lever: { family: 'front_lever', variations: ['Tuck', 'Advanced tuck'] },
+  straddle_front_lever: { family: 'front_lever', variations: ['Straddle', 'Single leg', 'Full'] },
+  full_front_lever: { family: 'front_lever', variations: ['Full'] },
+  tuck_back_lever: { family: 'back_lever', variations: ['Tuck', 'Advanced tuck'] },
+  straddle_back_lever: { family: 'back_lever', variations: ['Straddle', 'Single leg', 'Full'] },
+  full_back_lever: { family: 'back_lever', variations: ['Full'] },
+  tuck_planche: { family: 'planche', variations: ['Tuck', 'Lean'] },
+  straddle_planche: { family: 'planche', variations: ['Straddle', 'Full'] },
+  full_planche: { family: 'planche', variations: ['Full'] },
+  wall_handstand: { family: 'handstand', variations: ['Wall', 'Belly to wall'] },
+  freestanding_handstand: { family: 'handstand', variations: ['Free', 'Wall', 'Belly to wall'] },
+  one_arm_handstand: { family: 'handstand', variations: ['One arm', 'Free', 'Wall'] },
+};
+
+/** How to find this item's demo video, or null (form checks: the coach's exercise only). */
+export function demoLookupFor(item: TestItem, progressionId?: string | null): DemoLookup | null {
+  if (item.kind === 'form_check') return null;
+  const key = item.kind === 'max_hold' ? progressionId || holdOptions(item)[0]?.id : item.movement;
+  return (key && DEMO_BY_MOVEMENT[key]) || null;
+}
+
+/** Picks the library row for a family lookup: first variation match in
+ * order, else any row of that family. Rows have a video already. */
+export function pickDemo<T extends { movement_variation: string | null }>(rows: T[], variations: string[]): T | null {
+  const norm = (s: string | null) => (s || '').trim().toLowerCase();
+  for (const v of variations) {
+    const hit = rows.find((r) => norm(r.movement_variation) === v.toLowerCase());
+    if (hit) return hit;
+  }
+  return rows[0] ?? null;
+}

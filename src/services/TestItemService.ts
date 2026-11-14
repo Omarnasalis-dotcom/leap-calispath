@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { withNetworkRetry } from '../lib/submitErrors';
 import { invalidatePowerLeaderboardCache } from '../lib/leaderboard';
-import type { SkipReason, TestCoach, TestResult } from '../lib/testItems';
+import { pickDemo, type DemoLookup, type SkipReason, type TestCoach, type TestResult } from '../lib/testItems';
 import { NotificationService } from './NotificationService';
 import { OneMMService } from './OneMMService';
 import { PowerService } from './PowerService';
@@ -30,7 +30,29 @@ function toResult(row: any): TestResult | null {
   return { ...row, value: row.value == null ? null : Number(row.value) } as TestResult;
 }
 
+// Demo videos found per lookup, for the app session.
+const demoCache = new Map<string, string | null>();
+
 export const TestItemService = {
+  /** A library demo video for a test item with no coach exercise; null if none. */
+  async findDemoVideo(lookup: DemoLookup): Promise<string | null> {
+    const key = JSON.stringify(lookup);
+    if (demoCache.has(key)) return demoCache.get(key) ?? null;
+    const base = supabase
+      .from('exercise_library')
+      .select('youtube_url, movement_variation')
+      .not('youtube_url', 'is', null)
+      .neq('youtube_url', '');
+    const filtered = 'family' in lookup ? base.eq('movement_family', lookup.family) : base.ilike('name', lookup.namePattern);
+    const { data, error } = await filtered.order('created_at', { ascending: true }).limit(50);
+    if (error) return null; // no cache: try again next open
+    const rows = (data ?? []) as { youtube_url: string; movement_variation: string | null }[];
+    const hit = 'family' in lookup ? pickDemo(rows, lookup.variations) : rows[0] ?? null;
+    const url = hit?.youtube_url ?? null;
+    demoCache.set(key, url);
+    return url;
+  },
+
   async submit(p: SubmitTestItemParams): Promise<SubmitTestItemResult> {
     const { data, error } = await withNetworkRetry(async () =>
       supabase.rpc('submit_program_test_item', {

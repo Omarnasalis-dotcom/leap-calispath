@@ -3083,6 +3083,8 @@ const ar: Translations = {
     maxRepsHow: 'أكبر عدد من التكرارات الصحيحة في 60 ثانية. اضغط ابدأ، استعد 5 ثوانٍ، انطلق، ثم اكتب عدد تكراراتك.',
     timerStart: 'ابدأ 60 ث',
     getReady: 'استعد',
+    minusSecond: 'ثانية أقل',
+    plusSecond: 'ثانية أكثر',
     timerStop: 'إيقاف',
     timerDone: 'انتهى الوقت!',
     timerReset: 'إعادة',

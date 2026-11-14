@@ -6,6 +6,10 @@ jest.mock('../../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode:
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('react-native-webview', () => ({ WebView: () => null }));
 const mockSound = { playTick: jest.fn(), playBoxingBell: jest.fn(), playDigitalBuzzer: jest.fn() };
+const mockFindDemo = jest.fn().mockResolvedValue('https://youtu.be/library');
+jest.mock('../../../../services/TestItemService', () => ({
+  TestItemService: { findDemoVideo: (...args: unknown[]) => mockFindDemo(...args) },
+}));
 jest.mock('../../../../lib/SoundService', () => ({
   get SoundServiceInstance() {
     return mockSound;
@@ -144,6 +148,31 @@ describe('TestItemCard', () => {
 });
 
 describe('TestItemSheet', () => {
+  it('without a coach exercise, offers the library demo of the movement', async () => {
+    mockFindDemo.mockClear();
+    const r = mount(sheet({ kind: 'max_reps', movement: 'dips' }, { block: block('Workout Routine', { exercises: [] }) }));
+    await act(async () => {});
+    expect(mockFindDemo).toHaveBeenCalledWith({ family: 'dip', variations: ['Parallel bar'] });
+    expect(texts(r)).toContain('WATCH DEMO');
+  });
+
+  it('a hold looks up the demo of the picked progression', async () => {
+    mockFindDemo.mockClear();
+    const r = mount(sheet({ kind: 'max_hold', movement: 'front_lever' }, { block: block('Workout Routine', { exercises: [] }) }));
+    await act(async () => {});
+    expect(mockFindDemo).toHaveBeenLastCalledWith(expect.objectContaining({ family: 'front_lever', variations: ['Tuck', 'Advanced tuck'] }));
+    await act(async () => { press(r, 'Full Front Lever'); });
+    expect(mockFindDemo).toHaveBeenLastCalledWith({ family: 'front_lever', variations: ['Full'] });
+  });
+
+  it("uses the coach's exercise video without a library lookup", async () => {
+    mockFindDemo.mockClear();
+    const r = mount(sheet({ kind: 'max_reps', movement: 'dips' }));
+    await act(async () => {});
+    expect(mockFindDemo).not.toHaveBeenCalled();
+    expect(texts(r)).toContain('WATCH DEMO');
+  });
+
   it('counts 5 get-ready seconds before the minute starts, then buzzes at the end', () => {
     jest.useFakeTimers();
     try {
@@ -178,6 +207,11 @@ describe('TestItemSheet', () => {
       press(r, 'STOP');
       const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
       expect(input.props.value).toBe('12');
+      // Adjust after stopping.
+      press(r, '+1');
+      press(r, '+1');
+      press(r, '−1');
+      expect(r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput').props.value).toBe('13');
     } finally {
       jest.useRealTimers();
     }
