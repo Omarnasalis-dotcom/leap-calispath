@@ -992,6 +992,14 @@ export interface CoachClientState {
   /** Days until it ends, in the coach's timezone: 0 = today, negative = expired. */
   package_days_left: number | null;
   coach_tz: string;
+  /** The latest answered review in the current package. */
+  review_kind: 'checkin' | 'final' | null;
+  review_mood: number | null;
+  review_workload: 'easy' | 'right' | 'hard' | null;
+  review_rating: number | null;
+  review_continue: 'yes' | 'break' | 'no' | null;
+  review_recommend: number | null;
+  review_answered_at: string | null;
 }
 
 /** 'coach' = human coaches' clients (scoped to the caller unless admin);
@@ -1110,4 +1118,26 @@ export async function fetchCurrentCoachingPackages(): Promise<CurrentCoachingPac
   const { data, error } = await supabase.rpc('get_current_coaching_packages');
   if (error) throw new Error(error.message);
   return (data ?? []) as CurrentCoachingPackage[];
+}
+
+// ---- Coaching reviews (the athlete's 6-week check-in and end-of-package review) ----
+
+export interface CoachingReview {
+  id: string;
+  kind: 'checkin' | 'final';
+  package_id: string;
+  sent_at: string;
+  answered_at: string | null;
+  mood: number | null;
+  workload: 'easy' | 'right' | 'hard' | null;
+  rating: number | null;
+  continue: 'yes' | 'break' | 'no' | null;
+  recommend: number | null;
+  comment: string | null;
+}
+
+export async function fetchCoachingReviews(coachId: string, warriorId: string): Promise<CoachingReview[]> {
+  const { data, error } = await supabase.rpc('get_coaching_reviews', { p_coach_id: coachId, p_warrior_id: warriorId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CoachingReview[];
 }

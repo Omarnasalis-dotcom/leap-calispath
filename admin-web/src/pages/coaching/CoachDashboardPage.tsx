@@ -16,6 +16,7 @@ import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useToast } from '@/components/Toast';
 import { ProgressDrawer } from './ProgressDrawer';
 import { PackagePanel } from './PackagePanel';
+import { CONTINUE_LABEL, isLow, MOOD_FACE, ReviewsPanel } from './ReviewsPanel';
 import './CoachDashboard.css';
 
 // The coach's home: every active client in one status, most urgent first,
@@ -136,6 +137,28 @@ function packageChip(row: CoachClientState) {
   );
 }
 
+/** The latest answer: "Check-in 🙂", "Wants to continue", "Review 2★". */
+function reviewChip(row: CoachClientState) {
+  if (!row.review_kind || !row.review_answered_at) return null;
+  const low = isLow({ mood: row.review_mood, rating: row.review_rating, recommend: row.review_recommend });
+  const title = `Answered ${new Date(row.review_answered_at).toLocaleDateString()}`;
+  if (row.review_kind === 'checkin') {
+    return (
+      <span title={title}>
+        <Badge tone={low ? 'warn' : undefined}>Check-in {MOOD_FACE[row.review_mood ?? 0]}</Badge>
+      </span>
+    );
+  }
+  const label = row.review_continue ? CONTINUE_LABEL[row.review_continue] : `Review ${row.review_rating}★`;
+  return (
+    <span title={`${title} · ${row.review_rating}★ · recommend ${row.review_recommend}/10`}>
+      <Badge tone={row.review_continue === 'yes' && !low ? 'ok' : low || row.review_continue === 'no' ? 'warn' : undefined}>
+        {label}
+      </Badge>
+    </span>
+  );
+}
+
 const needsRenewal = (r: CoachClientState) => r.package_days_left != null && r.package_days_left <= 14;
 
 function ClientRow({
@@ -175,8 +198,9 @@ function ClientRow({
         </span>
         <span className="cd-reason">
           <span>{reasonText(row, ai)}</span>
-          {(row.rpe_high > 0 || row.notes_count > 0 || row.missed_days > 0 || packageChip(row)) && (
+          {(row.rpe_high > 0 || row.notes_count > 0 || row.missed_days > 0 || packageChip(row) || reviewChip(row)) && (
             <span className="cd-tags">
+              {reviewChip(row)}
               {packageChip(row)}
               {row.rpe_high > 0 && (
                 <span title={`${row.rpe_high} block${row.rpe_high === 1 ? '' : 's'} rated RPE 9 or more this week`}>
@@ -295,6 +319,7 @@ function ClientDrawer({ row, onClose, week, onWeekChange, ai, canEdit }: {
       {!ai && (
         <PackagePanel coachId={row.coach_id} warriorId={row.warrior_id} warriorName={row.warrior_name} canEdit={canEdit} />
       )}
+      {!ai && <ReviewsPanel coachId={row.coach_id} warriorId={row.warrior_id} />}
       {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
       {assignmentQ.isLoading && <div className="skeleton" style={{ height: 160 }} />}
       {assignmentQ.data && (
