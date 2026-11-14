@@ -247,7 +247,11 @@ export function ExerciseRow({
       {videoOpen && selected?.youtube_url && (
         <VideoModal url={selected.youtube_url} name={selected.name} onClose={() => setVideoOpen(false)} />
       )}
-      {isTabata ? (
+      {blockMetadata.test_kind ? (
+        <span className="dim" style={{ fontSize: 12 }}>
+          Test item: the athlete logs one result. This exercise gives it its name and demo video.
+        </span>
+      ) : isTabata ? (
         <div className="field" style={{ textAlign: 'center', color: 'var(--accent)', fontWeight: 700 }}>
           {blockMetadata.tabata_work_seconds || 20}S WORK / {blockMetadata.tabata_rest_seconds || 10}S REST
         </div>
@@ -339,15 +343,17 @@ export function ExerciseRow({
           onChange={(e) => onChange({ notes: e.target.value })}
           aria-label="Exercise notes"
         />
-        <label className="row" style={{ gap: 4, fontSize: 12, flexWrap: 'nowrap', whiteSpace: 'nowrap' }} title="The athlete logs kg for this exercise">
-          <input
-            type="checkbox"
-            checked={exercise.is_weighted ?? !!blockMetadata.is_weighted}
-            disabled={readOnly}
-            onChange={(e) => onChange({ is_weighted: e.target.checked })}
-          />
-          Weighted
-        </label>
+        {!blockMetadata.test_kind && (
+          <label className="row" style={{ gap: 4, fontSize: 12, flexWrap: 'nowrap', whiteSpace: 'nowrap' }} title="The athlete logs kg for this exercise">
+            <input
+              type="checkbox"
+              checked={exercise.is_weighted ?? !!blockMetadata.is_weighted}
+              disabled={readOnly}
+              onChange={(e) => onChange({ is_weighted: e.target.checked })}
+            />
+            Weighted
+          </label>
+        )}
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { ApplyTemplateForm } from './ApplyTemplateForm';
 import { PackagePanel } from '../PackagePanel';
 import { ReviewsPanel } from '../ReviewsPanel';
+import { TestsPanel } from '../TestsPanel';
 import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builderIO';
 import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
@@ -349,6 +350,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
         />
       )}
       {a && programSource(a.coach_id) === 'coach' && <ReviewsPanel coachId={a.coach_id} warriorId={a.warrior_id} />}
+      {a && <TestsPanel assignment={a} />}
 
       {a && a.status !== 'active' && (
         <div className="notice program-inactive">

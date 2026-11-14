@@ -1041,6 +1041,46 @@ th.sortable:focus-visible {
   line-height: 1.5;
   max-width: 72ch;
 }
+
+/* Coach Test Week results (TestsPanel). */
+.tp-week {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tp-week + .tp-week {
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.tp-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tp-dim {
+  color: var(--ink-2);
+}
+.tp-up {
+  color: var(--ok);
+  font-weight: 650;
+}
+.tp-down {
+  color: var(--warn);
+  font-weight: 650;
+}
+.tp-warn {
+  color: var(--warn);
+}
+.tp-grade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+}
+.tp-grade .field {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
 .rv-waiting {
   color: var(--ink-2);
 }

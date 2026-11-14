@@ -12,6 +12,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Copy, Scissors, ClipboardPaste, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
+import { isTestKind, testItemLabel } from '@/shared/testItems';
 import { useBuilderClipboard, type ClipboardBlock } from '@/contexts/BuilderClipboardContext';
 import { Badge, ConfirmButton } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
@@ -24,6 +25,7 @@ import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './t
  * ladder sequence + weighted flag) — kept local rather than added to that
  * file, which is a byte-for-byte mirror of mobile's copy. */
 function getBlockTypeLabel(metadata: ConceptMetadata): string {
+  if (isTestKind(metadata.test_kind)) return testItemLabel(metadata.test_kind, metadata.test_movement);
   const struct =
     metadata.structure || (metadata.type && metadata.type !== 'amrap' && metadata.type !== 'fortime' ? metadata.type : 'single');
   let label = BlockConceptParser.getStructureBadge(metadata);
@@ -191,7 +193,10 @@ export function BlockCard({
         >
           <div className="row" style={{ flexWrap: 'nowrap', justifyContent: 'space-between', gap: 8 }}>
             <span className="row" style={{ gap: 6 }}>
-              <span className="label" style={{ color: 'var(--ink)' }}>
+              <span
+                className="label"
+                style={{ color: isTestKind(block.metadata.test_kind) ? 'var(--accent)' : 'var(--ink)' }}
+              >
                 {getBlockTypeLabel(block.metadata)}
               </span>
               {loggedAt && (

@@ -17,6 +17,7 @@ import { useToast } from '@/components/Toast';
 import { ProgressDrawer } from './ProgressDrawer';
 import { PackagePanel } from './PackagePanel';
 import { CONTINUE_LABEL, isLow, MOOD_FACE, ReviewsPanel } from './ReviewsPanel';
+import { TestsPanel } from './TestsPanel';
 import './CoachDashboard.css';
 
 // The coach's home: every active client in one status, most urgent first,
@@ -320,6 +321,7 @@ function ClientDrawer({ row, onClose, week, onWeekChange, ai, canEdit }: {
         <PackagePanel coachId={row.coach_id} warriorId={row.warrior_id} warriorName={row.warrior_name} canEdit={canEdit} />
       )}
       {!ai && <ReviewsPanel coachId={row.coach_id} warriorId={row.warrior_id} />}
+      {!ai && assignmentQ.data && <TestsPanel assignment={assignmentQ.data} />}
       {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
       {assignmentQ.isLoading && <div className="skeleton" style={{ height: 160 }} />}
       {assignmentQ.data && (
