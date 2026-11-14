@@ -1141,3 +1141,64 @@ export async function fetchCoachingReviews(coachId: string, warriorId: string): 
   if (error) throw new Error(error.message);
   return (data ?? []) as CoachingReview[];
 }
+
+// ---- Coaching business (revenue from packages, scorecard from reviews) ----
+
+export interface CoachingBusiness {
+  coach_id: string | null;
+  /** The range shown (all time starts at the first package). */
+  from: string;
+  to: string;
+  /** Revenue in the range, per currency. */
+  totals: Array<{ currency: string; revenue: number; packages: number }>;
+  currencies: string[];
+  revenue: Array<{ month: string; currency: string; revenue: number; packages: number }>;
+  packages: {
+    /** Active right now (not range-bound). */
+    active: number;
+    sold: number;
+    without_amount: number;
+    average: Array<{ currency: string; average: number }>;
+  };
+  renewals: { ended: number; renewed: number };
+  reviews: {
+    sent: number;
+    answered: number;
+    final_answered: number;
+    promoters: number;
+    passives: number;
+    detractors: number;
+    avg_rating: number | null;
+    continue_yes: number;
+    continue_break: number;
+    continue_no: number;
+    checkin_answered: number;
+    avg_mood: number | null;
+    workload_easy: number;
+    workload_right: number;
+    workload_hard: number;
+  };
+  by_coach: Array<{
+    coach_id: string;
+    coach_name: string;
+    active: number;
+    sold: number;
+    revenue_total: Array<{ currency: string; revenue: number }>;
+    final_answered: number;
+    promoters: number;
+    detractors: number;
+    avg_rating: number | null;
+  }>;
+}
+
+/** A coach gets their own numbers; an admin everyone's, or one coach's.
+ * Dates are YYYY-MM-DD; no `from` = all time, no `to` = today. */
+export async function fetchCoachingBusiness(
+  coachId: string | null,
+  from: string | null,
+  to: string | null,
+): Promise<CoachingBusiness> {
+  const { data, error } = await supabase.rpc('get_coaching_business', { p_coach_id: coachId, p_from: from, p_to: to });
+  if (error) throw new Error(error.message);
+  return data as CoachingBusiness;
+}

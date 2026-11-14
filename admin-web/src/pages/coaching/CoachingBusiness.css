@@ -1,0 +1,320 @@
+/* Coaching business page. App.css tokens only (light and dark follow). */
+
+.cb-head-meta {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.cb-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+
+.cb-summary dt,
+.cb-kv dt {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.cb-summary dd {
+  margin: 4px 0 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.cb-summary dd .dim {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.cb-note,
+.cb-empty {
+  margin: 12px 0 0;
+  max-width: 72ch;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.cb-empty {
+  margin: 0;
+}
+
+/* ---------- revenue bars: one series, fixed-height track ---------- */
+
+.cb-bars {
+  display: grid;
+  gap: 6px;
+  align-items: end;
+}
+
+.cb-bar-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  outline: none;
+}
+
+.cb-bar-track {
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--hairline-strong);
+}
+
+.cb-bar {
+  width: 100%;
+  max-width: 44px;
+  margin: 0 auto;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+  opacity: 0.78;
+  transition: opacity 150ms ease-out;
+}
+
+.cb-bar.current {
+  opacity: 1;
+}
+
+.cb-bar-col:hover .cb-bar,
+.cb-bar-col:focus-visible .cb-bar {
+  opacity: 1;
+}
+
+.cb-bar-col:focus-visible .cb-bar-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.cb-bar-label {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hover/focus tooltip above the bar. */
+.cb-tip {
+  position: absolute;
+  bottom: calc(100% - 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-sticky);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cb-bar-col:hover .cb-tip,
+.cb-bar-col:focus-visible .cb-tip {
+  display: flex;
+}
+
+.cb-bar-col:first-child .cb-tip {
+  left: 0;
+  transform: none;
+}
+
+.cb-bar-col:last-child .cb-tip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+@media (max-width: 560px) {
+  .cb-bars {
+    gap: 3px;
+  }
+  .cb-bar-label {
+    font-size: 10px;
+  }
+  .cb-bar-track {
+    height: 120px;
+  }
+}
+
+/* ---------- scorecard ---------- */
+
+.cb-kv {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) 1fr;
+  gap: 10px 20px;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.cb-kv > div {
+  display: contents;
+}
+
+.cb-kv dd {
+  margin: 0;
+}
+
+.cb-strong {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .cb-kv {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .cb-kv dd {
+    margin-bottom: 10px;
+  }
+}
+
+/* Recommend split: a polarity bar (would / neutral / would not), labelled. */
+.cb-nps {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cb-nps-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cb-nps-seg.pro,
+.cb-dot.pro {
+  background: var(--cb-pro);
+}
+
+.cb-nps-seg.pas,
+.cb-dot.pas {
+  background: var(--cb-pas);
+}
+
+.cb-nps-seg.det,
+.cb-dot.det {
+  background: var(--cb-det);
+}
+
+.cb-nps-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.cb-nps-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Polarity colours (validated, both surfaces): blue = would recommend,
+   red = would not, grey midpoint = neutral. Labels sit beside the bar, so
+   identity never rests on colour alone. */
+:root {
+  --cb-pro: #3987e5;
+  --cb-pas: #4a4a47;
+  --cb-det: #e66767;
+}
+
+:root[data-theme='light'] {
+  --cb-pro: #2a78d6;
+  --cb-pas: #c9c8c4;
+  --cb-det: #e34948;
+}
+
+/* ---------- date range + total ---------- */
+
+.cb-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
+.cb-custom {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cb-custom label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cb-range-text {
+  align-self: center;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.cb-total-title {
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.cb-total-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+}
+
+.cb-total-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cb-total-value {
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.cb-total-sub {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.cb-total-empty {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}

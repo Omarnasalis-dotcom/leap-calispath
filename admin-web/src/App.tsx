@@ -39,6 +39,7 @@ import { PromoCodesPage } from '@/pages/promoCodes/PromoCodesPage';
 import { ExerciseLibraryPage } from '@/pages/coaching/ExerciseLibraryPage';
 import { ClientsPage } from '@/pages/coaching/ClientsPage';
 import { CoachDashboardPage } from '@/pages/coaching/CoachDashboardPage';
+import { CoachingBusinessPage } from '@/pages/coaching/CoachingBusinessPage';
 import { CommunityPage } from '@/pages/coaching/CommunityPage';
 import { ProgramBuilderPage } from '@/pages/coaching/ProgramBuilderPage';
 import { WorkoutLibraryPage } from '@/pages/coaching/WorkoutLibraryPage';
@@ -148,6 +149,7 @@ const router = createBrowserRouter(
               >
                 <Route index element={<CoachDashboardPage />} />
                 <Route path="clients" element={<ClientsPage />} />
+                <Route path="business" element={<CoachingBusinessPage />} />
                 <Route path="community" element={<CommunityPage />} />
                 <Route path="clients/:assignmentId" element={<ClientProgramGrid />} />
                 <Route path="clients/:assignmentId/progress" element={<ClientProgressPage />} />
