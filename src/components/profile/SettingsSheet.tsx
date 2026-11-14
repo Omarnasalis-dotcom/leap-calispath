@@ -208,6 +208,23 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             </TouchableOpacity>
           )}
 
+          {__DEV__ &&
+            (['checkin', 'final'] as const).map((kind) => (
+              <TouchableOpacity
+                key={kind}
+                style={[styles.row, { borderBottomColor: theme.card.border }]}
+                onPress={() => { onClose(); router.push(`/coaching-review?preview=${kind}` as never); }}
+              >
+                <View style={styles.rowLeft}>
+                  <MaterialCommunityIcons name={kind === 'checkin' ? 'message-reply-text-outline' : 'star-outline'} size={18} color={theme.text.secondary} />
+                  {/* Dev builds only, never translated: sample data, nothing is saved. */}
+                  <Text style={[styles.rowText, { color: theme.text.primary }]}>
+                    {kind === 'checkin' ? 'Preview coaching check-in (dev)' : 'Preview end-of-package review (dev)'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleSignOut}>
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name="logout" size={18} color={theme.text.secondary} />

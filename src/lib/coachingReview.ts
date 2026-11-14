@@ -1,11 +1,11 @@
 import { supabase } from './supabase';
 
-// The athlete's coaching reviews: a 6-week check-in (mood + workload) and an
+// The athlete's coaching reviews: a 6-week check-in (mood + progress) and an
 // end-of-package review (stars, continue, recommend), asked by push and by a
 // card on the Journey tab. Server: 20261114100000_coaching_reviews.sql.
 
 export type ReviewKind = 'checkin' | 'final';
-export type Workload = 'easy' | 'right' | 'hard';
+export type Progress = 'not_yet' | 'little' | 'clear';
 export type ContinueChoice = 'yes' | 'break' | 'no';
 
 export interface OpenCoachingReview {
@@ -26,7 +26,7 @@ export async function getMyCoachingReview(reviewId?: string | null): Promise<Ope
 }
 
 export type ReviewAnswers =
-  | { kind: 'checkin'; mood: number; workload: Workload; comment: string }
+  | { kind: 'checkin'; mood: number; progress: Progress; comment: string }
   | { kind: 'final'; rating: number; continueChoice: ContinueChoice; recommend: number; comment: string };
 
 export async function submitCoachingReview(reviewId: string, answers: ReviewAnswers): Promise<void> {
@@ -34,7 +34,7 @@ export async function submitCoachingReview(reviewId: string, answers: ReviewAnsw
   const { error } = await supabase.rpc(
     'submit_coaching_review',
     answers.kind === 'checkin'
-      ? { p_review_id: reviewId, p_mood: answers.mood, p_workload: answers.workload, p_comment: comment }
+      ? { p_review_id: reviewId, p_mood: answers.mood, p_progress: answers.progress, p_comment: comment }
       : {
           p_review_id: reviewId,
           p_rating: answers.rating,
@@ -47,8 +47,8 @@ export async function submitCoachingReview(reviewId: string, answers: ReviewAnsw
 }
 
 /** Both answers given? (the comment is optional) */
-export function isComplete(kind: ReviewKind, a: { mood: number | null; workload: Workload | null; rating: number | null; continueChoice: ContinueChoice | null; recommend: number | null }): boolean {
+export function isComplete(kind: ReviewKind, a: { mood: number | null; progress: Progress | null; rating: number | null; continueChoice: ContinueChoice | null; recommend: number | null }): boolean {
   return kind === 'checkin'
-    ? a.mood != null && a.workload != null
+    ? a.mood != null && a.progress != null
     : a.rating != null && a.continueChoice != null && a.recommend != null;
 }
