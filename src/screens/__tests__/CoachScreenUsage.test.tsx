@@ -33,7 +33,7 @@ jest.mock('@supabase/functions-js', () => {
 });
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
-  default: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
+  default: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {}, multiRemove: async () => {} },
 }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), navigate: jest.fn(), back: jest.fn() } }));
 jest.mock('expo-blur', () => ({ BlurView: 'BlurView' }));
@@ -368,6 +368,7 @@ describe('AI Coach after a day card is added', () => {
     storage.getItem = async (k: string) => saved[k] ?? null;
     storage.setItem = async (k: string, v: string) => { saved[k] = v; };
     storage.removeItem = async (k: string) => { delete saved[k]; };
+    storage.multiRemove = async (ks: string[]) => { for (const k of ks) delete saved[k]; };
   });
   afterEach(() => {
     Object.assign(storage, realStorage);
@@ -465,5 +466,54 @@ describe('AI Coach after a day card is added', () => {
     await flush();
     expect(saved['coach_next_day_v1_u1']).toBeUndefined();
     expect(texts()).not.toContain('Build Day 2');
+  });
+
+  const trashButton = () => tree!.root.findAllByType(TouchableOpacity).find(n => n.props.accessibilityLabel === t('coach.clearChat'))!;
+  const confirmDelete = () => alertSpy.mockImplementation((_t, _m, buttons) => { buttons?.find((b: { style?: string }) => b.style === 'destructive')?.onPress?.(); });
+
+  it('has only the trash button: no separate restart button', async () => {
+    await open();
+    const icons = tree!.root.findAll(n => (n.type as unknown) === 'Icon').map(n => n.props.name);
+    expect(icons).toContain('delete-outline');
+    expect(icons).not.toContain('refresh');
+  });
+
+  it('warns before deleting, and Cancel keeps the chat', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    await act(async () => { trashButton().props.onPress(); });
+    expect(alertSpy).toHaveBeenCalledWith(t('coach.deleteChatTitle'), t('coach.deleteChatBody'), expect.anything());
+    expect(texts()).toContain('Card ready.');
+    expect(saved['coach_pending_action_v1_u1']).toBeDefined();
+  });
+
+  it('deletes the chat, the unconfirmed card and every saved key, then greets again', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    expect(saved['coach_pending_action_v1_u1']).toBeDefined();
+    confirmDelete();
+    mockInvoke.mockResolvedValueOnce({ data: { ...REPLY, reply: 'Fresh start.' }, error: null });
+    await act(async () => { trashButton().props.onPress(); });
+    await flush();
+    expect(texts()).not.toContain('Card ready.');
+    expect(texts()).not.toContain('Build it');
+    expect(texts()).not.toContain(addButton(1));
+    expect(texts()).toContain('Fresh start.');
+    expect(saved['coach_pending_action_v1_u1']).toBeUndefined();
+    expect(JSON.parse(saved['coach_v15_u1'])).toEqual([expect.objectContaining({ role: 'assistant', content: 'Fresh start.' })]);
+    expect(mockInvoke).toHaveBeenLastCalledWith('ai-coach', expect.objectContaining({
+      body: expect.objectContaining({ messages: [{ role: 'user', content: 'Hi, I want to start working with my AI Coach.' }] }),
+    }));
+  });
+
+  it('cannot delete while the coach is answering', async () => {
+    await open();
+    let finish: (v: unknown) => void = () => {};
+    mockInvoke.mockImplementationOnce(() => new Promise(r => { finish = r; }));
+    await send('Build it');
+    expect(trashButton().props.disabled).toBe(true);
+    await act(async () => { finish(reply(null)); });
+    await flush();
+    expect(trashButton().props.disabled).toBe(false);
   });
 });

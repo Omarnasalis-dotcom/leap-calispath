@@ -925,6 +925,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     setPendingProgramAction(null);
   };
 
+  // The chat's only reset (the separate "New session" button was removed:
+  // it wiped the chat with no warning and left the old cards behind).
+  // Disabled while the coach is answering, so the fresh greeting below
+  // always starts. Removes every saved key itself rather than relying on the
+  // save effects, which are still off if this is tapped before the saved
+  // chat has finished loading.
   const clearHistory = async () => {
     const performClear = async () => {
       setMessages([]);
@@ -934,11 +940,22 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       setJustStartedProgram(null);
       setNextDayNumber(null);
       activeRequestRef.current = null;
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      try {
+        await AsyncStorage.multiRemove([STORAGE_KEY, PROGRAM_ACTION_STORAGE_KEY, JUST_STARTED_STORAGE_KEY, NEXT_DAY_STORAGE_KEY]);
+      } catch (e: any) {
+        console.warn('Failed to remove saved coach chat:', e.message);
+      }
       await saveInflight(null);
       startSession();
     };
-    if (Platform.OS === 'web') { if (window.confirm(t('coach.resetChat'))) performClear(); } else { Alert.alert(t('coach.clearTitle'), t('coach.resetChat'), [{ text: t('coach.cancel'), style: 'cancel' }, { text: t('coach.clear'), style: 'destructive', onPress: performClear }]); }
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${t('coach.deleteChatTitle')}\n\n${t('coach.deleteChatBody')}`)) performClear();
+    } else {
+      Alert.alert(t('coach.deleteChatTitle'), t('coach.deleteChatBody'), [
+        { text: t('coach.cancel'), style: 'cancel' },
+        { text: t('coach.deleteChatConfirm'), style: 'destructive', onPress: performClear },
+      ]);
+    }
   };
 
   // App Store Guideline 4.7.1 requires chatbot features to include a
@@ -1014,8 +1031,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {!showSetup && (
                 <>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.newSession')} onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.clearChat')} onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.clearChat')} accessibilityState={{ disabled: loading }} disabled={loading} onPress={clearHistory} style={[styles.iconBtn, loading && { opacity: 0.4 }]}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
                 </>
               )}
             </View>
