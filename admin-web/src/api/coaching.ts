@@ -1178,6 +1178,23 @@ export interface CoachingBusiness {
     progress_little: number;
     progress_clear: number;
   };
+  /** Answered reviews in the range, newest first (up to 100). */
+  recent_reviews: Array<{
+    id: string;
+    kind: 'checkin' | 'final';
+    answered_at: string;
+    /** null: the client deleted their account. */
+    warrior_name: string | null;
+    coach_name: string;
+    /** Their active program with that coach (opens them on the dashboard). */
+    assignment_id: string | null;
+    mood: number | null;
+    progress: 'not_yet' | 'little' | 'clear' | null;
+    rating: number | null;
+    continue: 'yes' | 'break' | 'no' | null;
+    recommend: number | null;
+    comment: string | null;
+  }>;
   by_coach: Array<{
     /** null: the coach deleted their account (their packages are kept, unlinked). */
     coach_id: string | null;

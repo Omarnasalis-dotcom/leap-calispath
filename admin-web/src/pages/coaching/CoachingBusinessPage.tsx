@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCoachingBusiness, fetchCoaches, type CoachingBusiness } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
 import { PageHeader } from '@/components/layout';
 import { ErrorNote } from '@/components/bits';
+import { CONTINUE_LABEL, isLow, MOOD_FACE, MOOD_WORD, PROGRESS_LABEL } from './ReviewsPanel';
 import './CoachingBusiness.css';
 
 // Online coaching as a business: revenue from the packages coaches enter
@@ -253,6 +254,65 @@ function Scorecard({ r }: { r: CoachingBusiness['reviews'] }) {
   );
 }
 
+/** Every answered review in the range: who, when, what they said. */
+function RecentReviews({ rows, showCoach }: { rows: CoachingBusiness['recent_reviews']; showCoach: boolean }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="panel" aria-labelledby="cb-recent">
+      <div className="panel-head">
+        <h2 id="cb-recent">Recent reviews</h2>
+        <span className="cb-head-meta">newest first</span>
+      </div>
+      <ul className="cb-reviews">
+        {rows.map((r) => {
+          const name = r.warrior_name ?? 'Deleted account';
+          const low = isLow(r);
+          return (
+            <li key={r.id} className={low ? 'low' : undefined}>
+              <div className="cb-review-head">
+                {r.assignment_id ? (
+                  <Link to={`/coaching?client=${r.assignment_id}`} className="cb-review-name">
+                    {name}
+                  </Link>
+                ) : (
+                  <span className="cb-review-name">{name}</span>
+                )}
+                <span className="cb-review-meta">
+                  {r.kind === 'checkin' ? '6-week check-in' : 'End of package'}
+                  {showCoach ? ` · ${r.coach_name}` : ''} ·{' '}
+                  {new Date(r.answered_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+                {low && <span className="cb-review-flag">needs a look</span>}
+              </div>
+              <div className="cb-review-answers">
+                {r.kind === 'checkin' ? (
+                  <>
+                    <span className="cb-review-face" role="img" aria-label={MOOD_WORD[r.mood ?? 0]}>
+                      {MOOD_FACE[r.mood ?? 0]}
+                    </span>
+                    <span>Feeling {MOOD_WORD[r.mood ?? 0]}</span>
+                    {r.progress && <span className="cb-review-chip">{PROGRESS_LABEL[r.progress]}</span>}
+                  </>
+                ) : (
+                  <>
+                    <span className="cb-review-stars" aria-label={`${r.rating} of 5 stars`}>
+                      {'★'.repeat(r.rating ?? 0)}
+                      <span className="cb-review-stars-off">{'★'.repeat(5 - (r.rating ?? 0))}</span>
+                    </span>
+                    {r.continue && <span className="cb-review-chip">{CONTINUE_LABEL[r.continue]}</span>}
+                    {r.recommend != null && <span className="cb-review-chip">Recommend {r.recommend}/10</span>}
+                  </>
+                )}
+              </div>
+              {r.comment && <p className="cb-review-comment">“{r.comment}”</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function CoachingBusinessPage() {
   const { isAdmin } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -432,6 +492,8 @@ export function CoachingBusinessPage() {
           )}
 
           <Scorecard r={d.reviews} />
+
+          <RecentReviews rows={d.recent_reviews} showCoach={isAdmin && !coachId} />
 
           {isAdmin && !coachId && d.by_coach.length > 0 && (
             <section className="panel" aria-labelledby="cb-coaches">

@@ -8,8 +8,8 @@ import { formatDate } from '@/shared/constants';
 // comment. Sent by the hourly job; answered in the app.
 
 export const MOOD_FACE = ['', '😫', '😕', '😐', '🙂', '🤩'] as const;
-const MOOD_WORD = ['', 'awful', 'not great', 'okay', 'good', 'great'] as const;
-const PROGRESS = { not_yet: 'No progress yet', little: 'A little progress', clear: 'Clear progress' } as const;
+export const MOOD_WORD = ['', 'awful', 'not great', 'okay', 'good', 'great'] as const;
+export const PROGRESS_LABEL = { not_yet: 'No progress yet', little: 'A little progress', clear: 'Clear progress' } as const;
 export const CONTINUE_LABEL = { yes: 'Wants to continue', break: 'Wants a break', no: 'Not continuing' } as const;
 
 /** A sad face, "not seeing progress yet", 1-2 stars or 0-6 on recommend: worth a look. */
@@ -30,7 +30,7 @@ function Answer({ r }: { r: CoachingReview }) {
           {MOOD_FACE[r.mood ?? 0]}
         </span>
         <span>Feeling {MOOD_WORD[r.mood ?? 0]}</span>
-        {r.progress && <span className={`rv-chip${r.progress === 'not_yet' ? ' no' : r.progress === 'clear' ? ' yes' : ''}`}>{PROGRESS[r.progress]}</span>}
+        {r.progress && <span className={`rv-chip${r.progress === 'not_yet' ? ' no' : r.progress === 'clear' ? ' yes' : ''}`}>{PROGRESS_LABEL[r.progress]}</span>}
       </span>
     );
   }

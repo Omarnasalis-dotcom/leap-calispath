@@ -318,3 +318,91 @@
   color: var(--ink-2);
   font-size: var(--text-md);
 }
+
+/* ---------- recent reviews ---------- */
+
+.cb-reviews {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cb-reviews li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.cb-reviews li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.cb-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.cb-review-name {
+  font-weight: 700;
+  font-size: var(--text-md);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+a.cb-review-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cb-review-meta {
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+}
+
+.cb-review-flag {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.cb-review-answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--text-sm);
+}
+
+.cb-review-face {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.cb-review-stars {
+  color: var(--warn);
+  letter-spacing: 1px;
+}
+
+.cb-review-stars-off {
+  color: var(--ink-3);
+}
+
+.cb-review-chip {
+  font-size: var(--text-xs);
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-2);
+}
+
+.cb-review-comment {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink);
+}
