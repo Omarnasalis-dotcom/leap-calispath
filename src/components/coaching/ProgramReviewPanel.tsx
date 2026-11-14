@@ -30,7 +30,9 @@ export function ProgramReviewPanel({ warriorProgramId, week, weekDone, onReverte
   const { theme } = useTheme();
   const [reviews, setReviews] = useState<ProgramReview[] | null>(null);
   const [asking, setAsking] = useState(false);
-  const [open, setOpen] = useState(false);
+  // null = not chosen yet: the full result shows on the first look and the
+  // quiet line after that. true/false once the athlete opens or folds it.
+  const [open, setOpen] = useState<boolean | null>(null);
   const [reverting, setReverting] = useState(false);
 
   const load = useCallback(async () => {
@@ -46,7 +48,7 @@ export function ProgramReviewPanel({ warriorProgramId, week, weekDone, onReverte
   const review = reviews ? reviewForWeek(reviews, week) : null;
   const firstLook = review?.status === 'closed' && !review.seen_at;
 
-  useEffect(() => setOpen(false), [review?.id]);
+  useEffect(() => setOpen(null), [review?.id]);
   // Stays open once shown, so reloading after a revert doesn't hide its result.
   useEffect(() => {
     if (!firstLook || !review) return;
@@ -87,10 +89,10 @@ export function ProgramReviewPanel({ warriorProgramId, week, weekDone, onReverte
     );
   }
 
-  // Seen before: one quiet line, the full result on tap.
-  if (!firstLook && !open) {
+  // Seen before, or folded: one quiet line, the full result on tap.
+  if (!(open ?? firstLook)) {
     return (
-      <TouchableOpacity accessibilityRole="button" onPress={() => setOpen(true)} style={[styles.row, box]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: false }} onPress={() => setOpen(true)} style={[styles.row, box]}>
         <MaterialCommunityIcons name="shield-check" size={16} color={theme.accentText} />
         <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('programReview.reviewed')}</Text>
         <MaterialCommunityIcons name="chevron-down" size={18} color={theme.text.secondary} />
@@ -125,12 +127,20 @@ export function ProgramReviewPanel({ warriorProgramId, week, weekDone, onReverte
 
   return (
     <View style={[styles.card, box]}>
-      <View style={styles.titleRow}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={t('programReview.collapse')}
+        accessibilityState={{ expanded: true }}
+        onPress={() => setOpen(false)}
+        hitSlop={6}
+        style={styles.titleRow}
+      >
         <MaterialCommunityIcons name="shield-check" size={18} color={theme.accentText} />
         <Text style={[styles.title, { color: theme.text.primary }]}>
           {t(changed ? 'programReview.changedTitle' : 'programReview.accurateTitle')}
         </Text>
-      </View>
+        <MaterialCommunityIcons name="chevron-up" size={20} color={theme.text.secondary} />
+      </TouchableOpacity>
 
       {review.changes.map((change, i) => (
         <View key={i} style={styles.change}>

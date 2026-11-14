@@ -2679,6 +2679,7 @@ const ar: Translations = {
     send: 'أرسل للمراجعة',
     inReview: 'قيد المراجعة لدى فريق Leap، عادةً خلال 48 ساعة.',
     reviewed: 'راجعه فريق Leap',
+    collapse: 'إخفاء المراجعة',
     accurateTitle: 'برنامجك دقيق ولا يحتاج إلى تغييرات.',
     accurateBody: 'إذا أردت تغيير أي شيء، يمكنك سؤال Leap Coach مباشرةً.',
     changedTitle: 'عدّل فريق Leap هذا الأسبوع',

@@ -150,6 +150,34 @@ describe('ProgramReviewPanel', () => {
     expect(words()).toContain('Pull Ups 5×8 → 4×6');
   });
 
+  const fold = async () => {
+    const btn = tree!.root.findAllByType(TouchableOpacity).find(b => b.props.accessibilityLabel === 'Hide review');
+    if (!btn) throw new Error(`no fold button in: ${words()}`);
+    await act(async () => { btn.props.onPress(); });
+    await flush();
+  };
+
+  it('folds the result on its first look, and opens it again', async () => {
+    reviews = [review({ outcome: 'accurate', changes: [], can_revert: false })];
+    await open();
+    expect(words()).toContain('Your program is accurate, no changes needed.');
+    await fold();
+    expect(words()).toContain('Reviewed by the Leap team');
+    expect(words()).not.toContain('ASK LEAP COACH');
+    await press('Reviewed by the Leap team');
+    expect(words()).toContain('Your program is accurate, no changes needed.');
+  });
+
+  it('folds a result again after opening it from the quiet line', async () => {
+    reviews = [review({ seen_at: '2026-11-07' })];
+    await open();
+    await press('Reviewed by the Leap team');
+    expect(words()).toContain('Pull Ups 5×8 → 4×6');
+    await fold();
+    expect(words()).toContain('Reviewed by the Leap team');
+    expect(words()).not.toContain('Pull Ups');
+  });
+
   it('asks first, then reverts everything and reloads the workout', async () => {
     reviews = [review()];
     const onReverted = jest.fn();

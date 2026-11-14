@@ -2526,6 +2526,7 @@ const en = {
     send: 'SEND FOR REVIEW',
     inReview: 'In review with the Leap team, usually within 48 hours.',
     reviewed: 'Reviewed by the Leap team',
+    collapse: 'Hide review',
     accurateTitle: 'Your program is accurate, no changes needed.',
     accurateBody: "If you'd like to change anything, you can ask Leap Coach directly.",
     changedTitle: 'The Leap team adjusted this week',
