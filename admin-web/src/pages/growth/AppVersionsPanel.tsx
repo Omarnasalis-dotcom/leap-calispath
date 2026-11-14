@@ -23,17 +23,22 @@ const PLATFORM_LABEL = { ios: 'iOS', android: 'Android' } as const;
 // splash instead, so raising the force minimum over them traps them.
 const FIRST_SAFE_FORCE_BUILD = '1.2.19';
 
-type Status = 'blocked' | 'asked' | 'ok';
+// What each version really does. Builds before FIRST_SAFE_FORCE_BUILD have
+// neither the splash fix nor the soft pop-up, so their outcomes differ.
+type Status = 'blocked' | 'stuck' | 'asked' | 'icon' | 'ok';
 
 function statusOf(row: AppVersionRow, cfg: AppVersionConfig | undefined): Status {
-  if (cfg?.minimum_version && cmp(row.app_version, cfg.minimum_version) < 0) return 'blocked';
-  if (cfg?.soft_minimum_version && cmp(row.app_version, cfg.soft_minimum_version) < 0) return 'asked';
+  const modern = cmp(row.app_version, FIRST_SAFE_FORCE_BUILD) >= 0;
+  if (cfg?.minimum_version && cmp(row.app_version, cfg.minimum_version) < 0) return modern ? 'blocked' : 'stuck';
+  if (cfg?.soft_minimum_version && cmp(row.app_version, cfg.soft_minimum_version) < 0) return modern ? 'asked' : 'icon';
   return 'ok';
 }
 
 const STATUS_LABEL: Record<Status, { text: string; color: string }> = {
   blocked: { text: 'Forced to update', color: 'var(--danger)' },
+  stuck: { text: 'Stuck on splash', color: 'var(--danger)' },
   asked: { text: 'Asked to update', color: 'var(--warn)' },
+  icon: { text: 'Update icon only', color: 'var(--ink)' },
   ok: { text: 'Up to date', color: 'var(--ok)' },
 };
 
@@ -81,8 +86,14 @@ export function AppVersionsPanel() {
               </div>
               <div>
                 Active (30 days): {total} ·{' '}
+                {count('stuck') > 0 && (
+                  <>
+                    <span style={{ color: STATUS_LABEL.stuck.color, fontWeight: 700 }}>{count('stuck')} stuck on splash</span> ·{' '}
+                  </>
+                )}
                 <span style={{ color: STATUS_LABEL.blocked.color }}>{count('blocked')} forced</span> ·{' '}
-                <span style={{ color: STATUS_LABEL.asked.color }}>{count('asked')} asked</span>
+                <span style={{ color: STATUS_LABEL.asked.color }}>{count('asked')} asked</span> ·{' '}
+                <span>{count('icon')} icon only</span>
               </div>
               {below !== null && (
                 <div style={{ fontWeight: 700 }}>
