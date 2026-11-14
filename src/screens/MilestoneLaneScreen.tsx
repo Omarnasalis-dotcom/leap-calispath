@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions, Alert, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { CoachingReviewCard } from '../components/coaching/CoachingReviewCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -2827,6 +2828,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       scrollEventThrottle={16}
     >
       <Text style={styles.header}>{t('journey.header')}</Text>
+
+      {/* An open check-in / end-of-package review from their coach. */}
+      {mode === 'journey' && <CoachingReviewCard />}
 
       <View style={styles.lane}>
         <>
