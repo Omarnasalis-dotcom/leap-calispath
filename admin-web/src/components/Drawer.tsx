@@ -23,17 +23,23 @@ export function Drawer({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
+  // Callers pass an inline onClose (a new function every render). Read it
+  // through a ref so the effect below runs only when the drawer opens —
+  // with onClose as a dependency it re-ran on every keystroke and pulled
+  // focus back to the first field (the title) while editing other fields.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    // Focus the first field so typing starts in the form.
+    // Focus the first field once, when the drawer opens.
     ref.current?.querySelector<HTMLElement>('input, textarea, select, button:not(.drawer-close)')?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !document.querySelector('dialog[open]')) onClose();
+      if (e.key === 'Escape' && !document.querySelector('dialog[open]')) onCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
