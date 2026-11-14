@@ -142,7 +142,7 @@ export function TestItemSheet({
     if (secs > 0) setValueText(String(secs));
   };
 
-  const title = testItemTitle(block);
+  const title = testItemTitle(block, item) || t('testWeek.formCheckTitle');
   const demoUrl = block.exercises.find((e) => !!e.youtube_url)?.youtube_url || '';
   const instructions = [block.notes, ...block.exercises.map((e) => e.notes)].map((n) => (n || '').trim()).filter(Boolean);
   const waLink = whatsAppLink(

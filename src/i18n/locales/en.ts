@@ -2886,6 +2886,7 @@ const en = {
     kicker_one_rm: 'TEST · 1RM',
     kicker_max_hold: 'TEST · MAX HOLD',
     kicker_form_check: 'TEST · FORM CHECK',
+    formCheckTitle: 'Form check',
     notLogged: 'NOT LOGGED YET',
     logResult: 'LOG RESULT',
     openFormCheck: 'OPEN',

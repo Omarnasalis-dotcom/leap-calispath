@@ -3051,6 +3051,7 @@ const ar: Translations = {
     kicker_one_rm: 'اختبار · 1RM',
     kicker_max_hold: 'اختبار · أطول ثبات',
     kicker_form_check: 'اختبار · فحص الأداء',
+    formCheckTitle: 'فحص الأداء',
     notLogged: 'لم يُسجَّل بعد',
     logResult: 'سجّل النتيجة',
     openFormCheck: 'افتح',

@@ -90,7 +90,7 @@ export function TestItemCard({
   const C = PALETTE[mode];
   const done = result?.status === 'done';
   const skipped = result?.status === 'skipped';
-  const title = testItemTitle(block).toUpperCase();
+  const title = (testItemTitle(block, item) || t('testWeek.formCheckTitle')).toUpperCase();
   const worldKey = worldKeyFor(item.kind);
 
   const chips: { label: string; tone: 'ok' | 'warn' | 'plain' }[] = [];

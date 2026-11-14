@@ -93,6 +93,13 @@ export function ConceptWizard({
           ))}
         </select>
       )}
+      {testKind && exerciseCount === 0 && (
+        <span style={{ color: 'var(--warn)', fontSize: 12 }}>
+          {testKind === 'form_check'
+            ? 'Add the exercise from the library so the athlete can watch the demo video.'
+            : 'No exercise yet: the athlete sees the movement name but no demo video.'}
+        </span>
+      )}
       {testKind && (
         <span className="dim" style={{ fontSize: 12 }}>
           {TEST_KINDS.find((k) => k.value === testKind)?.hint} Add one exercise for the name and demo video;

@@ -1,7 +1,7 @@
 import { ConceptMetadata } from './BlockConceptParser';
 import { ONEMM_MOVEMENTS } from './oneMMLogic';
 import { POWER_MOVEMENTS } from './powerLogic';
-import { STATIC_MOVEMENTS } from './staticLogic';
+import { STATIC_CATEGORIES, STATIC_MOVEMENTS } from './staticLogic';
 import { LEAP_SYSTEM_PROFILE_ID, AI_COACH_SYSTEM_PROFILE_ID } from '../constants/system';
 import type { ProgramBlock, ProgramDay } from '../types/warriorProgram';
 
@@ -123,12 +123,30 @@ export function formatTestValue(value: number | null | undefined): string {
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
 }
 
-/** The item's display name: its first exercise, else the block name after "Day | ". */
-export function testItemTitle(block: Pick<ProgramBlock, 'name' | 'exercises'>): string {
+// Names a builder gives a block on its own ("+ Block"): they say nothing
+// about the test, so the movement names the item instead.
+const DEFAULT_BLOCK_NAME = /^(workout routine|block\s*\d*)$/i;
+
+/** "Pull-ups", "Back Squat", "Front Lever hold"; '' for a form check. */
+export function testItemFallbackName(item: TestItem | null | undefined): string {
+  if (!item) return '';
+  if (item.kind === 'max_hold') {
+    const cat = STATIC_CATEGORIES[item.movement as keyof typeof STATIC_CATEGORIES]?.name;
+    return cat ? `${cat} hold` : '';
+  }
+  return testMovementName(item) ?? '';
+}
+
+/** The item's display name: its first exercise, else the block name after
+ * "Day | " (unless it's a default name), else the tested movement. '' only
+ * for a form check with neither — the caller shows the kind instead. */
+export function testItemTitle(block: Pick<ProgramBlock, 'name' | 'exercises'>, item?: TestItem | null): string {
   const ex = block.exercises?.[0]?.name;
   if (ex) return ex;
   const i = block.name.indexOf(' | ');
-  return (i >= 0 ? block.name.slice(i + 3) : block.name).trim();
+  const name = (i >= 0 ? block.name.slice(i + 3) : block.name).trim();
+  if (name && !DEFAULT_BLOCK_NAME.test(name)) return name;
+  return testItemFallbackName(item);
 }
 
 /** wa.me link to the coach with a ready message. null without a number. */

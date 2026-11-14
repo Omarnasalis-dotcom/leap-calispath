@@ -60,6 +60,28 @@ export function isTestKind(v: unknown): v is TestKind {
   return v === 'max_reps' || v === 'one_rm' || v === 'max_hold' || v === 'form_check';
 }
 
+// Names the builder gives a block on its own: they say nothing about the
+// test, so the movement names it instead.
+const DEFAULT_BLOCK_NAME = /^(workout routine|block\s*\d*)$/i;
+
+export function isDefaultBlockName(name: string): boolean {
+  const n = name.trim();
+  return !n || DEFAULT_BLOCK_NAME.test(n);
+}
+
+/** Short block name for a test item: "Dips · max reps", "Back squat 1RM",
+ * "Front lever hold", "Form check". */
+export function testItemBlockName(kind: TestKind, movement?: string | null): string {
+  const label = (testMovementOptions(kind).find((x) => x.value === movement)?.label ?? '')
+    .replace(/\s*\(.*?\)/g, '')
+    .replace(/\s*·.*$/, '')
+    .trim();
+  if (kind === 'max_reps') return label ? `${label} · max reps` : 'Max reps';
+  if (kind === 'one_rm') return label ? `${label} 1RM` : '1RM';
+  if (kind === 'max_hold') return label ? `${label} hold` : 'Max hold';
+  return 'Form check';
+}
+
 /** "TEST · 1RM · Back squat (bar kg)" for the builder's block header. */
 export function testItemLabel(kind: TestKind, movement?: string): string {
   const k = TEST_KINDS.find((x) => x.value === kind)?.label ?? kind;

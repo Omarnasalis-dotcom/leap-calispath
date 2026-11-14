@@ -14,7 +14,7 @@ import {
 } from '@/api/tests';
 import { fetchLoggedBlocks } from '@/api/coaching';
 import { programSource } from '@/shared/constants';
-import { TEST_KINDS, testMovementOptions } from '@/shared/testItems';
+import { TEST_KINDS, isDefaultBlockName, testItemBlockName, testMovementOptions } from '@/shared/testItems';
 
 // Coach Test Week results for one client program: every test item of each
 // test week, what the athlete logged (or why they skipped), whether it went
@@ -62,7 +62,8 @@ function formatValue(r: TestResult): string {
 
 function blockItemName(b: TestBlock): string {
   const i = b.name.indexOf(' | ');
-  return (i >= 0 ? b.name.slice(i + 3) : b.name).trim() || 'Test item';
+  const name = (i >= 0 ? b.name.slice(i + 3) : b.name).trim();
+  return isDefaultBlockName(name) ? testItemBlockName(b.test_kind, b.test_movement) : name;
 }
 
 /** The athlete's previous done result of the same test (kind + movement). */
@@ -300,7 +301,7 @@ export function TestsPanel({
                       {target ? ` · ${target}` : ''}
                     </span>
                     <span className="rv-answers">
-                      <strong>{r?.item_name || blockItemName(b)}</strong>
+                      <strong>{r?.item_name && !isDefaultBlockName(r.item_name) ? r.item_name : blockItemName(b)}</strong>
                       {!r && loggedQ.data?.has(b.id) ? (
                         <span className="rv-chip no" title="Their app is older than test weeks and logged this as a normal block.">
                           Logged without a result · ask them to update the app

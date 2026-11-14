@@ -12,7 +12,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Copy, Scissors, ClipboardPaste, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
-import { isTestKind, testItemLabel } from '@/shared/testItems';
+import { isDefaultBlockName, isTestKind, testItemBlockName, testItemLabel } from '@/shared/testItems';
 import { useBuilderClipboard, type ClipboardBlock } from '@/contexts/BuilderClipboardContext';
 import { Badge, ConfirmButton } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
@@ -263,17 +263,31 @@ export function BlockCard({
             <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
               <ConceptWizard
                 metadata={block.metadata}
-                onChange={(m) =>
+                onChange={(m) => {
+                  // A test item named "Workout Routine" (or still carrying
+                  // the name it was given here) takes its movement's name,
+                  // so the athlete sees "Dips · max reps", not a blank title.
+                  const prev = block.metadata;
+                  const autoPrev = isTestKind(prev.test_kind) ? testItemBlockName(prev.test_kind, prev.test_movement) : null;
+                  const rename =
+                    isTestKind(m.test_kind) &&
+                    (m.test_kind !== prev.test_kind || m.test_movement !== prev.test_movement) &&
+                    (isDefaultBlockName(block.name) || block.name === autoPrev)
+                      ? { name: testItemBlockName(m.test_kind, m.test_movement) }
+                      : {};
                   // Ticking "Weighted" for the block sets it on every
                   // exercise; any other setting leaves each exercise's own
                   // weighted flag as it is.
-                  !!m.is_weighted !== !!block.metadata.is_weighted
-                    ? onChange({
-                        metadata: m,
-                        exercises: block.exercises.map((x) => ({ ...x, is_weighted: !!m.is_weighted })),
-                      })
-                    : onChange({ metadata: m })
-                }
+                  if (!!m.is_weighted !== !!block.metadata.is_weighted) {
+                    onChange({
+                      ...rename,
+                      metadata: m,
+                      exercises: block.exercises.map((x) => ({ ...x, is_weighted: !!m.is_weighted })),
+                    });
+                  } else {
+                    onChange({ ...rename, metadata: m });
+                  }
+                }}
                 exerciseCount={block.exercises.length}
                 readOnly={readOnly}
               />
