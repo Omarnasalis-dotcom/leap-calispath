@@ -11,6 +11,8 @@ import {
   validateTestValue,
   whatsAppLink,
   formatTestValue,
+  demoLookupFor,
+  pickDemo,
 } from '../testItems';
 import { BlockConceptParser } from '../BlockConceptParser';
 import type { ProgramBlock } from '../../types/warriorProgram';
@@ -150,5 +152,26 @@ describe('testErrorKey', () => {
     expect(testErrorKey({ message: 'VALUE_TOO_HIGH' })).toBe('testWeek.errors.VALUE_TOO_HIGH');
     expect(testErrorKey({ message: 'NOT_COACH_PROGRAM' })).toBe('testWeek.errors.NOT_COACH_PROGRAM');
     expect(testErrorKey(new Error('Network request failed'))).toBe('testWeek.errors.generic');
+  });
+});
+
+describe('demo video lookup', () => {
+  it('maps world movements and hold progressions to library tags', () => {
+    expect(demoLookupFor({ kind: 'one_rm', movement: 'squat' })).toEqual({ family: 'squat', variations: ['Back'] });
+    expect(demoLookupFor({ kind: 'max_hold', movement: 'handstand' })).toEqual({ family: 'handstand', variations: ['Wall', 'Belly to wall'] });
+    expect(demoLookupFor({ kind: 'max_hold', movement: 'front_lever' }, 'full_front_lever')).toEqual({ family: 'front_lever', variations: ['Full'] });
+    expect(demoLookupFor({ kind: 'max_reps', movement: 'fl_pull_ups' })).toEqual({ namePattern: 'front lever pull%' });
+    expect(demoLookupFor({ kind: 'form_check' })).toBeNull();
+  });
+
+  it('picks the first variation in order, else any row of the family', () => {
+    const rows = [
+      { movement_variation: 'Advanced tuck', id: 1 },
+      { movement_variation: 'Full', id: 2 },
+    ];
+    expect(pickDemo(rows, ['Tuck', 'Advanced tuck'])?.id).toBe(1);
+    expect(pickDemo(rows, ['full'])?.id).toBe(2);
+    expect(pickDemo(rows, ['Straddle'])?.id).toBe(1);
+    expect(pickDemo([], ['Full'])).toBeNull();
   });
 });
