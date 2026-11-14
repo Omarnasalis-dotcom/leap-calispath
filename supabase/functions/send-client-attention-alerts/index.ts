@@ -10,7 +10,11 @@ const NOTIFICATION_TYPE = "client_needs_attention";
 // week (and still not built a day later), not moved on, gone quiet. The
 // rules and the dedupe live in get_coach_reminders_due(); this only fans
 // each one out to the coach and their assistants and pushes it.
-// Send {"dry_run": true} to see who would be notified without sending.
+// Also asks athletes for their coaching reviews (coaching_reviews_due():
+// the 6-week check-in and the end-of-package review, plus one nudge), as a
+// push whose tap opens the app's review screen.
+// Send {"dry_run": true} to see who would be notified without sending
+// (and without creating any review).
 //
 // Not user-triggered — invoked on a timer by a pg_cron job (see
 // 20260815140000_schedule_client_attention_cron.sql), authenticated by a
@@ -42,6 +46,8 @@ function resolveServiceRoleKey(): string {
 }
 
 type ExpoTicket = { status: string; message?: string; details?: { error?: string } };
+const REVIEW_TYPE = "coaching_review";
+type ReviewTarget = { review_id: string | null; warrior_id: string; kind: string; nudge: boolean; title: string; body: string };
 type Target = {
   warrior_program_id: string;
   warrior_id: string;
@@ -75,22 +81,28 @@ Deno.serve(async (req) => {
     console.error("get_coach_reminders_due error:", targetsError);
     return json({ error: "Failed to query targets" }, 500);
   }
+  // Athletes' review prompts (a real run creates the review rows here).
+  const { data: reviewData, error: reviewError } = await admin.rpc("coaching_reviews_due", { p_dry_run: dryRun });
+  if (reviewError) console.error("coaching_reviews_due error:", reviewError);
+  const reviews = (reviewData ?? []) as ReviewTarget[];
+
   if (dryRun) {
     return json({
       success: true,
       dry_run: true,
       targeted: (targets ?? []).length,
       targets: ((targets ?? []) as Target[]).map((t) => ({ coach_id: t.coach_id, kind: t.kind, key: t.reminder_key, body: t.body })),
+      reviews: reviews.map((r) => ({ warrior_id: r.warrior_id, kind: r.kind, nudge: r.nudge, body: r.body })),
     });
   }
-  if (!targets || targets.length === 0) {
+  if ((!targets || targets.length === 0) && reviews.length === 0) {
     return json({ success: true, targeted: 0, recipients: 0, sent: 0, failed: 0 });
   }
 
   // Fan out each flagged client to their coach and every active assistant —
   // same shape as notify-coach-workout-logged's fan-out fix. One
   // coach_assistants lookup per distinct coach, not per client.
-  const coachIds = [...new Set((targets as Target[]).map((t) => t.coach_id))];
+  const coachIds = [...new Set(((targets ?? []) as Target[]).map((t) => t.coach_id))];
   const { data: assistantRows } = await admin
     .from("coach_assistants")
     .select("coach_id, assistant_id")
@@ -104,7 +116,7 @@ Deno.serve(async (req) => {
 
   type Row = { user_id: string; type: string; title: string; body: string; data: Record<string, unknown> };
   const rows: Row[] = [];
-  for (const t of targets as Target[]) {
+  for (const t of (targets ?? []) as Target[]) {
     const recipients = [t.coach_id, ...(assistantsByCoach.get(t.coach_id) ?? [])];
     // `key` is what get_coach_reminders_due() checks so a reminder never repeats.
     const data = {
@@ -120,21 +132,31 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Respect each recipient's own opt-out before inserting anything for them.
+  // Each athlete's review prompt: the tap opens /coaching-review?reviewId=…
+  for (const r of reviews) {
+    if (!r.review_id) continue;
+    rows.push({
+      user_id: r.warrior_id,
+      type: REVIEW_TYPE,
+      title: r.title,
+      body: r.body,
+      data: { screen: "coaching-review", reviewId: r.review_id, kind: r.kind },
+    });
+  }
+
+  // Respect each recipient's own opt-out (per notification type) before inserting anything for them.
   const recipientIds = [...new Set(rows.map((r) => r.user_id))];
   const { data: prefRows } = await admin
     .from("notification_preferences")
     .select("user_id, prefs")
     .in("user_id", recipientIds);
-  const optedOut = new Set(
-    ((prefRows ?? []) as Array<{ user_id: string; prefs: Record<string, unknown> }>)
-      .filter((p) => p.prefs?.[NOTIFICATION_TYPE] === false)
-      .map((p) => p.user_id),
+  const prefsByUser = new Map(
+    ((prefRows ?? []) as Array<{ user_id: string; prefs: Record<string, unknown> }>).map((p) => [p.user_id, p.prefs ?? {}]),
   );
-  const insertRows = rows.filter((r) => !optedOut.has(r.user_id));
+  const insertRows = rows.filter((r) => prefsByUser.get(r.user_id)?.[r.type] !== false);
 
   if (insertRows.length === 0) {
-    return json({ success: true, targeted: (targets as Target[]).length, recipients: 0, sent: 0, failed: 0 });
+    return json({ success: true, targeted: (targets ?? []).length, reviews: reviews.length, recipients: 0, sent: 0, failed: 0 });
   }
 
   const { data: inserted, error: insertError } = await admin
@@ -212,7 +234,8 @@ Deno.serve(async (req) => {
 
   return json({
     success: true,
-    targeted: (targets as Target[]).length,
+    targeted: (targets ?? []).length,
+    reviews: reviews.length,
     recipients: insertRows.length,
     sent,
     failed,
