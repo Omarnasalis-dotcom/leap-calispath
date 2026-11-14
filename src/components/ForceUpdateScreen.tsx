@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Linking, SafeAreaView } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { LeapLogo } from './LeapLogo';
 import { Button } from './Button';
 import { useTheme } from '../contexts/ThemeContext';
@@ -15,6 +16,14 @@ interface ForceUpdateScreenProps {
 // alongside it.
 export function ForceUpdateScreen({ message, storeUrl }: ForceUpdateScreenProps) {
   const { theme } = useTheme();
+
+  // The native splash is normally released by AuthGuard, which this screen
+  // replaces — without this the splash stays on top forever and the user
+  // never sees the update prompt. Safe if it was already hidden.
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => { });
+  }, []);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.content}>
