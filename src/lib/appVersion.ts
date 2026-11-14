@@ -2,7 +2,13 @@ import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 import { supabase } from './supabase';
 
+// 'force': below app_config.minimum_version — full-screen block, no way past.
+// 'soft':  below app_config.soft_minimum_version only — a "Later"-able
+//          pop-up, at most once a day (SoftUpdatePrompt).
+export type UpdateKind = 'force' | 'soft';
+
 export interface ForceUpdateStatus {
+  kind: UpdateKind;
   message: string;
   storeUrl: string;
 }
@@ -26,6 +32,21 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+// Which update this install needs. The force minimum always wins; a soft
+// minimum at or below the force minimum never adds anything. Blank/missing
+// values mean "no rule".
+export function getUpdateKind(
+  installed: string,
+  minimum: string | null | undefined,
+  softMinimum: string | null | undefined,
+): UpdateKind | null {
+  if (minimum && compareVersions(installed, minimum) < 0) return 'force';
+  if (softMinimum && compareVersions(installed, softMinimum) < 0) return 'soft';
+  return null;
+}
+
+type VersionRow = { minimum_version: string | null; soft_minimum_version?: string | null; message: string | null };
+
 // Deliberately fails open on every error path (missing row, network
 // failure, unreadable native version, unexpected exception) — this is a UX
 // nudge tool, not a security gate. Letting someone through on a hiccup is
@@ -34,28 +55,48 @@ export async function checkForceUpdate(): Promise<ForceUpdateStatus | null> {
   if (Platform.OS === 'web') return null;
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('app_config')
-      .select('minimum_version, message')
+      .select('minimum_version, soft_minimum_version, message')
       .eq('platform', Platform.OS)
-      .maybeSingle();
+      .maybeSingle<VersionRow>();
+    // A database without soft_minimum_version must not switch the force
+    // block off too — ask again for the force fields alone.
+    if (error) {
+      ({ data, error } = await supabase
+        .from('app_config')
+        .select('minimum_version, message')
+        .eq('platform', Platform.OS)
+        .maybeSingle<VersionRow>());
+    }
 
     if (error || !data) return null;
 
     const installedVersion = Application.nativeApplicationVersion;
     if (!installedVersion) return null;
 
-    if (compareVersions(installedVersion, data.minimum_version) < 0) {
-      return {
-        message: data.message || 'Please update to continue.',
-        storeUrl: STORE_URLS[Platform.OS] || '',
-      };
-    }
-
-    return null;
+    const kind = getUpdateKind(installedVersion, data.minimum_version, data.soft_minimum_version);
+    if (!kind) return null;
+    return {
+      kind,
+      message: data.message || 'Please update to continue.',
+      storeUrl: STORE_URLS[Platform.OS] || '',
+    };
   } catch {
     return null;
   }
+}
+
+// The soft pop-up shows at most once per local calendar day. `lastShownDay`
+// is the YYYY-MM-DD it last showed (or null if never).
+export function softPromptDue(lastShownDay: string | null, today: string): boolean {
+  return lastShownDay !== today;
+}
+
+export function localDay(date: Date = new Date()): string {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${d}`;
 }
 
 // Profile's soft "update available" card: the store has a newer version

@@ -60,6 +60,10 @@ export type AnalyticsEvent =
   | 'offer_banner_tapped'
   | 'add_week_locked_tapped'
   | 'update_chip_tapped'
+  // Soft update pop-up (app_config.soft_minimum_version)
+  | 'soft_update_shown'
+  | 'soft_update_tapped'
+  | 'soft_update_later'
   | 'ai_week_review_tapped'
   | 'ai_week_repeated'
   | 'ai_week_repeat_undone';

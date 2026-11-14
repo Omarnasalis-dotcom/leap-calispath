@@ -130,6 +130,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { SideRestHost } from '../src/components/coaching/BlockRestTimer';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
+import { SoftUpdatePrompt } from '../src/components/SoftUpdatePrompt';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
 import { syncLanguageDirection } from '../src/i18n/language';
 import { t } from '../src/i18n';
@@ -480,7 +481,7 @@ function RootLayout() {
       <SafeAreaProvider>
         <GlobalErrorBoundary>
           <ThemeProvider>
-            {forceUpdate ? (
+            {forceUpdate?.kind === 'force' ? (
               // ForceUpdateScreen renders LeapLogo, which calls useTheme() —
               // it still needs ThemeProvider even though it deliberately skips
               // AuthProvider/TutorialProvider (nothing below this screen ever
@@ -503,6 +504,7 @@ function RootLayout() {
                     </AuthGuard>
                     <TutorialOverlay />
                     <SideRestHost />
+                    {forceUpdate?.kind === 'soft' && <SoftUpdatePrompt storeUrl={forceUpdate.storeUrl} />}
                   </View>
                 </TutorialProvider>
               </AuthProvider>
