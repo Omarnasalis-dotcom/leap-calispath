@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDeletedAccounts, fetchGrowthAnalytics, fetchOfferAnalytics, type GrowthAnalytics, type OfferAnalytics } from '@/api/growth';
+import { AppVersionsPanel } from './AppVersionsPanel';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 import { PageHeader } from '@/components/layout';
@@ -172,6 +173,8 @@ export function GrowthPage() {
           <FeaturesPanel data={data} />
         </>
       )}
+
+      <AppVersionsPanel />
 
       {offers.error && <ErrorNote error={offers.error} />}
       {offers.data && <OffersPanel data={offers.data} />}

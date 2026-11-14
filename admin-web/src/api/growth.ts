@@ -123,3 +123,32 @@ export async function fetchOfferAnalytics(days: number): Promise<OfferAnalytics>
   if (error) throw new Error(error.message);
   return data as OfferAnalytics;
 }
+
+/** Which app version people were last seen on, from admin_get_app_versions. */
+export interface AppVersionConfig {
+  platform: 'ios' | 'android';
+  minimum_version: string | null;
+  soft_minimum_version: string | null;
+  latest_version: string | null;
+}
+
+export interface AppVersionRow {
+  platform: 'ios' | 'android';
+  app_version: string;
+  users: number;
+  active_7d: number;
+  active_30d: number;
+  last_seen_at: string;
+}
+
+export interface AppVersions {
+  config: AppVersionConfig[];
+  versions: AppVersionRow[];
+  generated_at: string;
+}
+
+export async function fetchAppVersions(): Promise<AppVersions> {
+  const { data, error } = await supabase.rpc('admin_get_app_versions');
+  if (error) throw new Error(error.message);
+  return data as AppVersions;
+}
