@@ -1179,7 +1179,8 @@ export interface CoachingBusiness {
     workload_hard: number;
   };
   by_coach: Array<{
-    coach_id: string;
+    /** null: the coach deleted their account (their packages are kept, unlinked). */
+    coach_id: string | null;
     coach_name: string;
     active: number;
     sold: number;

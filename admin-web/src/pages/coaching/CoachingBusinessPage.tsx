@@ -452,7 +452,11 @@ export function CoachingBusinessPage() {
                   </thead>
                   <tbody>
                     {d.by_coach.map((c) => (
-                      <tr key={c.coach_id} className="clickable" onClick={() => setCoachId(c.coach_id)}>
+                      <tr
+                        key={c.coach_id ?? 'deleted'}
+                        className={c.coach_id ? 'clickable' : undefined}
+                        onClick={c.coach_id ? () => setCoachId(c.coach_id!) : undefined}
+                      >
                         <td style={{ fontWeight: 600 }}>{c.coach_name}</td>
                         <td className="num" style={{ textAlign: 'right' }}>{c.active}</td>
                         <td className="num" style={{ textAlign: 'right' }}>{c.sold}</td>
