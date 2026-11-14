@@ -61,7 +61,7 @@ const DARK = {
   noteBorder: '#33333A',
   notePlus: '#B0B0BA',
 };
-type Palette = typeof DARK;
+export type Palette = typeof DARK;
 
 const LIGHT: Palette = {
   sheet: '#FFFFFF',
@@ -99,8 +99,8 @@ const LIGHT: Palette = {
   noteBorder: '#D2D2D8',
   notePlus: '#6E6E77',
 };
-const GRADIENT = ['#8A5CD0', '#FF5A55', '#FF7A45'] as const;
-const GRADIENT_STOPS = [0, 0.6, 1] as const;
+export const GRADIENT = ['#8A5CD0', '#FF5A55', '#FF7A45'] as const;
+export const GRADIENT_STOPS = [0, 0.6, 1] as const;
 const COND_800 = 'BarlowCondensed-ExtraBold';
 const COND_700 = 'BarlowCondensed-Bold';
 const BODY = 'Barlow-Regular';
@@ -775,6 +775,7 @@ const THEMES = {
   light: { C: LIGHT, s: makeStyles(LIGHT) },
 };
 
-function useSheetTheme() {
+/** The sheet palette + styles, shared with TestItemSheet. */
+export function useSheetTheme() {
   return THEMES[useTheme().mode];
 }

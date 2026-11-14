@@ -93,6 +93,7 @@ Each file under `app/` imports its corresponding screen from `src/screens/`. The
 | `ai_coach_requests` | AI Coach request + cost log (drives message caps and $ budgets) |
 | `app_config` | Per-platform flags: `paywall_enabled`, `ai_coach_enabled`, `team_challenge_enabled`, chat caps, `minimum_version` |
 | `team_challenges`, `teams`, `team_members`, `team_attempts`, `team_attempt_results` | Team Challenge. Read-only for clients; every write is a SECURITY DEFINER RPC (`create_team`, `join_team`, `start_team_attempt`, `finish_team_attempt`, `submit_team_progress`, `admin_*`…) and times are server timestamps. RPC errors are bare codes mapped to `team.errors.*` |
+| `program_test_results`, `coach_contacts` | Coach Test Week (`supabase/migrations/20261114190000_coach_test_week.sql`). A block is a test item when its concept metadata has `test_kind` (`max_reps`→One Min Max, `one_rm`→Power World, `max_hold`→Static World, `form_check`→video to the coach on WhatsApp) + `test_movement`. Only on real-coach programs (not the Leap/AI Coach system profiles). Results are written only by `submit_program_test_item` (sends to the world via its own RPC if unlocked, logs the block); coaches grade with `grade_program_test_item`. App: `src/lib/testItems.ts`, `src/components/coaching/test/`; admin-web: builder Test item option + `TestsPanel` |
 | `app_events` | First-party analytics written by `track()` (`src/lib/analytics.ts`); users insert only their own, admins read. Funnel/DAU report: `admin_get_growth_analytics` → admin-web Growth page |
 
 **Key patterns:**

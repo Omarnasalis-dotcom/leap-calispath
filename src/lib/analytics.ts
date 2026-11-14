@@ -66,7 +66,9 @@ export type AnalyticsEvent =
   | 'soft_update_later'
   | 'ai_week_review_tapped'
   | 'ai_week_repeated'
-  | 'ai_week_repeat_undone';
+  | 'ai_week_repeat_undone'
+  // Coach Test Week item saved (status, kind, world).
+  | 'test_item_logged';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).
