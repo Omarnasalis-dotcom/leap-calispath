@@ -1,5 +1,5 @@
 import { ConceptMetadata } from './BlockConceptParser';
-import { ONEMM_MOVEMENTS } from './oneMMLogic';
+import { ONEMM_CATEGORIES, ONEMM_MOVEMENTS } from './oneMMLogic';
 import { POWER_MOVEMENTS } from './powerLogic';
 import { STATIC_CATEGORIES, STATIC_MOVEMENTS } from './staticLogic';
 import { LEAP_SYSTEM_PROFILE_ID, AI_COACH_SYSTEM_PROFILE_ID } from '../constants/system';
@@ -115,6 +115,20 @@ export function worldKeyFor(kind: TestKind): 'worldEndurance' | 'worldPower' | '
   if (kind === 'one_rm') return 'worldPower';
   if (kind === 'max_hold') return 'worldStatic';
   return null;
+}
+
+/** Does a saved result go into its world for an athlete at this Strength
+ * tier? Mirrors the unlock checks in submit_program_test_item (deadlift has
+ * no world). The sheet asks before such a save, because clearing the test
+ * later doesn't take the result back out of the world. */
+export function goesToWorld(item: TestItem, strengthTier: number): boolean {
+  if (item.kind === 'max_reps') {
+    const m = ONEMM_MOVEMENTS.find((x) => x.id === item.movement);
+    return !!m && strengthTier >= ONEMM_CATEGORIES[m.categoryId].tiers[0];
+  }
+  if (item.kind === 'one_rm') return item.movement !== 'deadlift' && strengthTier >= 6;
+  if (item.kind === 'max_hold') return strengthTier >= 1;
+  return false;
 }
 
 /** "18", "102.5" — no trailing ".0". */
