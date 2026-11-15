@@ -53,13 +53,19 @@ export function SoftUpdatePrompt({ storeUrl }: { storeUrl: string }) {
       timerRef.current = setTimeout(() => {
         if (!mountedRef.current) return;
         setVisible(true);
-        track('soft_update_shown');
-        AsyncStorage.setItem(LAST_SHOWN_KEY, today).catch(() => { });
       }, SHOW_DELAY_MS);
     })();
   }, [settled]);
 
   if (!storeUrl) return null;
+
+  // Counted as shown only once it is really on screen: iOS presents one
+  // modal at a time, so if another one (a paywall, a celebration) is up,
+  // this one never appears and today must not be used up.
+  const onShow = () => {
+    track('soft_update_shown');
+    AsyncStorage.setItem(LAST_SHOWN_KEY, localDay()).catch(() => { });
+  };
 
   const later = () => {
     track('soft_update_later');
@@ -72,7 +78,7 @@ export function SoftUpdatePrompt({ storeUrl }: { storeUrl: string }) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={later}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={later} onShow={onShow}>
       <View style={styles.overlay}>
         <View style={[styles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
           <LeapLogo size={72} animated={false} />
