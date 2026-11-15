@@ -68,8 +68,9 @@ import { localizedErrorText } from '../../lib/asyncErrorHandler';
 import { offerRoute } from '../../lib/offerStore';
 import { TestItemCard } from '../../components/coaching/test/TestItemCard';
 import { TestItemSheet, TestSubmit } from '../../components/coaching/test/TestItemSheet';
-import { getTestItem, isCoachAssigned, isTestDay, TestCoach, TestResult } from '../../lib/testItems';
+import { getTestItem, isCoachAssigned, isTestDay, testItemTitle, TestCoach, TestResult } from '../../lib/testItems';
 import { TestItemService } from '../../services/TestItemService';
+import { useTestItemTimer } from '../../hooks/useTestItemTimer';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -2107,11 +2108,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const leaveBlockList = () => {
     const left = takeRestForSide();
     if (left) startSideRest(left.seconds, left.blockId);
+    // A test item's minute or hold ends with the block list, like AMRAP / holds.
+    testTimer.cancel();
     setScreenPhase('list');
   };
   // A running AMRAP or For Time can't carry on, so it asks first.
   const backToDayList = () => {
-    if (!workTimerRunning()) {
+    if (!workTimerRunning() && !testTimer.isWorkRunning()) {
       leaveBlockList();
     } else if (Platform.OS === 'web') {
       if (window.confirm(t('workout.leaveTimerBody'))) leaveBlockList();
@@ -2136,6 +2139,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // A banner tapped on the day list: the block to open once the day is back.
   const openAfterDayList = useRef<string | number | null>(null);
   const openBlockFromBanner = (blockId: string | number) => {
+    // A test item opens its sheet (it has no inline view).
+    const testBlock = activeDay?.blocks.find(b => String(b.id) === String(blockId));
+    if (testBlock && testItemOf(testBlock)) {
+      if (screenPhase !== 'running') setScreenPhase('running');
+      setActiveTestBlockId(String(blockId));
+      return;
+    }
     if (screenPhase === 'running') {
       setExpandedBlocks({ [blockId]: true });
       scrollToBlock(blockId);
@@ -2160,6 +2170,16 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // A test item only acts as one on a real coach's program (the server
   // refuses the rest); anywhere else the block renders as a normal block.
   const testItemOf = (block: ProgramBlock) => (isCoachAssigned(coachId) ? getTestItem(block.metadata) : null);
+
+  // The minute / hold timer lives here, not in the sheet, so closing the
+  // sheet doesn't stop it. A minute that ends with the sheet closed gets the
+  // same banner as a closed block's timer (the hook plays the buzzer).
+  const testTimer = useTestItemTimer((blockId) => {
+    if (activeTestBlockId === blockId) return;
+    const block = days.flatMap(d => d.blocks).find(b => String(b.id) === blockId);
+    if (!block) return;
+    setTimerBanner({ blockId: block.id, blockName: testItemTitle(block, testItemOf(block)) || block.name, kind: 'amrap', id: Date.now() });
+  });
 
   // Same optimistic status update as handleToggleBlockStatus: the server
   // logged the block, so the day's progress moves without a reload.
@@ -2187,6 +2207,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       skipDetail: p.skipDetail,
     });
     if (result) setTestResults(prev => ({ ...prev, [blockId]: result }));
+    testTimer.cancel(blockId);
     applyTestBlockStatus(blockId, p.status === 'done' ? 'completed' : 'missed');
     setActiveTestBlockId(null);
     track('test_item_logged', { status: p.status, kind: result?.test_kind ?? null, world: result?.world_status ?? null });
@@ -2195,6 +2216,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   const handleTestClear = async (blockId: string) => {
     await TestItemService.submit({ warriorProgramId, blockId, status: 'none' });
+    testTimer.cancel(blockId);
     setTestResults(prev => {
       const next = { ...prev };
       delete next[blockId];
@@ -2310,6 +2332,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                       result={testResults[String(block.id)] ?? null}
                       mode={mode as 'light' | 'dark'}
                       onOpen={() => setActiveTestBlockId(String(block.id))}
+                      timer={testTimer.timer?.blockId === String(block.id) ? testTimer.timer : null}
                     />
                   </View>
                 );
@@ -2737,6 +2760,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             onClose={() => setActiveTestBlockId(null)}
             onSubmit={(p) => handleTestSubmit(activeTestBlockId, p)}
             onClear={() => handleTestClear(activeTestBlockId)}
+            timer={testTimer}
+            strengthTier={Math.max(profile?.strength_tier ?? 0, strengthTier)}
           />
         );
       })()}

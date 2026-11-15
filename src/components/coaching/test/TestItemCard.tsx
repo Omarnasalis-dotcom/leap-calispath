@@ -12,6 +12,7 @@ import {
   type TestItem,
   type TestResult,
 } from '../../../lib/testItems';
+import { testTimerView, useTestTimerNow, type TestTimer } from '../../../hooks/useTestItemTimer';
 
 // One Coach Test Week item in the workout runner, in the Day Blocks card
 // style (WarriorBlockCard): rail, index plate, title, scheme line. The whole
@@ -81,6 +82,7 @@ export function TestItemCard({
   result,
   mode,
   onOpen,
+  timer,
 }: {
   block: ProgramBlock;
   index: number;
@@ -88,6 +90,8 @@ export function TestItemCard({
   result: TestResult | null;
   mode: 'light' | 'dark';
   onOpen: () => void;
+  /** This item's running (or just ended) timer, shown while the sheet is closed. */
+  timer?: TestTimer | null;
 }) {
   const C = PALETTE[mode];
   const done = result?.status === 'done';
@@ -147,7 +151,9 @@ export function TestItemCard({
           <Text style={[s.title, { color: C.text }]} numberOfLines={2}>
             {title}
           </Text>
-          {done && result?.unit ? (
+          {timer ? (
+            <TimerLine timer={timer} color={C.accentText} />
+          ) : done && result?.unit ? (
             <Text style={[s.value, { color: C.text }]}>{testValueLabel(result)}</Text>
           ) : done && item.kind === 'form_check' ? (
             <Text style={[s.status, { color: C.ok }]}>{t('testWeek.formSent')}</Text>
@@ -199,6 +205,24 @@ export function TestItemCard({
   );
 }
 
+/** "0:42 LEFT", "HOLDING · 12 S": ticks by itself so the runner doesn't re-render. */
+function TimerLine({ timer, color }: { timer: TestTimer; color: string }) {
+  const now = useTestTimerNow(!timer.timeUp, 250);
+  const v = testTimerView(timer, now);
+  const label = timer.timeUp
+    ? t('testWeek.cardTimeUp')
+    : v.prepLeft > 0
+    ? t('testWeek.cardGetReady', { secs: v.prepLeft })
+    : timer.kind === 'max_reps'
+    ? t('testWeek.cardMinuteLeft', { time: `${Math.floor(v.minuteLeft / 60)}:${String(v.minuteLeft % 60).padStart(2, '0')}` })
+    : t('testWeek.cardHolding', { secs: v.heldSecs });
+  return (
+    <Text style={[s.status, s.timer, { color }]} numberOfLines={1} accessibilityLiveRegion="polite">
+      {label}
+    </Text>
+  );
+}
+
 const s = StyleSheet.create({
   card: { position: 'relative', borderRadius: 20, borderWidth: 1, overflow: 'hidden', paddingBottom: 14 },
   rail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
@@ -209,6 +233,7 @@ const s = StyleSheet.create({
   title: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.2, lineHeight: 21 },
   value: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 22, letterSpacing: 0.5, fontVariant: ['tabular-nums'] },
   status: { fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.2 },
+  timer: { fontSize: 15, fontVariant: ['tabular-nums'] },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',

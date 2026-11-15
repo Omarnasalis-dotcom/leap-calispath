@@ -175,3 +175,23 @@ describe('demo video lookup', () => {
     expect(pickDemo([], ['Full'])).toBeNull();
   });
 });
+
+describe('goesToWorld (same unlocks as submit_program_test_item)', () => {
+  const { goesToWorld } = require('../testItems');
+  it('max reps follows the movement category tier', () => {
+    expect(goesToWorld({ kind: 'max_reps', movement: 'air_squats' }, 0)).toBe(true);
+    expect(goesToWorld({ kind: 'max_reps', movement: 'pull_ups' }, 2)).toBe(false);
+    expect(goesToWorld({ kind: 'max_reps', movement: 'pull_ups' }, 3)).toBe(true);
+    expect(goesToWorld({ kind: 'max_reps', movement: 'nope' }, 9)).toBe(false);
+  });
+  it('1RM needs Strength tier 6 and never sends the deadlift', () => {
+    expect(goesToWorld({ kind: 'one_rm', movement: 'squat' }, 5)).toBe(false);
+    expect(goesToWorld({ kind: 'one_rm', movement: 'squat' }, 6)).toBe(true);
+    expect(goesToWorld({ kind: 'one_rm', movement: 'deadlift' }, 9)).toBe(false);
+  });
+  it('holds need tier 1; form checks never', () => {
+    expect(goesToWorld({ kind: 'max_hold', movement: 'planche' }, 0)).toBe(false);
+    expect(goesToWorld({ kind: 'max_hold', movement: 'planche' }, 1)).toBe(true);
+    expect(goesToWorld({ kind: 'form_check' }, 9)).toBe(false);
+  });
+});

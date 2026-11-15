@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -11,7 +11,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Vibration,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,25 +21,28 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import type { ProgramBlock } from '../../../types/warriorProgram';
 import { GRADIENT, GRADIENT_STOPS, useSheetTheme, type Palette } from '../LogBlockSheet';
 import { InlineVideoPlayer } from '../InlineVideoPlayer';
-import { SoundServiceInstance } from '../../../lib/SoundService';
+import { TEST_MINUTE_SECONDS, testTimerView, useTestTimerNow, type TestTimerControls } from '../../../hooks/useTestItemTimer';
 import { TestItemService } from '../../../services/TestItemService';
 import {
   SKIP_REASONS,
   demoLookupFor,
   formatTestValue,
+  goesToWorld,
   holdOptions,
   isBarWeight,
   parseTestNumber,
   testErrorKey,
   testItemTitle,
+  unitFor,
   validateTestValue,
   whatsAppLink,
+  worldKeyFor,
   type SkipReason,
   type TestCoach,
   type TestItem,
   type TestResult,
 } from '../../../lib/testItems';
-import { testKicker } from './TestItemCard';
+import { testKicker, testValueLabel } from './TestItemCard';
 
 // Log one Coach Test Week item. Same sheet design as LogBlockSheet (its
 // palette and CTA are shared). The parent saves through TestItemService
@@ -60,8 +62,6 @@ const BODY = 'Barlow-Regular';
 // WhatsApp's dark teal: white bold text on it clears 4:1 (the bright
 // #25D366 green is under 2:1).
 const WHATSAPP_GREEN = '#128C7E';
-// Get-ready countdown before the minute / the hold starts.
-const PREP_SECONDS = 5;
 
 /** 60 -> "1:00", 9 -> "0:09". */
 const formatClock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -76,6 +76,8 @@ export function TestItemSheet({
   onClose,
   onSubmit,
   onClear,
+  timer,
+  strengthTier,
 }: {
   visible: boolean;
   block: ProgramBlock;
@@ -87,6 +89,10 @@ export function TestItemSheet({
   /** Resolves when saved; throws the server error otherwise. */
   onSubmit: (p: TestSubmit) => Promise<void>;
   onClear: () => Promise<void>;
+  /** The runner's test timer (useTestItemTimer). */
+  timer: TestTimerControls;
+  /** To tell whether the result will go into its world (see goesToWorld). */
+  strengthTier: number;
 }) {
   const { C, s: base } = useSheetTheme();
   const s = useMemo(() => getStyles(C), [C]);
@@ -105,83 +111,32 @@ export function TestItemSheet({
   const [error, setError] = useState<string | null>(null);
   const [showVideo, setShowVideo] = useState(false);
 
-  // 60 s countdown (max reps) / stopwatch (max hold), from wall-clock time
-  // so a slow JS thread can't stretch the minute. Both start after a
-  // 5-second get-ready countdown (prepStart), ticking each second.
-  const [prepStart, setPrepStart] = useState<number | null>(null);
-  const lastPrepTick = useRef<number | null>(null);
-  const [clockStart, setClockStart] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
-  const [timeUp, setTimeUp] = useState(false);
-  const tick = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stopTick = () => {
-    if (tick.current) clearInterval(tick.current);
-    tick.current = null;
-  };
-  useEffect(() => stopTick, []);
-  useEffect(() => {
-    if (!visible) {
-      stopTick();
-      setPrepStart(null);
-      setClockStart(null);
-    }
-  }, [visible]);
-
-  const prepLeft = prepStart ? Math.max(0, PREP_SECONDS - Math.floor((now - prepStart) / 1000)) : 0;
-  useEffect(() => {
-    if (!prepStart) return;
-    if (prepLeft === 0) {
-      // Go: the clock starts exactly when the 5 seconds end.
-      setPrepStart(null);
-      setClockStart(prepStart + PREP_SECONDS * 1000);
-      SoundServiceInstance.playBoxingBell();
-      Vibration.vibrate(200);
-    } else if (lastPrepTick.current !== prepLeft) {
-      lastPrepTick.current = prepLeft;
-      SoundServiceInstance.playTick();
-    }
-  }, [prepLeft, prepStart]);
-
-  const elapsedMs = clockStart ? Math.max(0, now - clockStart) : 0;
-  const countdownLeft = Math.max(0, 60 - Math.floor(elapsedMs / 1000));
-  useEffect(() => {
-    if (item.kind === 'max_reps' && clockStart && countdownLeft === 0) {
-      stopTick();
-      setClockStart(null);
-      setTimeUp(true);
-      SoundServiceInstance.playDigitalBuzzer();
-      Vibration.vibrate(500);
-    }
-  }, [countdownLeft, clockStart, item.kind]);
-
+  // 60 s countdown (max reps) / stopwatch (max hold) after a 5 s get-ready.
+  // The runner owns the timer (useTestItemTimer), so it keeps going when
+  // this sheet is closed, the screen changes or the phone is locked; the
+  // sheet only draws it and starts/stops it.
+  const blockId = String(block.id);
+  const own = timer.timer && timer.timer.blockId === blockId ? timer.timer : null;
+  const running = !!own && !own.timeUp;
+  const timeUp = !!own?.timeUp;
+  const now = useTestTimerNow(running);
+  const view = own ? testTimerView(own, now) : null;
+  const prepLeft = running && view ? view.prepLeft : 0;
+  const inPrep = prepLeft > 0;
   const startClock = () => {
-    setTimeUp(false);
-    const start = Date.now();
-    lastPrepTick.current = null;
-    setPrepStart(start);
-    setNow(start);
-    stopTick();
-    tick.current = setInterval(() => setNow(Date.now()), 200);
+    if (item.kind === 'max_reps' || item.kind === 'max_hold') timer.start(blockId, item.kind);
   };
-  const cancelClock = () => {
-    stopTick();
-    setPrepStart(null);
-    setClockStart(null);
+  const cancelClock = () => timer.cancel(blockId);
+  const stopStopwatch = () => {
+    const secs = timer.stopHold(blockId);
+    if (secs != null && secs > 0) setValueText(String(secs));
   };
-  const running = !!prepStart || !!clockStart;
   const prepView = (
     <>
       <Text style={s.prepLabel}>{t('testWeek.getReady')}</Text>
       <Text style={[base.timeNum, { color: C.coralText }]}>{prepLeft}</Text>
     </>
   );
-  const stopStopwatch = () => {
-    if (!clockStart) return;
-    const secs = Math.floor((Date.now() - clockStart) / 1000);
-    stopTick();
-    setClockStart(null);
-    if (secs > 0) setValueText(String(secs));
-  };
 
   const title = testItemTitle(block, item) || t('testWeek.formCheckTitle');
   // The coach's exercise video; without one, the library's demo of the
@@ -243,7 +198,23 @@ export function TestItemSheet({
       setError(check === 'whole' ? t('testWeek.wholeReps') : t('testWeek.enterValue'));
       return;
     }
-    run({ status: 'done', value, movementId: item.kind === 'max_hold' ? movementId : null });
+    const submit = () => run({ status: 'done', value, movementId: item.kind === 'max_hold' ? movementId : null });
+    const worldKey = worldKeyFor(item.kind);
+    if (!worldKey || !goesToWorld(item, strengthTier)) {
+      submit();
+      return;
+    }
+    // It also lands in the world, and clearing the test later won't take it
+    // back out (the world keeps its best) — so a typo is caught here.
+    const world = t(`testWeek.${worldKey}`);
+    Alert.alert(
+      t('testWeek.confirmWorldTitle', { world }),
+      t('testWeek.confirmWorldBody', { value: testValueLabel({ value, unit: unitFor(item.kind) }), world }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('testWeek.confirmWorldSave'), onPress: submit },
+      ],
+    );
   };
 
   const submitSkip = () => {
@@ -333,9 +304,9 @@ export function TestItemSheet({
                 <View style={{ gap: 10 }}>
                   <Text style={s.body}>{t('testWeek.maxRepsHow')}</Text>
                   <View style={[base.card, s.clockCard]}>
-                    {prepStart ? prepView : (
+                    {inPrep ? prepView : (
                       <Text style={[base.timeNum, timeUp && { color: C.coralText }]}>
-                        {timeUp ? t('testWeek.timerDone') : formatClock(clockStart ? countdownLeft : 60)}
+                        {timeUp ? t('testWeek.timerDone') : formatClock(running && view ? view.minuteLeft : TEST_MINUTE_SECONDS)}
                       </Text>
                     )}
                     <TouchableOpacity
@@ -382,8 +353,8 @@ export function TestItemSheet({
                     })}
                   </View>
                   <View style={[base.card, s.clockCard]}>
-                    {prepStart ? prepView : clockStart ? (
-                      <Text style={base.timeNum}>{Math.floor(elapsedMs / 1000)}</Text>
+                    {inPrep ? prepView : running && view ? (
+                      <Text style={base.timeNum}>{view.heldSecs}</Text>
                     ) : (
                       // Stopped: nudge the time by a second either way.
                       <View style={s.adjustRow}>
@@ -408,7 +379,7 @@ export function TestItemSheet({
                     )}
                     <TouchableOpacity
                       style={s.clockBtn}
-                      onPress={() => (prepStart ? cancelClock() : clockStart ? stopStopwatch() : startClock())}
+                      onPress={() => (inPrep ? cancelClock() : running ? stopStopwatch() : startClock())}
                       accessibilityRole="button"
                     >
                       <Text style={s.clockBtnText}>{running ? t('testWeek.stopwatchStop') : t('testWeek.stopwatchStart')}</Text>
@@ -616,9 +587,12 @@ const getStyles = (C: Palette) =>
       textAlign: 'center',
       fontVariant: ['tabular-nums'],
     },
-    optionRow: { flexDirection: 'row', gap: 8 },
+    // Wraps three to a row: a hold with no category set lists every
+    // progression, which squeezed into one row was unreadable.
+    optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     option: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: '30%',
       minHeight: 52,
       paddingHorizontal: 6,
       borderRadius: 14,
