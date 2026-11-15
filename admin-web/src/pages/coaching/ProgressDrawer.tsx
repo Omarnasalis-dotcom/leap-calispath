@@ -16,7 +16,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/ProgramExportBuilder';
-import { buildImportBlocksPayload, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
+import { buildImportBlocksPayload, isImportCancelled, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
+import { useExerciseMatchPrompt } from '@/components/ExerciseMatchDialog';
 import { loadTemplateWeeks } from './builder/builderIO';
 import { athleteNotes, blockStatus, buildWeek, SegmentBar, WeekLogs } from './WeekLogs';
 import { LastLogsProvider } from './builder/LastLogs';
@@ -150,6 +151,7 @@ function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const exerciseMatch = useExerciseMatchPrompt();
 
   async function handleFile(file: File) {
     setBusy(true);
@@ -167,14 +169,15 @@ function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
       if (!validation.valid) throw new Error(validation.error ?? 'The file is not in the expected shape.');
 
       const data = parsed as { blocks: unknown[] };
-      const resolved = await resolveImportedExercises(data.blocks, profile!.id);
-      const blocks = buildImportBlocksPayload(data, resolved) as ClientProgramBlockPayload[];
+      const { resolved, blocks: keptBlocks } = await resolveImportedExercises(data.blocks, profile!.id, exerciseMatch.choose);
+      const blocks = buildImportBlocksPayload({ ...data, blocks: keptBlocks }, resolved) as ClientProgramBlockPayload[];
       await appendWeekToClientProgram(assignment.id, blocks);
 
       setSuccess(`Added ${validation.blockCount} block(s) as a new week.`);
       void queryClient.invalidateQueries({ queryKey: ['template-weeks'] });
       void queryClient.invalidateQueries({ queryKey: ['archived-weeks'] });
     } catch (err) {
+      if (isImportCancelled(err)) return;
       setError(err instanceof Error ? err : new Error('Import failed.'));
     } finally {
       setBusy(false);
@@ -202,6 +205,7 @@ function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
       >
         {busy ? 'Importing…' : 'Import week'}
       </button>
+      {exerciseMatch.dialog}
       {success && (
         <span className="dim" style={{ fontSize: 12 }}>
           {success}

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAll';
-import { resolveImportedExercises } from '@/shared/ProgramImportParser';
+import { resolveImportedExercises, resolvedExerciseId, type ChooseExercises } from '@/shared/ProgramImportParser';
 import { BlockConceptParser, ConceptMetadata } from '@/shared/BlockConceptParser';
 
 // Admin-only authoring for standalone_workouts/standalone_workout_blocks/
@@ -434,7 +434,7 @@ function parseNullableInt(v: number | string | null | undefined): number | null 
 
 /**
  * Resolves every exercise across every block (existing id, matched-by-name,
- * or newly created — reuses the exact same resolveImportedExercises helper
+ * or the admin's pick / "add as new" for names nothing matched — reuses the exact same resolveImportedExercises helper
  * Program JSON import already relies on, which already expects exactly
  * this blocks[].exercises[] shape) then creates the workout via
  * save_standalone_workout, always as a draft so it gets reviewed/published
@@ -443,17 +443,19 @@ function parseNullableInt(v: number | string | null | undefined): number | null 
 export async function importStandaloneWorkoutFromJson(
   data: ImportedStandaloneWorkout,
   adminId: string,
+  chooseExercises: ChooseExercises,
 ): Promise<string> {
-  const inputBlocks = data.blocks ?? [];
-  const resolved = await resolveImportedExercises(inputBlocks, adminId);
+  // The blocks come back with any exercise the admin chose to remove left out.
+  const { resolved, blocks: keptBlocks } = await resolveImportedExercises(data.blocks ?? [], adminId, chooseExercises);
+  const inputBlocks = keptBlocks as NonNullable<ImportedStandaloneWorkout['blocks']>;
 
   const unresolvedNames: string[] = [];
 
   const blocks: SaveStandaloneWorkoutBlockInput[] = inputBlocks.map((block, bi) => {
     const exercises = (block.exercises ?? [])
       .map((ex, i) => {
-        const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name ?? '').trim().toLowerCase()}`;
-        const exercise_id = resolved.get(key);
+        // id first, then the name (a stale id with a good name still resolves).
+        const exercise_id = resolvedExerciseId(resolved, ex);
         if (!exercise_id) {
           // Only reachable when exercise_id was stale/invalid AND no name
           // was given as a fallback — validateStandaloneWorkoutImport lets

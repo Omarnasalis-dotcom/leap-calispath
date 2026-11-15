@@ -30,6 +30,8 @@ import {
   type SaveStandaloneWorkoutInput,
 } from '@/api/workoutLibrary';
 import { fetchExercises } from '@/api/coaching';
+import { isImportCancelled } from '@/shared/ProgramImportParser';
+import { useExerciseMatchPrompt } from '@/components/ExerciseMatchDialog';
 import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
@@ -170,6 +172,7 @@ function ImportWorkoutModal() {
   const [jsonText, setJsonText] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportedStandaloneWorkout | null>(null);
+  const exerciseMatch = useExerciseMatchPrompt();
 
   function reset() {
     setJsonText('');
@@ -197,12 +200,18 @@ function ImportWorkoutModal() {
 
   const toast = useToast();
   const importMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!preview) throw new Error('Nothing to import.');
       if (!profile?.id) throw new Error('Your profile hasn’t loaded yet — reload and try again.');
-      return importStandaloneWorkoutFromJson(preview, profile.id);
+      try {
+        return await importStandaloneWorkoutFromJson(preview, profile.id, exerciseMatch.choose);
+      } catch (err) {
+        if (isImportCancelled(err)) return null; // back to the preview, no error
+        throw err;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
+      if (id === null) return;
       toast('Workout imported as a draft');
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
       dialogRef.current?.close();
@@ -291,6 +300,7 @@ function ImportWorkoutModal() {
           </div>
         )}
       </dialog>
+      {exerciseMatch.dialog}
     </>
   );
 }

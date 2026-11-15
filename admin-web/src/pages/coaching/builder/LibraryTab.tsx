@@ -11,6 +11,8 @@ import { uploadWorkoutCoverImage } from '@/api/workoutLibrary';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { importLibraryTemplate } from '@/shared/TemplateLibraryImport';
+import { isImportCancelled } from '@/shared/ProgramImportParser';
+import { useExerciseMatchPrompt } from '@/components/ExerciseMatchDialog';
 import { publishLibraryTemplate } from '@/shared/TemplateLibraryPublish';
 import { LIBRARY_GOALS, LIBRARY_TIER_RANGES } from '@/shared/templateLibrary';
 import { tierName } from '@/shared/constants';
@@ -228,6 +230,7 @@ function ImportButton() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
+  const exerciseMatch = useExerciseMatchPrompt();
 
   async function handleFile(file: File) {
     setBusy(true);
@@ -235,9 +238,10 @@ function ImportButton() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      await importLibraryTemplate(data, profile!.id);
+      await importLibraryTemplate(data, profile!.id, exerciseMatch.choose);
       void queryClient.invalidateQueries({ queryKey: ['library-templates'] });
     } catch (err) {
+      if (isImportCancelled(err)) return;
       setError(err instanceof Error ? err : new Error('Import failed.'));
     } finally {
       setBusy(false);
@@ -261,6 +265,7 @@ function ImportButton() {
         {busy ? 'Importing…' : 'Import from JSON'}
       </button>
       {error && <ErrorNote error={error} />}
+      {exerciseMatch.dialog}
     </span>
   );
 }
