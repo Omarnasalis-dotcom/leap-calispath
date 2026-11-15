@@ -1,4 +1,4 @@
-import { findLibraryMatch, normalizeExerciseName, suggestLibraryExercises } from '../exerciseNameMatch';
+import { classifyNewExerciseNames, findLibraryMatch, normalizeExerciseName, suggestLibraryExercises } from '../exerciseNameMatch';
 
 // Names taken from the prod library (2026-11-15), including its misspellings.
 const library = [
@@ -60,5 +60,28 @@ describe('suggestLibraryExercises', () => {
   });
   it('returns at most the limit', () => {
     expect(suggestLibraryExercises('Single Leg', library, 1)).toHaveLength(1);
+  });
+});
+
+describe('classifyNewExerciseNames (CSV bulk add)', () => {
+  const lib = [
+    { id: '1', name: 'Deadlift' },
+    { id: '2', name: 'Bulgarin Lunges' },
+    { id: '3', name: 'Incline Push Ups' },
+    { id: '4', name: 'Tuck Back Lever Hold' },
+  ];
+  const kinds = (names: string[]) => classifyNewExerciseNames(names, lib).map((s) => s.kind);
+
+  it('skips names already in the library, including case/plural differences', () => {
+    expect(classifyNewExerciseNames(['deadlifts'], lib)).toEqual([{ kind: 'exists', match: 'Deadlift' }]);
+  });
+  it('skips a row that repeats an earlier row', () => {
+    expect(kinds(['Nordic Curl', 'nordic curls'])).toEqual(['new', 'repeat']);
+  });
+  it('flags a likely misspelling but does not skip it', () => {
+    expect(classifyNewExerciseNames(['Bulgarian Lunges'], lib)).toEqual([{ kind: 'similar', similar: 'Bulgarin Lunges' }]);
+  });
+  it('treats a different exercise as new', () => {
+    expect(kinds(['Tuck Front Lever Hold', 'Wall Sit'])).toEqual(['new', 'new']);
   });
 });

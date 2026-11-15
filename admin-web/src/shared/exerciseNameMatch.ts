@@ -100,3 +100,46 @@ export function suggestLibraryExercises(
   }
   return out;
 }
+
+/** What a bulk (CSV) add should do with one row. */
+export type NewExerciseStatus =
+  /** Same name already in the library (case, spacing, plural "s"): skipped. */
+  | { kind: 'exists'; match: string }
+  /** Same name as an earlier row of the same file: skipped. */
+  | { kind: 'repeat' }
+  /** Looks like a misspelling of a library exercise: added unless the coach
+   * skips it ("Incline"/"Decline" are close but both real). */
+  | { kind: 'similar'; similar: string }
+  | { kind: 'new' };
+
+// Same number of words and every word the same or one or two letters off
+// ("bulgarian"/"bulgarin", "flexor"/"felxor"); at least one word differs.
+function isLikelyMisspelling(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  let differs = false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue;
+    const shorter = Math.min(a[i].length, b[i].length);
+    const d = editDistance(a[i], b[i]);
+    if (!((d <= 1 && shorter >= 4) || (d <= 2 && shorter >= 5))) return false;
+    differs = true;
+  }
+  return differs;
+}
+
+/** Classifies the names of a bulk add against the library (and against the
+ * file's own earlier rows), so duplicates are skipped instead of inserted. */
+export function classifyNewExerciseNames(names: string[], library: LibraryExerciseName[]): NewExerciseStatus[] {
+  const libWords = library.map((row) => ({ row, words: normalizeExerciseName(row.name).split(' ').filter(Boolean) }));
+  const seen = new Set<string>();
+  return names.map((name) => {
+    const norm = normalizeExerciseName(name);
+    const hit = findLibraryMatch(name, library);
+    if (hit) return { kind: 'exists', match: hit.name };
+    if (seen.has(norm)) return { kind: 'repeat' };
+    seen.add(norm);
+    const words = norm.split(' ').filter(Boolean);
+    const close = libWords.find((l) => isLikelyMisspelling(words, l.words));
+    return close ? { kind: 'similar', similar: close.row.name } : { kind: 'new' };
+  });
+}

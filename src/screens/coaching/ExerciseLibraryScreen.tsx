@@ -16,6 +16,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
+import { fetchLibraryNames } from '../../lib/ProgramImportParser';
+import { classifyNewExerciseNames, LibraryExerciseName } from '../../lib/exerciseNameMatch';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
@@ -89,6 +91,27 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [importSaving, setImportSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  // Whole library, loaded for the CSV preview so duplicates are skipped
+  // instead of inserted (coaches can pick any exercise in the app).
+  const [libraryNames, setLibraryNames] = useState<LibraryExerciseName[] | null>(null);
+  // Rows flagged as a likely misspelling that the coach chose to leave out.
+  const [skippedRows, setSkippedRows] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (importStep !== 2 || previewRows.length === 0) return;
+    let live = true;
+    setLibraryNames(null);
+    setSkippedRows(new Set());
+    fetchLibraryNames()
+      .then((rows) => { if (live) setLibraryNames(rows); })
+      .catch((err) => { if (live) setImportError(err?.message?.toUpperCase() || 'FAILED TO LOAD THE EXERCISE LIBRARY.'); });
+    return () => { live = false; };
+  }, [importStep, previewRows]);
+
+  const rowStatus = libraryNames ? classifyNewExerciseNames(previewRows.map((r) => r.name), libraryNames) : [];
+  const importableRows = libraryNames
+    ? previewRows.filter((_, i) => rowStatus[i].kind === 'new' || (rowStatus[i].kind === 'similar' && !skippedRows.has(i)))
+    : [];
 
   const categories = ['all', 'push', 'pull', 'legs', 'core'];
   const focuses = ['all', 'skill', 'flexibility', 'strength', 'mobility'];
@@ -449,12 +472,17 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
     setImportError(null);
     try {
       // Safety: limit bulk imports to 200 rows
-      if (previewRows.length > 200) {
+      if (importableRows.length > 200) {
         setImportError('MAXIMUM 200 EXERCISES PER IMPORT. PLEASE SPLIT YOUR CSV.');
         setImportSaving(false);
         return;
       }
-      const inserts = previewRows.map(row => {
+      if (importableRows.length === 0) {
+        setImportError('EVERY EXERCISE IN THIS FILE IS ALREADY IN THE LIBRARY.');
+        setImportSaving(false);
+        return;
+      }
+      const inserts = importableRows.map(row => {
         const cats = [];
         if (row.category && row.category.trim()) cats.push(row.category.toLowerCase().trim());
         if (row.concept && row.concept.trim()) cats.push(row.concept.toLowerCase().trim());
@@ -1067,6 +1095,11 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
                   <Text style={[styles.infoText, { color: theme.text.secondary }]}>
                     PREVIEW OF EXERCISES DETECTED IN YOUR CSV. VERIFY DETAILS BEFORE CONFIRMING IMPORT.
                   </Text>
+                  {libraryNames && importableRows.length < previewRows.length && (
+                    <Text style={[styles.infoText, { color: theme.text.secondary }]}>
+                      {previewRows.length - importableRows.length} SKIPPED: ALREADY IN THE LIBRARY, REPEATED IN THE FILE, OR LEFT OUT BY YOU.
+                    </Text>
+                  )}
 
                    {/* Table Header */}
                   <View style={[styles.tableHeader, { borderBottomColor: theme.card.border }]}>
@@ -1078,8 +1111,11 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
                   {/* Table Body */}
                   <View style={styles.tableBody}>
-                    {previewRows.map((row, idx) => (
-                      <View key={idx} style={[styles.tableRow, { borderBottomColor: 'rgba(255,255,255,0.03)' }]}>
+                    {previewRows.map((row, idx) => {
+                      const st = rowStatus[idx];
+                      const willImport = !!st && (st.kind === 'new' || (st.kind === 'similar' && !skippedRows.has(idx)));
+                      return (
+                      <View key={idx} style={[styles.tableRow, { borderBottomColor: 'rgba(255,255,255,0.03)', flexWrap: 'wrap', opacity: !st || willImport ? 1 : 0.5 }]}>
                         <Text style={[styles.tableCell, { color: theme.text.primary, flex: 2 }]} numberOfLines={1}>
                           {row.name.toUpperCase()}
                         </Text>
@@ -1092,15 +1128,42 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
                         <Text style={[styles.tableCell, { color: theme.text.secondary }]}>
                           {row.difficulty.toUpperCase()}
                         </Text>
+                        {st && st.kind !== 'new' && (
+                          <View style={{ width: '100%', paddingTop: 4 }}>
+                            {st.kind === 'exists' && (
+                              <Text style={[styles.tableCell, { color: theme.text.tertiary }]}>SKIPPED: ALREADY IN THE LIBRARY AS "{st.match.toUpperCase()}"</Text>
+                            )}
+                            {st.kind === 'repeat' && (
+                              <Text style={[styles.tableCell, { color: theme.text.tertiary }]}>SKIPPED: REPEATED IN THIS FILE</Text>
+                            )}
+                            {st.kind === 'similar' && (
+                              <TouchableOpacity
+                                onPress={() => setSkippedRows((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(idx)) next.delete(idx); else next.add(idx);
+                                  return next;
+                                })}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: skippedRows.has(idx) }}
+                              >
+                                <Text style={[styles.tableCell, { color: bronzeGold }]}>
+                                  {skippedRows.has(idx) ? '☑' : '☐'} SKIP, LOOKS LIKE "{st.similar.toUpperCase()}"
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        )}
                       </View>
-                    ))}
+                      );
+                    })}
                   </View>
 
                   <View style={{ marginTop: 24, gap: 12 }}>
                     <Button
-                      title={`CONFIRM IMPORT (${previewRows.length} EXERCISES)`}
+                      title={libraryNames ? `CONFIRM IMPORT (${importableRows.length} EXERCISES)` : 'CHECKING THE LIBRARY…'}
                       onPress={handleConfirmImport}
                       loading={importSaving}
+                      disabled={!libraryNames || importableRows.length === 0}
                     />
 
                     <TouchableOpacity

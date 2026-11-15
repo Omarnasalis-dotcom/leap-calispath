@@ -101,7 +101,8 @@ export interface ResolvedImportExercises {
 
 const nameKey = (name: string) => `name:${name.trim().toLowerCase()}`;
 
-async function fetchLibraryNames(): Promise<LibraryExerciseName[]> {
+/** Every library exercise (id, name, video), paged past the 1,000-row cap. */
+export async function fetchLibraryNames(): Promise<LibraryExerciseName[]> {
   const PAGE = 1000;
   const rows: LibraryExerciseName[] = [];
   for (let from = 0; ; from += PAGE) {

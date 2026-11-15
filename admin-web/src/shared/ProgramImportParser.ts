@@ -104,7 +104,8 @@ export interface ResolvedImportExercises {
 
 const nameKey = (name: string) => `name:${name.trim().toLowerCase()}`;
 
-async function fetchLibraryNames(): Promise<LibraryExerciseName[]> {
+/** Every library exercise (id, name, video), paged past the 1,000-row cap. */
+export async function fetchLibraryNames(): Promise<LibraryExerciseName[]> {
   return fetchAllRows<LibraryExerciseName>((from, to) =>
     supabase.from('exercise_library').select('id, name, youtube_url').order('created_at').order('id').range(from, to),
   );
