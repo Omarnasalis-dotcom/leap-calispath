@@ -15,7 +15,9 @@ import { supabase } from '../../lib/supabase';
 import { LeapLogo } from '../../components/LeapLogo';
 import { fetchWeekExportPayload, shareWeekExportPayload } from '../../lib/ProgramExportBuilder';
 import { NotificationService } from '../../services/NotificationService';
-import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload } from '../../lib/ProgramImportParser';
+import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload, isImportCancelled } from '../../lib/ProgramImportParser';
+import { useExerciseMatchPrompt } from '../../hooks/coaching/useExerciseMatchPrompt';
+import { ExerciseMatchModal } from '../../components/coaching/ExerciseMatchModal';
 import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
 
 
@@ -431,6 +433,8 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
   // it as a new week onto the client's program via the same append-only
   // RPC used elsewhere in this screen — an import never overwrites or
   // archives anything on its own.
+  const exerciseMatch = useExerciseMatchPrompt();
+
   const handleImportWeek = async () => {
     if (!selectedWarrior || !coachId) return;
     setImporting(true);
@@ -461,8 +465,8 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
         return;
       }
 
-      const resolved = await resolveImportedExercises(parsed.blocks, coachId);
-      const blocks = buildImportBlocksPayload(parsed, resolved);
+      const { resolved, blocks: keptBlocks } = await resolveImportedExercises(parsed.blocks, coachId, exerciseMatch.choose);
+      const blocks = buildImportBlocksPayload({ ...parsed, blocks: keptBlocks }, resolved);
 
       const { error } = await supabase.rpc('append_weeks_to_client_program', {
         p_warrior_program_id: selectedWarrior.warriorProgramId,
@@ -475,6 +479,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
       Alert.alert('IMPORTED', `Added ${validation.blockCount} block(s) as a new week.`);
       await handleOpenHistoryModal(selectedWarrior);
     } catch (err: any) {
+      if (isImportCancelled(err)) return;
       console.error('Failed to import week:', err);
       Alert.alert('IMPORT FAILED', err.message?.toUpperCase() || 'FAILED TO IMPORT WEEK.');
     } finally {
@@ -982,6 +987,9 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
             </View>
           </View>
         </View>
+        {/* Inside the history modal: Import week is pressed from here, and iOS
+            won't show a second modal next to an open one. */}
+        <ExerciseMatchModal {...exerciseMatch.modalProps} />
       </Modal>
     </View>
   );

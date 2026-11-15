@@ -12,6 +12,7 @@ import {
   type Exercise,
 } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
+import { classifyNewExerciseNames } from '@/shared/exerciseNameMatch';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 import { PageHeader } from '@/components/layout';
@@ -110,29 +111,31 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
   const [csvText, setCsvText] = useState('');
   const [previewRows, setPreviewRows] = useState<Array<Record<string, string>>>([]);
   const [parseError, setParseError] = useState<string | null>(null);
-  // Same cache as the page's list. Rows whose name the owner already has (or
-  // that repeat earlier in the file) are skipped instead of duplicated. Only
-  // the owner's own exercises count: coaches can pick only their own.
+  // Rows flagged as a likely misspelling that the admin chose to leave out.
+  const [skipped, setSkipped] = useState<Set<number>>(new Set());
+  const { profile } = useAuth();
+  // Same cache as the page's list. A row whose name is already in the library
+  // (ignoring case, spacing and a plural "s"), or repeats an earlier row, is
+  // skipped instead of duplicated; a likely misspelling is flagged. Compared
+  // against the exercises the new owner can pick in the builder: everything
+  // for the admin's own account, a coach's own exercises otherwise.
   const existingQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
-  const nameKey = (name: string) => name.trim().toLowerCase();
-  const existingNames = new Set(
-    (existingQ.data ?? []).filter((e) => e.created_by === coachId).map((e) => nameKey(e.name)),
+  const ownerSeesAll = profile?.is_admin === true && coachId === profile.id;
+  const comparable = (existingQ.data ?? []).filter((e) => ownerSeesAll || e.created_by === coachId);
+  const rowStatus = classifyNewExerciseNames(
+    previewRows.map((row) => row.name),
+    comparable,
   );
-  const seen = new Set<string>();
-  const rowStatus = previewRows.map((row) => {
-    const key = nameKey(row.name);
-    if (existingNames.has(key)) return 'exists' as const;
-    if (seen.has(key)) return 'repeat' as const;
-    seen.add(key);
-    return 'new' as const;
-  });
-  const newRows = previewRows.filter((_, i) => rowStatus[i] === 'new');
+  const newRows = previewRows.filter(
+    (_, i) => rowStatus[i].kind === 'new' || (rowStatus[i].kind === 'similar' && !skipped.has(i)),
+  );
 
   function reset() {
     setStep(1);
     setCsvText('');
     setPreviewRows([]);
     setParseError(null);
+    setSkipped(new Set());
     importMutation.reset();
   }
 
@@ -232,7 +235,7 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
             <div className="dim" style={{ fontSize: 13 }}>
               {previewRows.length} exercise{previewRows.length === 1 ? '' : 's'} parsed: {newRows.length} new
               {previewRows.length - newRows.length > 0 &&
-                `, ${previewRows.length - newRows.length} skipped (already in the library or repeated in the file)`}
+                `, ${previewRows.length - newRows.length} skipped (already in the library, repeated in the file, or left out)`}
               . Review before importing.
             </div>
             <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
@@ -247,17 +250,39 @@ function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: s
                   </tr>
                 </thead>
                 <tbody>
-                  {previewRows.map((row, i) => (
-                    <tr key={i} style={rowStatus[i] === 'new' ? undefined : { opacity: 0.5 }}>
+                  {previewRows.map((row, i) => {
+                    const st = rowStatus[i];
+                    const willImport = st.kind === 'new' || (st.kind === 'similar' && !skipped.has(i));
+                    return (
+                    <tr key={i} style={willImport ? undefined : { opacity: 0.5 }}>
                       <td>{row.name}</td>
                       <td className="dim">{row.category || '—'}</td>
                       <td className="dim">{row.concept || '—'}</td>
                       <td className="dim">{row.difficulty || '—'}</td>
-                      <td className="dim">
-                        {rowStatus[i] === 'exists' ? 'already in this library' : rowStatus[i] === 'repeat' ? 'repeated' : ''}
+                      <td className="dim" style={{ fontSize: 12 }}>
+                        {st.kind === 'exists' && <>already in the library as “{st.match}”</>}
+                        {st.kind === 'repeat' && 'repeated in this file'}
+                        {st.kind === 'similar' && (
+                          <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: 'var(--ink)' }}>
+                            <input
+                              type="checkbox"
+                              checked={skipped.has(i)}
+                              onChange={(e) =>
+                                setSkipped((prev) => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(i);
+                                  else next.delete(i);
+                                  return next;
+                                })
+                              }
+                            />
+                            Skip, looks like “{st.similar}”
+                          </label>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

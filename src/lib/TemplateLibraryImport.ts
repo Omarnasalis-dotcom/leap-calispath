@@ -7,7 +7,7 @@
 // used by regular coach master templates, just reused here.
 
 import { supabase } from './supabase';
-import { validateWeekImportPayload, resolveImportedExercises, resolvedExerciseId, unresolvedError } from './ProgramImportParser';
+import { validateWeekImportPayload, resolveImportedExercises, resolvedExerciseId, unresolvedError, ChooseExercises } from './ProgramImportParser';
 import { BlockConceptParser } from './BlockConceptParser';
 import { deriveTrainingDaysPerWeek, MatchingCriteria } from './templateLibrary';
 
@@ -16,7 +16,7 @@ export interface ImportSummary {
   training_days_per_week: number;
   week_count: number;
   block_count: number;
-  exercise_match_count: { by_id: number; by_name: number; newly_created: number };
+  exercise_match_count: { by_id: number; by_name: number; newly_created: number; removed: number };
 }
 
 function blockDisplayName(block: any, blockIdx: number): string {
@@ -62,36 +62,9 @@ export function buildLibraryTemplateBlocksPayload(data: any, resolved: Map<strin
   return payload;
 }
 
-// Read-only classification for the confirmation screen — mirrors
-// resolveImportedExercises's id-then-name tiers but performs no writes
-// (no auto-create), so calling this doesn't affect exercise_library.
-async function classifyExercises(blocks: any[]): Promise<ImportSummary['exercise_match_count']> {
-  const idsReferenced = new Set<string>();
-  const namesReferenced = new Set<string>();
-  blocks.forEach((b) =>
-    (b.exercises || []).forEach((ex: any) => {
-      if (ex.exercise_id) idsReferenced.add(ex.exercise_id);
-      else if (ex.name) namesReferenced.add(ex.name.trim());
-    })
-  );
-
-  let byId = 0;
-  if (idsReferenced.size > 0) {
-    const { data } = await supabase.from('exercise_library').select('id').in('id', Array.from(idsReferenced));
-    byId = (data || []).length;
-  }
-
-  let byName = 0;
-  for (const name of namesReferenced) {
-    const { data } = await supabase.from('exercise_library').select('id').ilike('name', name).limit(1).maybeSingle();
-    if (data) byName++;
-  }
-
-  const total = idsReferenced.size + namesReferenced.size;
-  return { by_id: byId, by_name: byName, newly_created: Math.max(0, total - byId - byName) };
-}
-
-export async function computeImportSummary(data: any): Promise<ImportSummary> {
+/** `matchCounts` comes from resolveImportedExercises, so "newly_created" is
+ * what the coach actually chose to add, not a guess made before asking. */
+export function computeImportSummary(data: any, matchCounts: ImportSummary['exercise_match_count']): ImportSummary {
   const blocks = (data.blocks as any[]) || [];
   const week1Blocks = blocks.filter((b) => blockWeekNumber(b) === 1);
   const weekCount = new Set(blocks.map((b) => blockWeekNumber(b))).size;
@@ -101,7 +74,7 @@ export async function computeImportSummary(data: any): Promise<ImportSummary> {
     training_days_per_week: deriveTrainingDaysPerWeek(week1Blocks.map((b, i) => blockDisplayName(b, i))),
     week_count: weekCount,
     block_count: blocks.length,
-    exercise_match_count: await classifyExercises(blocks),
+    exercise_match_count: matchCounts,
   };
 }
 
@@ -143,16 +116,18 @@ function extractEquipmentTags(data: any): string[] {
  */
 export async function importLibraryTemplate(
   data: any,
-  coachId: string
+  coachId: string,
+  chooseExercises: ChooseExercises
 ): Promise<{ templateId: string; summary: ImportSummary }> {
   const validation = validateWeekImportPayload(data);
   if (!validation.valid) {
     throw new Error(validation.error || 'The file is not in the expected shape.');
   }
 
-  const summary = await computeImportSummary(data);
-  const resolved = await resolveImportedExercises(data.blocks, coachId);
-  const blocks = buildLibraryTemplateBlocksPayload(data, resolved);
+  const { resolved, blocks: keptBlocks, counts } = await resolveImportedExercises(data.blocks, coachId, chooseExercises);
+  const fileData = { ...data, blocks: keptBlocks };
+  const summary = computeImportSummary(data, counts);
+  const blocks = buildLibraryTemplateBlocksPayload(fileData, resolved);
 
   const templateName = (data.template_name || 'IMPORTED TEMPLATE').toString();
   const description = (data.description || '').toString();

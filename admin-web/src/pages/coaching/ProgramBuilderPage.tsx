@@ -18,7 +18,8 @@ import {
   fetchMasterTemplateExportPayload,
   buildMasterTemplateBlocksPayload,
 } from '@/shared/MasterTemplateTransfer';
-import { resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
+import { isImportCancelled, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
+import { useExerciseMatchPrompt } from '@/components/ExerciseMatchDialog';
 import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './builder/builderIO';
 import { StaleNotice } from './builder/StaleNotice';
 import { LibraryTab } from './builder/LibraryTab';
@@ -38,6 +39,7 @@ function ImportTemplateButton({ onImported, disabled }: { onImported: () => void
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const exerciseMatch = useExerciseMatchPrompt();
 
   async function handleFile(file: File) {
     setBusy(true);
@@ -57,11 +59,12 @@ function ImportTemplateButton({ onImported, disabled }: { onImported: () => void
       const templateName = (data.template_name || 'Imported template').toString();
       const description = (data.description || '').toString();
 
-      const resolved = await resolveImportedExercises(data.blocks, profile!.id);
-      const blocks = buildMasterTemplateBlocksPayload(data, resolved);
+      const { resolved, blocks: keptBlocks } = await resolveImportedExercises(data.blocks, profile!.id, exerciseMatch.choose);
+      const blocks = buildMasterTemplateBlocksPayload({ ...data, blocks: keptBlocks }, resolved);
       await createTemplateFromImportedBlocks(templateName, description, blocks);
       onImported();
     } catch (err) {
+      if (isImportCancelled(err)) return;
       setError(err instanceof Error ? err : new Error('Import failed.'));
     } finally {
       setBusy(false);
@@ -90,6 +93,7 @@ function ImportTemplateButton({ onImported, disabled }: { onImported: () => void
         {busy ? 'Importing…' : 'Import from JSON'}
       </button>
       {error && <ErrorNote error={error} />}
+      {exerciseMatch.dialog}
     </span>
   );
 }
