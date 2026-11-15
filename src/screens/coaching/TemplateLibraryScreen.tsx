@@ -7,6 +7,9 @@ import { supabase } from '../../lib/supabase';
 import { LeapLogo } from '../../components/LeapLogo';
 import { styles } from './ProgramBuilderScreen.styles';
 import { importLibraryTemplate } from '../../lib/TemplateLibraryImport';
+import { isImportCancelled } from '../../lib/ProgramImportParser';
+import { useExerciseMatchPrompt } from '../../hooks/coaching/useExerciseMatchPrompt';
+import { ExerciseMatchModal } from '../../components/coaching/ExerciseMatchModal';
 import { publishLibraryTemplate } from '../../lib/TemplateLibraryPublish';
 import { TierRange } from '../../lib/templateLibrary';
 
@@ -101,6 +104,8 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
     }
   }
 
+  const exerciseMatch = useExerciseMatchPrompt();
+
   const handleImport = async () => {
     if (!coachId) return;
     setImporting(true);
@@ -129,14 +134,15 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
         return;
       }
 
-      const { summary } = await importLibraryTemplate(parsed, coachId);
+      const { summary } = await importLibraryTemplate(parsed, coachId, exerciseMatch.choose);
       const weekPhrase = summary.week_count > 1 ? ` over ${summary.week_count} weeks` : '';
       Alert.alert(
         'IMPORTED',
-        `Created "${summary.template_name}" with ${summary.block_count} block(s) across ${summary.training_days_per_week} day(s)/week${weekPhrase}. ${summary.exercise_match_count.newly_created} new exercise(s) created. Set a tier range and goal, then publish when ready.`
+        `Created "${summary.template_name}" with ${summary.block_count} block(s) across ${summary.training_days_per_week} day(s)/week${weekPhrase}. ${summary.exercise_match_count.newly_created} new exercise(s) created.${summary.exercise_match_count.removed ? ` ${summary.exercise_match_count.removed} exercise(s) left out.` : ''} Set a tier range and goal, then publish when ready.`
       );
       await loadTemplates();
     } catch (err: any) {
+      if (isImportCancelled(err)) return;
       console.error('Failed to import library template:', err);
       Alert.alert('IMPORT FAILED', err.message?.toUpperCase() || 'FAILED TO IMPORT TEMPLATE.');
     } finally {
@@ -365,6 +371,8 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
           </LinearGradient>
         ))
       )}
+
+      <ExerciseMatchModal {...exerciseMatch.modalProps} />
 
       <Modal visible={!!editingTemplate} transparent animationType="fade" onRequestClose={() => setEditingTemplate(null)}>
         <View style={styles.modalOverlay}>

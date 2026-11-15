@@ -31,7 +31,8 @@ import {
   shareMasterTemplateExportPayload,
   buildMasterTemplateBlocksPayload,
 } from '../../lib/MasterTemplateTransfer';
-import { validateWeekImportPayload, resolveImportedExercises } from '../../lib/ProgramImportParser';
+import { validateWeekImportPayload, resolveImportedExercises, isImportCancelled } from '../../lib/ProgramImportParser';
+import { useExerciseMatchPrompt } from './useExerciseMatchPrompt';
 
 
 interface ExerciseLibraryItem {
@@ -292,6 +293,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
     }
   };
 
+  const exerciseMatch = useExerciseMatchPrompt();
+
   const handleImportMasterTemplate = async () => {
     if (!coachId) return;
     setImportingTemplate(true);
@@ -325,8 +328,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       const templateName = (parsed.template_name || 'IMPORTED TEMPLATE').toString();
       const description = (parsed.description || '').toString();
 
-      const resolved = await resolveImportedExercises(parsed.blocks, coachId);
-      const blocks = buildMasterTemplateBlocksPayload(parsed, resolved);
+      const { resolved, blocks: keptBlocks } = await resolveImportedExercises(parsed.blocks, coachId, exerciseMatch.choose);
+      const blocks = buildMasterTemplateBlocksPayload({ ...parsed, blocks: keptBlocks }, resolved);
 
       const { data: result2, error } = await supabase.rpc('save_program_template', {
         p_template_id: null,
@@ -342,6 +345,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       Alert.alert('IMPORTED', `Created "${templateName}" with ${validation.blockCount} block(s).`);
       await loadMasterTemplates();
     } catch (err: any) {
+      if (isImportCancelled(err)) return;
       console.error('Failed to import master template:', err);
       Alert.alert('IMPORT FAILED', err.message?.toUpperCase() || 'FAILED TO IMPORT TEMPLATE.');
     } finally {
@@ -1263,6 +1267,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       successMessage, setSuccessMessage,
       exportingTemplateId,
       importingTemplate,
+      exerciseMatchModalProps: exerciseMatch.modalProps,
       coachId
     },
     actions: {

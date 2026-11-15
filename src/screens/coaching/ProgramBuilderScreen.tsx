@@ -11,6 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ExercisePickerModal } from '../../components/coaching/ExercisePickerModal';
 import { CopyBlockModal } from '../../components/coaching/CopyBlockModal';
+import { ExerciseMatchModal } from '../../components/coaching/ExerciseMatchModal';
 import { BuilderDayCard } from '../../components/coaching/BuilderDayCard';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
@@ -82,6 +83,7 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
     filteredLibrary,
     exportingTemplateId,
     importingTemplate,
+    exerciseMatchModalProps,
     coachId
   } = state;
 
@@ -371,6 +373,8 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
           libraryLoading={libraryLoading}
           categories={categories}
         />
+
+        <ExerciseMatchModal {...exerciseMatchModalProps} />
 
         <CopyBlockModal
           visible={copyModalVisible}
