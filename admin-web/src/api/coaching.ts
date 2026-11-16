@@ -515,6 +515,59 @@ export async function fetchAssignments(): Promise<AssignmentRow[]> {
   }));
 }
 
+/** Paused real-coach programs (not the athlete's own, library or AI ones),
+ * for the Coaching dashboard's Paused view. RLS: a coach sees their own and
+ * their assisted coaches' clients, an admin everyone's. */
+export async function fetchPausedClients(): Promise<AssignmentRow[]> {
+  const { data, error } = await supabase
+    .from('warrior_programs')
+    .select(
+      'id, template_id, warrior_id, coach_id, status, current_week, assigned_at, ' +
+        'warrior:profiles!warrior_programs_warrior_id_fkey(display_name), ' +
+        'coach:profiles!warrior_programs_coach_id_fkey(display_name), ' +
+        'template:program_templates!warrior_programs_template_id_fkey(name)',
+    )
+    .eq('status', 'paused')
+    .order('assigned_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  type Row = AssignmentRow & {
+    warrior: { display_name: string | null } | null;
+    coach: { display_name: string | null } | null;
+    template: { name: string } | null;
+  };
+  return ((data ?? []) as unknown as Row[])
+    .filter((r) => !isSystemCoach(r.coach_id) && r.coach_id !== r.warrior_id)
+    .map(({ warrior, coach, template, ...r }) => ({
+      ...r,
+      warrior_name: warrior?.display_name ?? null,
+      coach_name: coach?.display_name ?? null,
+      template_name: template?.name ?? null,
+    }));
+}
+
+/** Resumes a paused program, unless the athlete already trains on another
+ * active one (two active programs break their app). The check sees what
+ * RLS lets the caller see: every program for an admin, only their own
+ * clients' programs for a coach. */
+export async function resumeClientProgram(assignmentId: string, warriorId: string): Promise<void> {
+  const { data: other, error } = await supabase
+    .from('warrior_programs')
+    .select('id, template:program_templates!warrior_programs_template_id_fkey(name)')
+    .eq('warrior_id', warriorId)
+    .eq('status', 'active')
+    .neq('id', assignmentId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (other) {
+    const name = (other as unknown as { template: { name: string } | null }).template?.name;
+    throw new Error(
+      `They're training on another program right now${name ? ` ("${name}")` : ''}. Unassign it in Clients first, then resume this one.`,
+    );
+  }
+  await setAssignmentStatus(assignmentId, 'active');
+}
+
 export type ProgramUpdateType = 'program_assigned' | 'week_unlocked';
 
 /** Mirrors mobile's NotificationService.notifyClientProgramUpdate — the edge

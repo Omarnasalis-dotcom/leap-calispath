@@ -3,7 +3,11 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAssignment,
+  deleteClientData,
   fetchCoachDashboard,
+  fetchPausedClients,
+  resumeClientProgram,
+  type AssignmentRow,
   setAssignmentStatus,
   type CoachClientState,
   type CoachClientStatus,
@@ -18,6 +22,7 @@ import { ProgressDrawer } from './ProgressDrawer';
 import { PackagePanel } from './PackagePanel';
 import { CONTINUE_LABEL, isLow, MOOD_FACE, ReviewsPanel } from './ReviewsPanel';
 import { TestsPanel } from './TestsPanel';
+import { ClientActionsMenu } from './ClientActionsMenu';
 import './CoachDashboard.css';
 
 // The coach's home: every active client in one status, most urgent first,
@@ -170,6 +175,9 @@ function ClientRow({
   onOpen,
   onBuild,
   onClose,
+  onPause,
+  onDelete,
+  canDelete,
 }: {
   row: CoachClientState;
   ai: boolean;
@@ -178,6 +186,9 @@ function ClientRow({
   onOpen: () => void;
   onBuild: () => void;
   onClose: () => Promise<void>;
+  onPause: () => Promise<void>;
+  onDelete: () => Promise<void>;
+  canDelete: boolean;
 }) {
   const name = row.warrior_name || 'this athlete';
   const weekLabel =
@@ -238,8 +249,93 @@ function ClientRow({
             onConfirm={onClose}
           />
         )}
+        {!ai && (
+          <ClientActionsMenu
+            name={name}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onUnassign={onClose}
+            onPause={onPause}
+            onDelete={onDelete}
+          />
+        )}
       </div>
     </li>
+  );
+}
+
+/** Paused programs: the athlete doesn't see them in the app. Resume puts
+ * the program back as it was (same week, every log kept). */
+function PausedPanel({
+  rows,
+  loading,
+  error,
+  showCoach,
+  canEdit,
+  onResume,
+}: {
+  rows: AssignmentRow[];
+  loading: boolean;
+  error: unknown;
+  showCoach: boolean;
+  canEdit: (r: AssignmentRow) => boolean;
+  onResume: (r: AssignmentRow) => Promise<void>;
+}) {
+  return (
+    <section className="panel cd-group tone-muted" aria-labelledby="cd-paused">
+      <div className="panel-head">
+        <h2 id="cd-paused">
+          <span className="cd-chip-dot" aria-hidden="true" />
+          Paused
+        </h2>
+        <span className="label num">{rows.length}</span>
+      </div>
+      {error ? (
+        <div className="panel-body">
+          <ErrorNote error={error} />
+        </div>
+      ) : loading ? (
+        <div className="panel-body">
+          <div className="skeleton" style={{ height: 52 }} />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="panel-body cd-board-empty">
+          No paused programs. Pause one from a client's ⋯ menu to hide it from their app for now.
+        </div>
+      ) : (
+        <ul className="cd-list">
+          {rows.map((r) => {
+            const name = r.warrior_name || 'this athlete';
+            return (
+              <li key={r.id} className="cd-row">
+                <span className="cd-open cd-open-static">
+                  <span className="cd-who">
+                    <span className="cd-name">{r.warrior_name || 'Unnamed athlete'}</span>
+                    <span className="cd-program">
+                      {r.template_name ?? 'Program'} · Week {r.current_week ?? 1}
+                      {showCoach && r.coach_name ? ` · ${r.coach_name}` : ''}
+                    </span>
+                  </span>
+                  <span className="cd-reason">
+                    <span>Hidden from their app</span>
+                  </span>
+                </span>
+                <div className="cd-action">
+                  <ConfirmButton
+                    label="Resume"
+                    disabled={!canEdit(r)}
+                    title={`Resume ${name}'s program?`}
+                    body={`It comes back in ${name}'s app and on this dashboard, at week ${r.current_week ?? 1}, with every workout they logged.`}
+                    confirmLabel="Resume"
+                    onConfirm={() => onResume(r)}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -336,11 +432,33 @@ function ClientDrawer({ row, onClose, week, onWeekChange, ai, canEdit }: {
 }
 
 export function CoachDashboardPage() {
-  const { isAdmin, isCoachPaused, pausedAssistingCoachIds } = useAuth();
+  const { isAdmin, isCoachPaused, pausedAssistingCoachIds, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const toast = useToast();
+
+  // The ⋯ menu on a client row (unassign = onClose below). Each refreshes
+  // this dashboard and Clients, where a paused or completed program lives.
+  const refreshClients = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+      queryClient.invalidateQueries({ queryKey: ['paused-clients'] }),
+    ]);
+  const rowActions = (r: CoachClientState) => ({
+    canDelete: isAdmin || r.coach_id === profile?.id,
+    onPause: async () => {
+      await setAssignmentStatus(r.assignment_id, 'paused');
+      toast(`${r.warrior_name || 'Program'} paused. Resume it from Paused.`);
+      await refreshClients();
+    },
+    onDelete: async () => {
+      await deleteClientData(r.assignment_id);
+      toast(`${r.warrior_name || 'Program'} deleted.`);
+      await refreshClients();
+    },
+  });
   // Filter, source and the open client live in the address, so "Save &
   // return" from the editor lands back on the same view.
   const [params, setParams] = useSearchParams();
@@ -353,6 +471,8 @@ export function CoachDashboardPage() {
   const ai = source === 'ai';
   // Packages ending within 2 weeks or already expired (its own view).
   const renewalsView = !ai && statusParam === 'renewals';
+  // Paused programs: hidden from the athlete's app, resumed from here.
+  const pausedView = !ai && statusParam === 'paused';
 
   const update = useCallback(
     (changes: Record<string, string | null>) =>
@@ -394,6 +514,13 @@ export function CoachDashboardPage() {
     refetchInterval: 5 * 60_000,
   });
 
+  const pausedQ = useQuery({
+    queryKey: ['paused-clients'],
+    queryFn: fetchPausedClients,
+    enabled: !ai,
+  });
+  const paused = pausedQ.data ?? [];
+
   const rows = useMemo(() => data ?? [], [data]);
   const counts = useMemo(() => {
     const c = Object.fromEntries(GROUPS.map((g) => [g.status, 0])) as Record<CoachClientStatus, number>;
@@ -426,7 +553,7 @@ export function CoachDashboardPage() {
     );
   };
 
-  const groups = renewalsView ? [] : GROUPS.filter((g) => (filter ? g.status === filter : counts[g.status] > 0));
+  const groups = renewalsView || pausedView ? [] : GROUPS.filter((g) => (filter ? g.status === filter : counts[g.status] > 0));
   const renewals = rows
     .filter(needsRenewal)
     .sort((a, b) => (a.package_days_left ?? 0) - (b.package_days_left ?? 0));
@@ -461,7 +588,7 @@ export function CoachDashboardPage() {
       {error && <ErrorNote error={error} />}
 
       <div className="cd-chips" role="group" aria-label="Show">
-        <button type="button" className="cd-chip" aria-pressed={!filter && !renewalsView} onClick={() => update({ status: null })}>
+        <button type="button" className="cd-chip" aria-pressed={!filter && !renewalsView && !pausedView} onClick={() => update({ status: null })}>
           All <span className="num">{rows.length}</span>
         </button>
         {GROUPS.map((g) => (
@@ -486,6 +613,18 @@ export function CoachDashboardPage() {
           >
             <span className="cd-chip-dot" aria-hidden="true" />
             Renewals <span className="num">{renewals.length}</span>
+          </button>
+        )}
+        {!ai && (
+          <button
+            type="button"
+            className="cd-chip tone-muted"
+            aria-pressed={pausedView}
+            title="Programs you paused: hidden from the athlete's app until you resume them"
+            onClick={() => update({ status: pausedView ? null : 'paused' })}
+          >
+            <span className="cd-chip-dot" aria-hidden="true" />
+            Paused <span className="num">{paused.length}</span>
           </button>
         )}
       </div>
@@ -535,15 +674,31 @@ export function CoachDashboardPage() {
                       onBuild={() => build(r)}
                       onClose={async () => {
                         await setAssignmentStatus(r.assignment_id, 'completed');
-                        await queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] });
+                        toast(`${r.warrior_name || 'Program'} closed. It's under Completed in Clients.`);
+                        await refreshClients();
                       }}
+                      {...rowActions(r)}
                     />
                   ))}
                 </ul>
               )}
             </section>
           )}
-          {!isLoading && rows.length > 0 && !renewalsView && groups.length === 0 && (
+          {pausedView && (
+            <PausedPanel
+              rows={paused}
+              loading={pausedQ.isLoading}
+              error={pausedQ.error}
+              showCoach={new Set(paused.map((r) => r.coach_id)).size > 1}
+              canEdit={(r) => !isCoachPaused && !pausedAssistingCoachIds.includes(r.coach_id)}
+              onResume={async (r) => {
+                await resumeClientProgram(r.id, r.warrior_id);
+                toast(`${r.warrior_name || 'Program'} resumed. It's back in their app.`);
+                await refreshClients();
+              }}
+            />
+          )}
+          {!isLoading && rows.length > 0 && !renewalsView && !pausedView && groups.length === 0 && (
             <section className="panel">
               <div className="empty">
                 <span className="label">Nobody here</span>
@@ -578,11 +733,9 @@ export function CoachDashboardPage() {
                         onClose={async () => {
                           await setAssignmentStatus(r.assignment_id, 'completed');
                           toast(`${r.warrior_name || 'Program'} closed. It's under Completed in Clients.`);
-                          await Promise.all([
-                            queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] }),
-                            queryClient.invalidateQueries({ queryKey: ['assignments'] }),
-                          ]);
+                          await refreshClients();
                         }}
+                        {...rowActions(r)}
                       />
                     ))}
                   </ul>
