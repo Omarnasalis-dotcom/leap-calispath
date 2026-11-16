@@ -60,6 +60,29 @@ function formatValue(r: TestResult): string {
   return v;
 }
 
+/** The result in one line, for Week logs: "20 reps · One Min Max · PB",
+ * "Full front lever · 5 s · Static World", "Video sent · Passed",
+ * "Skipped · Injury / pain". Same words as this panel. */
+export function testResultLine(r: TestResult): string {
+  if (r.status === 'skipped') {
+    return ['Skipped', r.skip_reason ? SKIP_LABEL[r.skip_reason] : null].filter(Boolean).join(' · ');
+  }
+  if (r.test_kind === 'form_check') {
+    const grade = r.coach_grade === 'pass' ? 'Passed' : r.coach_grade === 'needs_work' ? 'Needs work' : 'Waiting for your grade';
+    return `Video sent on WhatsApp · ${grade}`;
+  }
+  const world =
+    r.world_status === 'saved'
+      ? `${WORLD_NAME[r.test_kind]}${r.is_new_pb ? ' · PB' : ''}`
+      : r.world_status === 'locked'
+      ? 'World locked · test only'
+      : r.world_status === 'no_world'
+      ? 'Test record only'
+      : null;
+  const hold = r.test_kind === 'max_hold' && r.movement_id ? HOLD_NAMES[r.movement_id] ?? null : null;
+  return [hold, formatValue(r), world].filter(Boolean).join(' · ');
+}
+
 function blockItemName(b: TestBlock): string {
   const i = b.name.indexOf(' | ');
   const name = (i >= 0 ? b.name.slice(i + 3) : b.name).trim();
