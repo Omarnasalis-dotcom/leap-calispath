@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/auth/AuthProvider';
 import { ErrorNote } from '@/components/bits';
@@ -20,6 +21,24 @@ import { TEST_KINDS, isDefaultBlockName, testItemBlockName, testMovementOptions 
 // test week, what the athlete logged (or why they skipped), whether it went
 // into a world, the change since their last test of the same movement, and
 // a pass / needs-work grade for form checks.
+
+// Open by default; a coach who folds it keeps it folded (this browser only).
+const COLLAPSED_KEY = 'leap.testsPanel.collapsed';
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeCollapsed(collapsed: boolean) {
+  try {
+    if (collapsed) window.localStorage.setItem(COLLAPSED_KEY, '1');
+    else window.localStorage.removeItem(COLLAPSED_KEY);
+  } catch {
+    // Storage blocked: it just opens again next time.
+  }
+}
 
 const HOLD_NAMES: Record<string, string> = {
   tuck_front_lever: 'Tuck front lever',
@@ -58,6 +77,29 @@ function formatValue(r: TestResult): string {
   if (r.unit === 'kg') return `${v} kg`;
   if (r.unit === 'seconds') return `${v} s`;
   return v;
+}
+
+/** The result in one line, for Week logs: "20 reps · One Min Max · PB",
+ * "Full front lever · 5 s · Static World", "Video sent · Passed",
+ * "Skipped · Injury / pain". Same words as this panel. */
+export function testResultLine(r: TestResult): string {
+  if (r.status === 'skipped') {
+    return ['Skipped', r.skip_reason ? SKIP_LABEL[r.skip_reason] : null].filter(Boolean).join(' · ');
+  }
+  if (r.test_kind === 'form_check') {
+    const grade = r.coach_grade === 'pass' ? 'Passed' : r.coach_grade === 'needs_work' ? 'Needs work' : 'Waiting for your grade';
+    return `Video sent on WhatsApp · ${grade}`;
+  }
+  const world =
+    r.world_status === 'saved'
+      ? `${WORLD_NAME[r.test_kind]}${r.is_new_pb ? ' · PB' : ''}`
+      : r.world_status === 'locked'
+      ? 'World locked · test only'
+      : r.world_status === 'no_world'
+      ? 'Test record only'
+      : null;
+  const hold = r.test_kind === 'max_hold' && r.movement_id ? HOLD_NAMES[r.movement_id] ?? null : null;
+  return [hold, formatValue(r), world].filter(Boolean).join(' · ');
 }
 
 function blockItemName(b: TestBlock): string {
@@ -237,6 +279,13 @@ export function TestsPanel({
   assignment: { id: string; template_id: string; warrior_id: string; coach_id: string };
 }) {
   const { profile } = useAuth();
+  const [open, setOpen] = useState(() => !readCollapsed());
+  const bodyId = useId();
+  const toggle = () =>
+    setOpen((o) => {
+      writeCollapsed(o);
+      return !o;
+    });
   const isCoachProgram = programSource(assignment.coach_id) === 'coach';
   const blocksQ = useQuery({
     queryKey: ['test-blocks', assignment.template_id],
@@ -271,9 +320,41 @@ export function TestsPanel({
   const orphans = mine.filter((r) => !r.block_id || !blocks.some((b) => b.id === r.block_id));
   const isProgramCoach = profile?.id === assignment.coach_id;
 
+  // Folded: the newest test week in one line, and how many form checks wait for a grade.
+  const latestWeek = weeks[0];
+  const latestItems = latestWeek != null ? blocks.filter((b) => b.week_number === latestWeek) : [];
+  const latestDone = latestItems.filter((b) => byBlock.has(b.id)).length;
+  const toGrade = mine.filter((r) => r.test_kind === 'form_check' && r.status === 'done' && !r.coach_grade).length;
+
   return (
     <section className="pkg tp" aria-label="Test weeks">
-      <span className="label">Tests</span>
+      <div className="pkg-line">
+        <button
+          type="button"
+          className="tp-collapse"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={toggle}
+        >
+          <ChevronDown className={open ? 'open' : undefined} aria-hidden="true" />
+          <span className="label">Tests</span>
+        </button>
+        {!open && latestWeek != null && (
+          <>
+            <span className="pkg-dates">Week {latestWeek} test</span>
+            <span className={`pkg-state${latestDone === latestItems.length ? ' ok' : ''}`}>
+              {latestDone}/{latestItems.length} done
+            </span>
+            {weeks.length > 1 && <span className="pkg-dim">· {weeks.length} test weeks</span>}
+          </>
+        )}
+        {!open && toGrade > 0 && (
+          <span className="pkg-state warn">
+            · {toGrade} form check{toGrade === 1 ? '' : 's'} to grade
+          </span>
+        )}
+      </div>
+      <div id={bodyId} className="tp-body" hidden={!open}>
       {isProgramCoach && <WhatsAppField />}
       {weeks.map((week) => {
         const items = blocks.filter((b) => b.week_number === week);
@@ -353,6 +434,7 @@ export function TestsPanel({
           </ul>
         </div>
       )}
+      </div>
     </section>
   );
 }

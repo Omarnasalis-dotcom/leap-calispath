@@ -19,7 +19,9 @@ import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/Prog
 import { buildImportBlocksPayload, isImportCancelled, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
 import { useExerciseMatchPrompt } from '@/components/ExerciseMatchDialog';
 import { loadTemplateWeeks } from './builder/builderIO';
-import { athleteNotes, blockStatus, buildWeek, SegmentBar, WeekLogs } from './WeekLogs';
+import { athleteNotes, blockStatus, buildWeek, hasTestItems, SegmentBar, WeekLogs } from './WeekLogs';
+import { fetchTestResults, type TestResult } from '@/api/tests';
+import { programSource } from '@/shared/constants';
 import { LastLogsProvider } from './builder/LastLogs';
 import { buildHistory, computeInsights, weekTotals } from './weekInsights';
 
@@ -301,6 +303,19 @@ export function ProgressDrawer({
     return `/coaching/clients/${assignment.id}?week=${selectedWeek}&from=${encodeURIComponent(from)}`;
   })();
 
+  // Coach Test Week results (same query as the Tests panel, shared cache),
+  // shown in Week logs in place of the sets a test item doesn't have.
+  const testsQ = useQuery({
+    queryKey: ['test-results', assignment.warrior_id],
+    queryFn: () => fetchTestResults(assignment.warrior_id),
+    enabled: programSource(assignment.coach_id) === 'coach',
+  });
+  const testResults = useMemo(() => {
+    const m = new Map<string, TestResult>();
+    for (const r of testsQ.data ?? []) if (r.warrior_program_id === assignment.id && r.block_id) m.set(r.block_id, r);
+    return m;
+  }, [testsQ.data, assignment.id]);
+
   const visibleLogs = useMemo(
     () => (data?.logs ?? []).filter((l) => selectedWeek !== null && (l.week_number ?? 1) === selectedWeek),
     [data, selectedWeek],
@@ -316,6 +331,9 @@ export function ProgressDrawer({
   const prevLogs = (data?.logs ?? []).filter((l) => prevWeek !== null && (l.week_number ?? 1) === prevWeek);
   const prev = prevWeek !== null ? buildWeek(prevDays, prevLogs).summary : null;
   const totals = weekTotals(visibleLogs);
+  // A test week whose only results are test items has no sets: say so
+  // instead of "—" and a red ▼100% (a week with training reps compares as usual).
+  const testWeek = hasTestItems(days) && !totals.reps;
   const prevTotals = prevWeek !== null ? weekTotals(prevLogs) : null;
   const history = useMemo(() => buildHistory(data?.logs ?? []), [data]);
   // The athlete's notes this week; clicking one opens its block below.
@@ -477,15 +495,21 @@ export function ProgressDrawer({
               <div>
                 <dt>Reps</dt>
                 <dd className="num">
-                  {totals.reps ? totals.reps.toLocaleString() : '—'}
-                  {prevTotals && prevTotals.reps > 0 && <Delta now={totals.reps} before={prevTotals.reps} percent />}
+                  {testWeek ? (
+                    <>Test week<span className="wl-fact-sub">see Tests</span></>
+                  ) : (
+                    <>
+                      {totals.reps ? totals.reps.toLocaleString() : '—'}
+                      {!testWeek && prevTotals && prevTotals.reps > 0 && <Delta now={totals.reps} before={prevTotals.reps} percent />}
+                    </>
+                  )}
                 </dd>
               </div>
               <div>
                 <dt>Volume</dt>
                 <dd className="num">
-                  {totals.volume ? `${totals.volume.toLocaleString()} kg` : '—'}
-                  {prevTotals && prevTotals.volume > 0 && <Delta now={totals.volume} before={prevTotals.volume} percent />}
+                  {totals.volume ? `${totals.volume.toLocaleString()} kg` : testWeek ? 'Test week' : '—'}
+                  {!testWeek && prevTotals && prevTotals.volume > 0 && <Delta now={totals.volume} before={prevTotals.volume} percent />}
                 </dd>
               </div>
               <div>
@@ -551,7 +575,7 @@ export function ProgressDrawer({
           <WeekNote warriorProgramId={assignment.id} weekNumber={selectedWeek} />
 
           <LastLogsProvider logs={data.logs} activeWeek={selectedWeek} progressPath={null}>
-            <WeekLogs days={days} logs={visibleLogs} history={history} focus={focus} />
+            <WeekLogs days={days} logs={visibleLogs} history={history} focus={focus} testResults={testResults} />
           </LastLogsProvider>
         </>
       )}

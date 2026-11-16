@@ -7,6 +7,9 @@ import { formatDate } from '@/shared/constants';
 import type { BuilderBlock, BuilderDay, BuilderExercise } from './builder/types';
 import { progressFor, type ExerciseProgress } from './weekInsights';
 import { LastLogButton } from './builder/LastLogs';
+import { isTestKind } from '@/shared/testItems';
+import type { TestResult } from '@/api/tests';
+import { testResultLine } from './TestsPanel';
 
 type History = ReturnType<typeof import('./weekInsights').buildHistory>;
 
@@ -123,8 +126,11 @@ function BlockLog({
   onToggle,
   history,
   flash,
+  testResult,
 }: {
   history: History;
+  /** A Coach Test Week item's result: shown instead of the sets table. */
+  testResult?: TestResult | null;
   dayName: string;
   /** Just opened from an athlete note: highlighted for a moment. */
   flash: boolean;
@@ -162,7 +168,12 @@ function BlockLog({
   if (log && status === 'done') for (const [k, exSets] of byExercise) progress.set(k, progressFor(history, k, log.id, exSets));
   const prCount = [...progress.values()].filter((p) => p && p.prIndexes.size > 0).length;
   const sameDay = !!log && !!dayDate && formatDate(log.completed_at) === formatDate(dayDate);
-  const meta = [
+  // A test item's result is saved as a test result, not as sets, so it is
+  // shown as one line (same words as the Tests panel) instead of the empty
+  // sets table. A test block logged without one (an app from before test
+  // weeks showed it as a normal block) keeps the normal table.
+  const testLine = isTestKind(block.metadata.test_kind) && testResult && log ? testResultLine(testResult) : null;
+  const meta = testLine ? [log && !sameDay && formatDate(log.completed_at), testLine].filter(Boolean) : [
     log && !sameDay && formatDate(log.completed_at),
     log?.feel && `Feel ${FEEL_LABELS[log.feel] ?? log.feel}`,
     log?.rpe != null && (exerciseRpe.size > 0 ? `RPE ${log.rpe} average` : `RPE ${log.rpe}`),
@@ -191,7 +202,7 @@ function BlockLog({
         <span className="wl-head-spacer" />
         {prCount > 0 && <span className="wl-pr-count">★ {prCount} PR{prCount === 1 ? '' : 's'}</span>}
         {meta.length > 0 && <span className="wl-meta">{meta.join(' · ')}</span>}
-        {status === 'missed' && (
+        {status === 'missed' && !testLine && (
           <Badge tone="warn">
             {`Missed · ${log?.missed_reason ? MISSED_LABELS[log.missed_reason] ?? log.missed_reason : 'no reason'}`}
           </Badge>
@@ -201,6 +212,12 @@ function BlockLog({
       <div className="wl-block-body" id={bodyId} hidden={!open}>
         {status === 'missed' && log?.missed_detail && <div className="wl-note">“{log.missed_detail}”</div>}
 
+        {testLine ? (
+          <>
+            <div className="wl-results"><span>{testLine}</span></div>
+            {testResult?.coach_note && <div className="wl-note">Your note: “{testResult.coach_note}”</div>}
+          </>
+        ) : (
         <div className="table-wrap">
           <table className="data wl-table">
             {/* Same column positions in every block, so the page scans straight down. */}
@@ -283,8 +300,9 @@ function BlockLog({
             </tbody>
           </table>
         </div>
+        )}
 
-        {results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>{r}</span>)}</div>}
+        {!testLine && results.length > 0 && <div className="wl-results">{results.map((r) => <span key={r}>{r}</span>)}</div>}
         {own && <div className="wl-note">“{own}”</div>}
       </div>
     </div>
@@ -394,11 +412,14 @@ export function WeekLogs({
   logs,
   history,
   focus,
+  testResults,
 }: {
   days: BuilderDay[];
   logs: WarriorProgressLog[];
   history: History;
   focus?: { blockId: string; nonce: number } | null;
+  /** Coach Test Week results of this program, by block id. */
+  testResults?: Map<string, TestResult>;
 }) {
   const { byBlock, orphans } = buildWeek(days, logs);
   // Blocks start collapsed (one-line summary each); this holds the ones opened.
@@ -507,6 +528,7 @@ export function WeekLogs({
                   onToggle={() => toggle(b.db_id!)}
                   history={history}
                   flash={flashId === b.db_id}
+                  testResult={testResults?.get(b.db_id!) ?? null}
                 />
               ))}
           </section>
@@ -531,3 +553,7 @@ export function WeekLogs({
   );
 }
 
+/** The week has Coach Test Week items (their results aren't sets). */
+export function hasTestItems(days: BuilderDay[]): boolean {
+  return days.some((d) => d.blocks.some((b) => b.db_id && isTestKind(b.metadata.test_kind)));
+}
