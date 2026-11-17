@@ -1,10 +1,14 @@
 import { supabase } from '../lib/supabase';
-import { INBOX_TYPE, toInboxItem, type GiftClaim, type InboxItem, type InboxRow } from '../lib/inbox';
+import { ACTIVITY_TYPES, INBOX_TYPE, INBOX_WINDOW_DAYS, belongsInInbox, toInboxItem, type GiftClaim, type InboxItem, type InboxRow } from '../lib/inbox';
 
-// Messages from the Leap team: the inbox list, the unread badge, gift claims
-// and the notification switches. Reads are the user's own rows (RLS).
+// The Notifications screen: the list, the unread dot, gift claims and the
+// notification switches. Reads are the user's own rows (RLS).
 
-const INBOX_LIMIT = 50;
+const INBOX_LIMIT = 60;
+
+// Rows of a listed type, or any row the server marked for the inbox.
+const INBOX_FILTER = `type.in.(${[INBOX_TYPE, ...ACTIVITY_TYPES].join(',')}),data->>inbox.eq.true`;
+const windowStart = () => new Date(Date.now() - INBOX_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -31,19 +35,21 @@ export class InboxService {
   static async fetchInbox(): Promise<InboxItem[]> {
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, title, body, data, read_at, created_at')
-      .eq('type', INBOX_TYPE)
+      .select('id, type, title, body, data, read_at, created_at')
+      .or(INBOX_FILTER)
+      .gte('created_at', windowStart())
       .order('created_at', { ascending: false })
       .limit(INBOX_LIMIT);
     if (error) throw new Error(error.message);
-    return ((data ?? []) as InboxRow[]).map(toInboxItem);
+    return ((data ?? []) as InboxRow[]).filter(belongsInInbox).map(toInboxItem);
   }
 
   static async fetchUnreadCount(): Promise<number> {
     const { count, error } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('type', INBOX_TYPE)
+      .or(INBOX_FILTER)
+      .gte('created_at', windowStart())
       .is('read_at', null);
     if (error) throw new Error(error.message);
     return count ?? 0;

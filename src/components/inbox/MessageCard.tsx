@@ -6,17 +6,44 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeAsync } from '../../hooks/useSafeAsync';
 import { InboxService } from '../../services/InboxService';
-import { giftState, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
+import { INBOX_TYPE, giftState, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
 import { formatUntilDate } from '../../lib/coachUsage';
 import { track } from '../../lib/analytics';
 import { t } from '../../i18n';
 import { TC_COLORS, TCPalette } from '../../../constants/trainingCenterTokens';
 
-const ICON: Record<InboxItem['kind'], keyof typeof MaterialCommunityIcons.glyphMap> = {
+type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
+
+// The clipboard module is native. A build made before it was added (an old
+// development client) doesn't have it, and importing it there throws: load it
+// softly, and fall back to press-and-hold on the code.
+let Clipboard: { setStringAsync: (text: string) => Promise<boolean> } | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Clipboard = require('expo-clipboard');
+} catch {
+  Clipboard = null;
+}
+
+const ICON: Record<InboxItem['kind'], IconName> = {
   news: 'bullhorn-outline',
   gift: 'gift-outline',
   discount: 'ticket-percent-outline',
 };
+
+// The app's own notifications; any other type gets the bell.
+const TYPE_ICON: Record<string, IconName> = {
+  weekly_challenge_started: 'trophy-outline',
+  leaderboard_overtaken: 'chevron-triple-up',
+  client_program_update: 'clipboard-text-outline',
+  week_complete_nudge: 'check-decagram-outline',
+  program_review_ready: 'shield-check-outline',
+};
+
+function iconFor(item: InboxItem): IconName {
+  if (item.type === INBOX_TYPE) return ICON[item.kind];
+  return TYPE_ICON[item.type] ?? 'bell-outline';
+}
 
 interface Props {
   item: InboxItem;
@@ -42,6 +69,17 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
   const [justClaimed, setJustClaimed] = useState(false);
   const [claimedUntil, setClaimedUntil] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = () => {
+    if (!Clipboard || !item.code) return;
+    Clipboard.setStringAsync(item.code)
+      .then(() => {
+        track('admin_message_action', { kind: 'copy_code', source });
+        setCopied(true);
+      })
+      .catch(() => { });
+  };
 
   const state = justClaimed ? 'claimed' : giftState(claim, Date.now());
   const newsRoute = routeFor(item);
@@ -87,7 +125,7 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     <View style={bare ? styles.bare : styles.card}>
       <View style={styles.head}>
         <View style={styles.iconWell}>
-          <MaterialCommunityIcons name={ICON[item.kind]} size={20} color={c.coral} />
+          <MaterialCommunityIcons name={iconFor(item)} size={20} color={c.coral} />
         </View>
         <View style={styles.headText}>
           <Text style={styles.title}>{item.title}</Text>
@@ -118,7 +156,14 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
             <Text style={styles.codeLabel}>{t('inbox.yourCode')}</Text>
             {/* selectable: press and hold copies it (iPhone's code sheet can't be pre-filled). */}
             <Text style={styles.code} selectable>{item.code}</Text>
-            <Text style={styles.codeHint}>{t('inbox.copyHint')}</Text>
+            {Clipboard ? (
+              <TouchableOpacity accessibilityRole="button" style={styles.copyBtn} onPress={copyCode} hitSlop={8}>
+                <MaterialCommunityIcons name={copied ? 'check' : 'content-copy'} size={14} color={c.coralText} />
+                <Text style={styles.copyBtnText}>{copied ? t('inbox.copied') : t('inbox.copy')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.codeHint}>{t('inbox.copyHint')}</Text>
+            )}
           </View>
           <TouchableOpacity
             accessibilityRole="button"
@@ -207,6 +252,8 @@ function getStyles(c: TCPalette) {
     codeLabel: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
     code: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 22, letterSpacing: 3 },
     codeHint: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 11 },
+    copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: c.chipActiveBg, marginTop: 2 },
+    copyBtnText: { color: c.coralText, fontFamily: 'PlusJakartaSans-Bold', fontSize: 12 },
     giftPill: {
       alignSelf: 'flex-start',
       backgroundColor: c.chipActiveBg,

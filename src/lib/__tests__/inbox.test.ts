@@ -1,4 +1,4 @@
-import { giftState, isExpired, isGroupOn, pickPromptItem, routeFor, toInboxItem, visibleItems, withGroup, type GiftClaim, type InboxRow } from '../inbox';
+import { belongsInInbox, giftState, isExpired, isGroupOn, pickPromptItem, routeFor, toInboxItem, visibleItems, withGroup, type GiftClaim, type InboxRow } from '../inbox';
 
 const NOW = new Date('2026-11-17T12:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
@@ -74,6 +74,45 @@ describe('message extras (usable later without an app release)', () => {
 
   it('reads a gift with its own text', () => {
     expect(toInboxItem(row({ data: { kind: 'gift', claim_id: 'c1', gift_text: '50 Journey points' } })).giftText).toBe('50 Journey points');
+  });
+});
+
+describe("the app's own notifications", () => {
+  it('lists the chosen types and leaves reminders and personal bests out', () => {
+    for (const type of ['admin_message', 'weekly_challenge_started', 'leaderboard_overtaken', 'client_program_update', 'week_complete_nudge', 'program_review_ready']) {
+      expect(belongsInInbox(row({ type }))).toBe(true);
+    }
+    for (const type of ['daily_reminder', 'weekly_challenge_ending', 'power_pb', 'tier_promotion', 'live_half_started', 'client_workout_logged']) {
+      expect(belongsInInbox(row({ type }))).toBe(false);
+    }
+  });
+
+  it('lets the server add or hide a row with data.inbox', () => {
+    expect(belongsInInbox(row({ type: 'some_future_type', data: { inbox: true } }))).toBe(true);
+    expect(belongsInInbox(row({ type: 'weekly_challenge_started', data: { inbox: false } }))).toBe(false);
+  });
+
+  it('treats a row without a type as a team message', () => {
+    expect(belongsInInbox(row())).toBe(true);
+    expect(toInboxItem(row()).type).toBe('admin_message');
+  });
+
+  it('reads the screen and its params from the top level of data', () => {
+    const item = toInboxItem(row({ type: 'program_review_ready', data: { screen: 'warrior-program', review_id: 'r1', key: 'x:w1' } }));
+    expect(item).toMatchObject({ kind: 'news', screen: 'warrior-program', params: { review_id: 'r1' } });
+    expect(routeFor(item)).toBe('/warrior-program?review_id=r1');
+  });
+
+  it('never treats one as a gift or a code, whatever its data says', () => {
+    const item = toInboxItem(row({ type: 'leaderboard_overtaken', data: { kind: 'gift', claim_id: 'c1', screen: 'profile' } }));
+    expect(item).toMatchObject({ kind: 'news', claimId: null, screen: 'profile' });
+  });
+
+  it('does not pop up unless the server asks', () => {
+    const quiet = toInboxItem(row({ id: 'a', type: 'weekly_challenge_started', data: { screen: 'weekly-challenge' } }));
+    const loud = toInboxItem(row({ id: 'b', type: 'weekly_challenge_started', data: { screen: 'weekly-challenge', popup: true } }));
+    expect(pickPromptItem([quiet], NOW)).toBeNull();
+    expect(pickPromptItem([quiet, loud], NOW)?.id).toBe('b');
   });
 });
 
