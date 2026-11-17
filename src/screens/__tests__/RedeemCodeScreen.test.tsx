@@ -18,7 +18,11 @@ jest.mock('react-native-purchases', () => ({
     removeCustomerInfoUpdateListener: jest.fn(),
   },
 }));
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), canGoBack: () => true, canDismiss: () => false, replace: jest.fn() } }));
+let mockParams: { code?: string } = {};
+jest.mock('expo-router', () => ({
+  router: { back: jest.fn(), canGoBack: () => true, canDismiss: () => false, replace: jest.fn() },
+  useLocalSearchParams: () => mockParams,
+}));
 const mockRpc = jest.fn();
 jest.mock('../../lib/supabase', () => ({
   supabase: { rpc: (...args: unknown[]) => mockRpc(...args), functions: { invoke: jest.fn() } },
@@ -42,7 +46,7 @@ const codeOption = { id: 'pro-1month:pro-1month-code', tags: ['rc-ignore-offer']
 const P = Purchases as unknown as Record<string, jest.Mock>;
 
 let r: ReactTestRenderer;
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => { jest.clearAllMocks(); mockParams = {}; });
 afterEach(() => act(() => r?.unmount()));
 
 async function redeem(typed: string) {
@@ -54,6 +58,12 @@ async function redeem(typed: string) {
 describe('Android: Leap codes checked by the server, bought in-app', () => {
   beforeEach(() => { jest.replaceProperty(Platform, 'OS', 'android'); });
   afterEach(() => { jest.restoreAllMocks(); });
+
+  it('starts with the code a discount message opened it with', async () => {
+    mockParams = { code: 'LEAP30' };
+    await act(async () => { r = create(<RedeemCodeScreen />); });
+    expect(r.root.findByType(TextInput).props.value).toBe('LEAP30');
+  });
 
   it('rejects a code with symbols without asking the server', async () => {
     await redeem('LEAP-30');

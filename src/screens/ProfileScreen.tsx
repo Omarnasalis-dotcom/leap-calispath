@@ -23,6 +23,7 @@ import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { useProfileSubTab } from '../contexts/ProfileSubTabContext';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
+import { InboxBell } from '../components/inbox/InboxBell';
 import { StrengthClimbView } from '../components/strength/StrengthClimbView';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
@@ -340,6 +341,7 @@ export function ProfileScreen({
               >
                 <MaterialCommunityIcons name="cog-outline" size={18} color={getWorldNeutrals(mode).textSecondary} />
               </TouchableOpacity>
+              <InboxBell color={getWorldNeutrals(mode).textSecondary} style={styles.inboxBellButton} />
 
               <ProfileHeader
                 scrollRef={mainScrollRef}
@@ -518,6 +520,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     left: 12,
+    zIndex: 100,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Next to the gear (the other corner is the AI Coach button): opens
+  // messages from the Leap team.
+  inboxBellButton: {
+    position: 'absolute',
+    top: 12,
+    left: 60,
     zIndex: 100,
     width: 40,
     height: 40,
