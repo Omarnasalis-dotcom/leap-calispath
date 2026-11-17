@@ -47,12 +47,18 @@ interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
   activeTab?: 'profile' | 'strength';
+  /** From a notification: open the Strength board of this tier ("0".."9"). */
+  boardTier?: string;
+  /** From a notification: 'wra' opens the Well-Rounded leaderboard. */
+  board?: string;
 }
 
 export function ProfileScreen({
   initialCategory = 'strength',
   initialTier = 0,
   activeTab: initialActiveTab,
+  boardTier,
+  board,
 }: ProfileScreenProps) {
   const syncedUserIds = useRef(new Set<string>());
   const router = useRouter();
@@ -141,6 +147,28 @@ export function ProfileScreen({
     // Only on a switch; the param itself is synced on focus above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+  // A notification about a leaderboard ("someone beat your time in Tier 3",
+  // "…on the Well-Rounded leaderboard", "new best time") opens that board.
+  // The params are cleared once used, so coming back here later doesn't
+  // reopen it, and the same push can open it again.
+  const [strengthFocus, setStrengthFocus] = useState<{ tier: number; at: number } | null>(null);
+  const openWraRef = useRef<(() => void) | null>(null);
+  const hasProfile = !!profile;
+  useEffect(() => {
+    const tier = boardTier != null && /^\d$/.test(boardTier) ? Number(boardTier) : null;
+    if (tier != null) {
+      setActiveTab('strength');
+      setStrengthFocus({ tier, at: Date.now() });
+      router.setParams({ boardTier: undefined });
+    }
+    // The Well-Rounded board lives on Profile and needs the profile loaded.
+    if (board === 'wra' && hasProfile) {
+      setActiveTab('profile');
+      openWraRef.current?.();
+      router.setParams({ board: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardTier, board, hasProfile]);
   const [showSettings, setShowSettings] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
@@ -301,6 +329,8 @@ export function ProfileScreen({
     }
   };
 
+  openWraRef.current = () => { fetchWRALeaderboard(); };
+
   const handleWraScopeChange = (scope: 'public' | 'community') => {
     setWraScope(scope);
     fetchWRALeaderboard(scope);
@@ -330,6 +360,7 @@ export function ProfileScreen({
             profile={profile}
             onStartTrial={onStartTrial}
             onShowTierDetails={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+            focus={strengthFocus}
           />
         ) : (
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
