@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Platform, StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -7,8 +7,8 @@ import { InboxService, onInboxChanged } from '../../services/InboxService';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { t } from '../../i18n';
 
-// Bell on Profile that opens the inbox; a dot shows while a message from
-// the Leap team is unread.
+// Bell on Profile that opens the Notifications screen, with the number of
+// unread items on it ("9+" above nine).
 export function InboxBell({ color, style }: { color: string; style?: StyleProp<ViewStyle> }) {
   const [unread, setUnread] = useState(0);
   const isMounted = useMountedRef();
@@ -44,19 +44,38 @@ export function InboxBell({ color, style }: { color: string; style?: StyleProp<V
       onPress={() => router.push('/notifications')}
     >
       <MaterialCommunityIcons name="bell-outline" size={18} color={color} />
-      {unread > 0 && <View style={styles.dot} />}
+      {unread > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText} allowFontScaling={false}>{badgeLabel(unread)}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 
+export function badgeLabel(unread: number): string {
+  return unread > 9 ? '9+' : String(unread);
+}
+
 const styles = StyleSheet.create({
-  dot: {
+  badge: {
     position: 'absolute',
-    top: 9,
-    right: 10,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    top: 4,
+    right: 3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FC5454',
+  },
+  // Digits only, so the same font in English and Arabic; white on coral in both themes.
+  badgeText: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 10,
+    lineHeight: 13,
+    textAlign: 'center',
   },
 });
