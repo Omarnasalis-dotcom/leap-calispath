@@ -31,6 +31,8 @@ interface Props {
   onStartTrial: (tier?: number) => void;
   /** Tapping the centred card's tier name → the existing Tier Details modal. */
   onShowTierDetails: (tier: number) => void;
+  /** Set by a notification: centre this tier and scroll to its leaderboard. */
+  focus?: { tier: number; at: number } | null;
 }
 
 const TIERS = Array.from({ length: TIER_COUNT }, (_, i) => i);
@@ -66,7 +68,7 @@ function climbColors(t: WorldKitTokens) {
 const NO_ENTRIES: LeaderboardEntry[] = [];
 const NO_PROGRESS: StepProgress = { cleared: [], best: {} };
 
-export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: Props) {
+export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails, focus }: Props) {
   const { mode } = useTheme();
   // Memoized so the tier cards (React.memo) only re-render when their own
   // props change, not on every swipe.
@@ -79,6 +81,17 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
   const [selected, setSelected] = useState(currentTier);
   useEffect(() => { setSelected(currentTier); }, [currentTier]);
+  // A notification asked for one tier's board: centre it, then scroll down
+  // to the leaderboard once the cards have laid out.
+  const boardY = useRef(0);
+  useEffect(() => {
+    if (!focus) return;
+    setSelected(Math.min(MAX_STRENGTH_TIER, Math.max(0, focus.tier)));
+    const timer = setTimeout(() => {
+      if (boardY.current > 0) scrollRef.current?.scrollTo({ y: Math.max(0, boardY.current - 12), animated: true });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [focus]);
   // Steps for every tier: the current card's path, practice on past tiers.
   const { all: allSteps } = useAllStepProgress(userId);
   const stepProgress = allSteps ? allSteps[currentTier] ?? NO_PROGRESS : null;
@@ -319,7 +332,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
         <ClimbLine tokens={t} colors={c} currentTier={currentTier} completedTiers={completedTiers} selected={selected} onSelect={setSelected} drawn={drawn} />
 
-        <View style={{ paddingTop: 30, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}>
+        <View
+          style={{ paddingTop: 30, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}
+          onLayout={(e) => { boardY.current = e.nativeEvent.layout.y; }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[kt('semibold', 19, t.text, 2), { flexShrink: 1 }]}>{tr('strength.leaderboardTitle', { tier: tierName(selected) })}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

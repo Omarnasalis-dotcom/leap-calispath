@@ -578,7 +578,8 @@ export function TrialScreen({
             'new_best_time',
             t('trial.bestTimeTitle'),
             t('trial.bestTimeBody', { name: TIER_NAMES[trial.tier] ?? `Tier ${trial.tier}`, time: formatTime(timeSeconds) }),
-            { screen: 'profile' }
+            // Opens that tier's Strength leaderboard (ProfileScreen boardTier).
+            { screen: 'profile', activeTab: 'strength', boardTier: String(trial.tier) }
           );
           if (result.overtaken_notification_id) {
             NotificationService.sendOvertakeNotificationPush(result.overtaken_notification_id);
