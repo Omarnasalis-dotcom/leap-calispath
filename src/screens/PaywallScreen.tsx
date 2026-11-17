@@ -225,8 +225,8 @@ export function PaywallScreen() {
             </View>
             {expiresLabel && (
               <View style={[styles.renewRow, { borderTopColor: c.border }]}>
-                <MaterialCommunityIcons name="calendar-sync-outline" size={18} color={c.textSecondary} />
-                <Text style={[styles.renewText, { color: c.textBody }]}>{t('paywall.renewsOn', { date: expiresLabel })}</Text>
+                <MaterialCommunityIcons name="calendar-check-outline" size={18} color={c.textSecondary} />
+                <Text style={[styles.renewText, { color: c.textBody }]}>{t('paywall.activeUntil', { date: expiresLabel })}</Text>
               </View>
             )}
           </View>
