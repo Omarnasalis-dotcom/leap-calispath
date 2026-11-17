@@ -349,3 +349,69 @@
 .drawer.wide {
   width: min(980px, 100vw);
 }
+
+/* ---------- client ⋯ menu (ClientActionsMenu) ---------- */
+
+.cam {
+  position: relative;
+  display: inline-flex;
+}
+
+.cam-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cam-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+.cam-item {
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.cam-item:hover:not(:disabled),
+.cam-item:focus-visible {
+  background: var(--tint-04);
+  outline: none;
+}
+
+.cam-item.danger {
+  color: var(--danger);
+}
+
+.cam-item:disabled {
+  color: var(--ink-3, var(--ink-2));
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Paused view (PausedPanel) ---------- */
+
+.cd-open.cd-open-static {
+  grid-template-columns: minmax(150px, 1.1fr) minmax(0, 1.6fr);
+  cursor: default;
+}
+
+.cd-row:hover .cd-open.cd-open-static {
+  background: transparent;
+}
