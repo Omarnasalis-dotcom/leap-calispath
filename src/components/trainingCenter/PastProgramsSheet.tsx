@@ -9,6 +9,8 @@ import { t, isArabic } from '../../i18n';
 interface PastProgramsSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** iOS only: the sheet has finished closing (Modal onDismiss). */
+  onDismiss?: () => void;
   programs: PastProgram[];
   /** Program whose restore / delete is in flight — every row is disabled meanwhile. */
   restoringId: string | null;
@@ -27,14 +29,14 @@ function formatMeta(program: PastProgram): string {
  * button: the warrior's most recent previous programs, each one tap from
  * being active again.
  */
-export function PastProgramsSheet({ visible, onClose, programs, restoringId, deletingId, onRestore, onDelete }: PastProgramsSheetProps) {
+export function PastProgramsSheet({ visible, onClose, onDismiss, programs, restoringId, deletingId, onRestore, onDelete }: PastProgramsSheetProps) {
   const { mode } = useTheme();
   const busy = restoringId != null || deletingId != null;
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />

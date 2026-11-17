@@ -11,6 +11,7 @@ import {
   ImageBackground,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -613,6 +614,26 @@ export function TrainingCenterScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pastSheetVisible, setPastSheetVisible] = useState(false);
 
+  // A paid program restored on a free plan opens the paywall, but on iOS
+  // only after the sheet has finished closing: presenting RevenueCat's
+  // native paywall while this Modal is still sliding away never resolves,
+  // and PaywallScreen spins forever (seen on TestFlight 2026-11-17). Same
+  // fix as CustomizeProgramScreen / ProgramTemplatesScreen / CoachSetup.
+  // Android has no such constraint (and no onDismiss), so it goes at once.
+  const pendingPaywallNavRef = useRef(false);
+  const requestPaywallAfterSheetCloses = () => {
+    if (Platform.OS === 'ios') {
+      pendingPaywallNavRef.current = true;
+    } else {
+      router.push('/paywall');
+    }
+  };
+  const handlePastSheetDismissed = () => {
+    if (!pendingPaywallNavRef.current) return;
+    pendingPaywallNavRef.current = false;
+    router.push('/paywall');
+  };
+
   const doRestore = async (program: PastProgram) => {
     setRestoringId(program.id);
     try {
@@ -621,7 +642,11 @@ export function TrainingCenterScreen() {
       await load();
       router.push('/warrior-program');
     } catch (err: any) {
-      if (isProRequiredError(err)) { setPastSheetVisible(false); router.push('/paywall'); return; }
+      if (isProRequiredError(err)) {
+        setPastSheetVisible(false);
+        requestPaywallAfterSheetCloses();
+        return;
+      }
       Alert.alert(t('trainingCenter.restoreFailedTitle'), localizedErrorText(err, t('trainingCenter.restoreFailed')));
     } finally {
       setRestoringId(null);
@@ -866,6 +891,7 @@ export function TrainingCenterScreen() {
         <PastProgramsSheet
           visible={pastSheetVisible}
           onClose={() => setPastSheetVisible(false)}
+          onDismiss={handlePastSheetDismissed}
           programs={data.pastPrograms.slice(0, PAST_PROGRAMS_SHOWN)}
           restoringId={restoringId}
           deletingId={deletingId}
