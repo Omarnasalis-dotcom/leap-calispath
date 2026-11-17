@@ -1,14 +1,33 @@
-// Messages from the Leap team (admin-web Messages page, migration
-// 20261117120000_admin_messages_and_gifts). Each one is a notifications row
-// of type 'admin_message'; data says what kind it is and what its button does.
+// The Notifications screen. It lists two things from the notifications table:
+// - messages from the Leap team (admin-web Messages page, migration
+//   20261117120000_admin_messages_and_gifts): type 'admin_message'; data says
+//   what kind it is and what its button does;
+// - the app's own notifications worth reading later: a new weekly challenge,
+//   someone passing you, a program update from the coach, a finished week.
+// Reminders and "new personal best" pushes are of the moment and stay out.
 
 export const INBOX_TYPE = 'admin_message';
+
+// Shown by default. The server can add any other type without an app release
+// by writing data.inbox = true on the row, or hide one with data.inbox = false.
+export const ACTIVITY_TYPES = [
+  'weekly_challenge_started',
+  'leaderboard_overtaken',
+  'client_program_update',
+  'week_complete_nudge',
+  'program_review_ready',
+];
+
+/** How far back the screen and the unread dot look. */
+export const INBOX_WINDOW_DAYS = 60;
 
 export type InboxKind = 'news' | 'gift' | 'discount';
 export type GiftTier = 'first' | 'pro' | 'max';
 
 export interface InboxRow {
   id: string;
+  /** Missing on rows loaded before types were listed: treated as a team message. */
+  type?: string;
   title: string;
   body: string;
   data: Record<string, unknown> | null;
@@ -18,6 +37,8 @@ export interface InboxRow {
 
 export interface InboxItem {
   id: string;
+  /** The notification's server type (admin_message, leaderboard_overtaken, ...). */
+  type: string;
   kind: InboxKind;
   title: string;
   body: string;
@@ -78,6 +99,14 @@ const ALLOWED_SCREENS = new Set([
   'redeem-code',
   'notifications',
   'notification-settings',
+  'warrior-program',
+  'coaching-review',
+]);
+
+// Fields of data that describe the message itself, not the opened screen.
+const NOT_PARAMS = new Set([
+  'screen', 'kind', 'message_id', 'inbox', 'popup', 'button', 'url', 'image_url', 'expires_at', 'params',
+  'code', 'claim_id', 'gift_tier', 'gift_days', 'gift_text', 'key',
 ]);
 
 function httpsUrl(value: unknown): string | null {
@@ -102,26 +131,48 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
+/** Whether a notifications row belongs on the Notifications screen. */
+export function belongsInInbox(row: InboxRow): boolean {
+  const flag = row.data?.inbox;
+  if (flag === false || flag === 'false') return false;
+  if (flag === true || flag === 'true') return true;
+  const type = row.type ?? INBOX_TYPE;
+  return type === INBOX_TYPE || ACTIVITY_TYPES.includes(type);
+}
+
 export function toInboxItem(row: InboxRow): InboxItem {
   const data = row.data ?? {};
-  const rawKind = text(data.kind);
+  const type = row.type ?? INBOX_TYPE;
+  const fromTeam = type === INBOX_TYPE;
+  const rawKind = fromTeam ? text(data.kind) : null;
   const kind: InboxKind = rawKind === 'gift' || rawKind === 'discount' ? rawKind : 'news';
+  // The app's own notifications keep their screen's params at the top level
+  // of data (as the push tap handler reads them); team messages use data.params.
+  const params = stringParams(data.params);
+  if (!fromTeam) {
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string' && !NOT_PARAMS.has(key)) params[key] = value;
+    }
+  }
   const rawTier = text(data.gift_tier);
   const days = typeof data.gift_days === 'number' ? data.gift_days : Number(data.gift_days);
   const screen = text(data.screen);
   return {
     id: row.id,
+    type,
     kind,
     title: row.title,
     body: row.body,
     createdAt: row.created_at,
     unread: row.read_at == null,
     screen: kind === 'news' && screen && ALLOWED_SCREENS.has(screen) ? screen : null,
-    params: stringParams(data.params),
+    params,
     url: kind === 'news' ? httpsUrl(data.url) : null,
     buttonLabel: text(data.button),
     imageUrl: httpsUrl(data.image_url),
-    popup: data.popup !== false && data.popup !== 'false',
+    // The app's own notifications already arrived as a push: no pop-up
+    // unless the server asks for one.
+    popup: fromTeam ? data.popup !== false && data.popup !== 'false' : data.popup === true || data.popup === 'true',
     expiresAt: text(data.expires_at),
     giftText: kind === 'gift' ? text(data.gift_text) : null,
     code: kind === 'discount' ? text(data.code) : null,

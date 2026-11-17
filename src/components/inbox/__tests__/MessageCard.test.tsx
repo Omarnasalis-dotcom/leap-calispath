@@ -12,6 +12,8 @@ jest.mock('../../../services/InboxService', () => ({
   InboxService: { claimGift: (...args: unknown[]) => mockClaimGift(...args) },
 }));
 jest.mock('../../../lib/analytics', () => ({ track: jest.fn() }));
+const mockSetString = jest.fn().mockResolvedValue(true);
+jest.mock('expo-clipboard', () => ({ setStringAsync: (...args: unknown[]) => mockSetString(...args) }));
 
 import { MessageCard } from '../MessageCard';
 import type { GiftClaim, InboxItem } from '../../../lib/inbox';
@@ -28,7 +30,7 @@ const button = (r: ReactTestRenderer, label: string) =>
   r.root.findAll((n) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function' && texts(n.children as any).join('').includes(label))[0];
 
 const base: InboxItem = {
-  id: 'n1', kind: 'news', title: 'New feature', body: 'Try it today', createdAt: '2026-11-17T10:00:00Z',
+  id: 'n1', type: 'admin_message', kind: 'news', title: 'New feature', body: 'Try it today', createdAt: '2026-11-17T10:00:00Z',
   unread: true, screen: null, params: {}, url: null, buttonLabel: null, imageUrl: null, popup: true, expiresAt: null,
   code: null, claimId: null, giftTier: null, giftDays: null, giftText: null,
 };
@@ -79,12 +81,28 @@ describe('news extras', () => {
   });
 });
 
+describe("the app's own notifications", () => {
+  it('opens the screen the notification points to, with its params', async () => {
+    const item: InboxItem = { ...base, type: 'program_review_ready', title: 'Your program review is ready', screen: 'warrior-program', params: { review_id: 'r1' }, popup: false };
+    await act(async () => { r = create(<MessageCard item={item} source="inbox" />); });
+    await act(async () => { button(r, 'OPEN').props.onPress(); });
+    expect(mockPush).toHaveBeenCalledWith('/warrior-program?review_id=r1');
+  });
+});
+
 describe('discount code', () => {
   it('shows the code and opens Redeem a Code with it', async () => {
     await act(async () => { r = create(<MessageCard item={{ ...base, kind: 'discount', code: 'LEAP30' }} source="inbox" />); });
     expect(allText(r)).toContain('LEAP30');
     await act(async () => { button(r, 'USE CODE').props.onPress(); });
     expect(mockPush).toHaveBeenCalledWith('/redeem-code?code=LEAP30');
+  });
+
+  it('copies the code with one tap and says so', async () => {
+    await act(async () => { r = create(<MessageCard item={{ ...base, kind: 'discount', code: 'LEAP30' }} source="inbox" />); });
+    await act(async () => { button(r, 'Copy').props.onPress(); });
+    expect(mockSetString).toHaveBeenCalledWith('LEAP30');
+    expect(allText(r)).toContain('Copied');
   });
 });
 
