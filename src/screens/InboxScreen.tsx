@@ -32,9 +32,10 @@ export function InboxScreen() {
       setItems(list);
       setClaims(claimMap);
       setFailed(false);
-      // The dots stay for this visit; the badge clears now.
+      // The dots stay for this visit; the badge clears now (all of it, even
+      // rows the list doesn't show, so the bell can't get stuck on a number).
       const unreadIds = list.filter((i) => i.unread).map((i) => i.id);
-      if (unreadIds.length > 0) void InboxService.markSeen(unreadIds);
+      void InboxService.markAllSeen(unreadIds);
     } catch {
       if (isMounted.current) setFailed(true);
     }
