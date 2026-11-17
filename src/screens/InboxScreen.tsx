@@ -6,7 +6,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { InboxService } from '../services/InboxService';
 import { MessageCard } from '../components/inbox/MessageCard';
-import type { GiftClaim, InboxItem } from '../lib/inbox';
+import { visibleItems, type GiftClaim, type InboxItem } from '../lib/inbox';
 import { track } from '../lib/analytics';
 import { FLIP_X, t } from '../i18n';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
@@ -25,7 +25,7 @@ export function InboxScreen() {
 
   const load = useCallback(async () => {
     try {
-      const list = await InboxService.fetchInbox();
+      const list = visibleItems(await InboxService.fetchInbox(), Date.now());
       const claimIds = list.map((i) => i.claimId).filter((id): id is string => !!id);
       const claimMap = await InboxService.fetchGiftClaims(claimIds).catch(() => ({}));
       if (!isMounted.current) return;

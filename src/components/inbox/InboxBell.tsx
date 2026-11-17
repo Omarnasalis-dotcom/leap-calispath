@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { AppState, Platform, StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { InboxService, onInboxChanged } from '../../services/InboxService';
@@ -22,6 +23,18 @@ export function InboxBell({ color, style }: { color: string; style?: StyleProp<V
 
   useFocusEffect(refresh);
   useEffect(() => onInboxChanged(refresh), [refresh]);
+  // A message that arrived while the app was in the background.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    // A push that lands while the app is open.
+    const received = Platform.OS === 'web' ? null : Notifications.addNotificationReceivedListener(() => refresh());
+    return () => {
+      sub.remove();
+      received?.remove();
+    };
+  }, [refresh]);
 
   return (
     <TouchableOpacity

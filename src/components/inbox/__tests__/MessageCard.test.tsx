@@ -1,4 +1,5 @@
 import React from 'react';
+import { Image, Linking } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 
 jest.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark' }) }));
@@ -28,7 +29,8 @@ const button = (r: ReactTestRenderer, label: string) =>
 
 const base: InboxItem = {
   id: 'n1', kind: 'news', title: 'New feature', body: 'Try it today', createdAt: '2026-11-17T10:00:00Z',
-  unread: true, screen: null, code: null, claimId: null, giftTier: null, giftDays: null,
+  unread: true, screen: null, params: {}, url: null, buttonLabel: null, imageUrl: null, popup: true, expiresAt: null,
+  code: null, claimId: null, giftTier: null, giftDays: null, giftText: null,
 };
 const gift: InboxItem = { ...base, kind: 'gift', claimId: 'c1', giftTier: 'pro', giftDays: 14 };
 const openClaim: GiftClaim = { id: 'c1', tier: 'pro', days: 14, claim_by: '2099-01-01T00:00:00Z', claimed_at: null };
@@ -51,6 +53,29 @@ describe('news', () => {
     await act(async () => { button(r, 'OPEN').props.onPress(); });
     expect(onNavigate).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/weekly-challenge');
+  });
+});
+
+describe('news extras', () => {
+  it('passes params to the screen and uses its own button text', async () => {
+    const item = { ...base, screen: 'weekly-challenge', params: { tab: 'team' }, buttonLabel: 'JOIN A TEAM' };
+    await act(async () => { r = create(<MessageCard item={item} source="inbox" />); });
+    await act(async () => { button(r, 'JOIN A TEAM').props.onPress(); });
+    expect(mockPush).toHaveBeenCalledWith('/weekly-challenge?tab=team');
+  });
+
+  it('opens a web link outside the app instead of a screen', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    await act(async () => { r = create(<MessageCard item={{ ...base, url: 'https://example.com/post', screen: 'profile' }} source="inbox" />); });
+    await act(async () => { button(r, 'OPEN').props.onPress(); });
+    expect(openURL).toHaveBeenCalledWith('https://example.com/post');
+    expect(mockPush).not.toHaveBeenCalled();
+    openURL.mockRestore();
+  });
+
+  it('shows a picture when the message has one', async () => {
+    await act(async () => { r = create(<MessageCard item={{ ...base, imageUrl: 'https://example.com/a.jpg' }} source="inbox" />); });
+    expect(r.root.findAllByType(Image).map((i) => i.props.source.uri)).toEqual(['https://example.com/a.jpg']);
   });
 });
 
@@ -100,6 +125,16 @@ describe('gift', () => {
     await act(async () => { r.update(<MessageCard item={gift} claim={{ ...openClaim, claim_by: '2020-01-01T00:00:00Z' }} source="inbox" />); });
     expect(button(r, 'CLAIM GIFT')).toBeUndefined();
     expect(allText(r)).toContain('This gift has expired.');
+  });
+
+  it('a gift that is not a plan shows its own text and a plain claimed line', async () => {
+    mockClaimGift.mockResolvedValue({ ok: true, tier: null, days: null, accessExpiresAt: null });
+    const item = { ...gift, giftTier: null, giftDays: null, giftText: '50 Journey points' };
+    await act(async () => { r = create(<MessageCard item={item} claim={openClaim} source="inbox" />); });
+    expect(allText(r)).toContain('50 Journey points');
+    await act(async () => { button(r, 'CLAIM GIFT').props.onPress(); });
+    expect(allText(r)).toContain('Gift claimed.');
+    expect(button(r, 'CLAIM GIFT')).toBeUndefined();
   });
 
   it('has no claim button while the claim could not be loaded', async () => {

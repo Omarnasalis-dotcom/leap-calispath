@@ -96,6 +96,16 @@ if (Platform.OS === 'android') {
     sound: 'default',
     lightColor: '#FF5252',
   });
+  // Messages from the Leap team can be sent on their own channel (the server
+  // sets channelId: 'news'), so someone can quiet offers in Android's own
+  // settings without losing training alerts. Created now so a later server
+  // change needs no app release; unused until then.
+  Notifications.setNotificationChannelAsync('news', {
+    name: 'News and offers',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    sound: 'default',
+    lightColor: '#FF5252',
+  });
 }
 
 // Keep the native splash screen visible while we fetch resources. Runs at

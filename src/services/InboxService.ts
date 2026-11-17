@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { INBOX_TYPE, toInboxItem, type GiftClaim, type GiftTier, type InboxItem, type InboxRow } from '../lib/inbox';
+import { INBOX_TYPE, toInboxItem, type GiftClaim, type InboxItem, type InboxRow } from '../lib/inbox';
 
 // Messages from the Leap team: the inbox list, the unread badge, gift claims
 // and the notification switches. Reads are the user's own rows (RLS).
@@ -21,8 +21,10 @@ function emitChanged() {
   listeners.forEach((l) => l());
 }
 
+// tier / days / accessExpiresAt are there for a plan gift; a future kind of
+// gift may come back with none of them and is still a successful claim.
 export type ClaimResult =
-  | { ok: true; tier: GiftTier; days: number; accessExpiresAt: string }
+  | { ok: true; tier: string | null; days: number | null; accessExpiresAt: string | null }
   | { ok: false; error: string };
 
 export class InboxService {
@@ -88,11 +90,11 @@ export class InboxService {
   static async claimGift(claimId: string): Promise<ClaimResult> {
     const { data, error } = await supabase.rpc('claim_gift', { p_claim_id: claimId });
     if (error) return { ok: false, error: 'UNKNOWN' };
-    const result = data as { ok?: boolean; error?: string; tier?: GiftTier; days?: number; access_expires_at?: string } | null;
-    if (!result?.ok || !result.tier || !result.access_expires_at) {
+    const result = data as { ok?: boolean; error?: string; tier?: string; days?: number; access_expires_at?: string } | null;
+    if (!result?.ok) {
       return { ok: false, error: result?.error ?? 'UNKNOWN' };
     }
-    return { ok: true, tier: result.tier, days: result.days ?? 0, accessExpiresAt: result.access_expires_at };
+    return { ok: true, tier: result.tier ?? null, days: result.days ?? null, accessExpiresAt: result.access_expires_at ?? null };
   }
 
   static async fetchPrefs(userId: string): Promise<Record<string, unknown>> {

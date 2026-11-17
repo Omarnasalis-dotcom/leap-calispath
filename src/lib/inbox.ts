@@ -25,6 +25,20 @@ export interface InboxItem {
   unread: boolean;
   /** Route the button opens, already checked against the allowed list. */
   screen: string | null;
+  /** Query params for that route (e.g. a tab or an id). */
+  params: Record<string, string>;
+  /** A web link the button opens instead of a screen (https only). */
+  url: string | null;
+  /** The button's own text, already in the reader's language. */
+  buttonLabel: string | null;
+  /** A picture shown above the text (https only). */
+  imageUrl: string | null;
+  /** false = no pop-up on app open; the message waits in the inbox. */
+  popup: boolean;
+  /** After this time the message is hidden. */
+  expiresAt: string | null;
+  /** The gift pill's own text, for gifts that aren't "plan for N days". */
+  giftText: string | null;
   code: string | null;
   claimId: string | null;
   giftTier: GiftTier | null;
@@ -33,7 +47,7 @@ export interface InboxItem {
 
 export interface GiftClaim {
   id: string;
-  tier: GiftTier;
+  tier: GiftTier | string;
   days: number;
   claim_by: string;
   claimed_at: string | null;
@@ -41,18 +55,45 @@ export interface GiftClaim {
 
 export type GiftState = 'claimable' | 'claimed' | 'expired' | 'unknown';
 
-// Screens a message may open. Anything else is ignored, so a message can
-// never send someone to a screen that doesn't exist or isn't for them.
+// Screens a message may open: every athlete screen that makes sense as a
+// destination, so the server can start using one without an app release.
+// Anything else is ignored. Who may enter a screen (tier gates, onboarding)
+// is still AuthGuard's call.
 const ALLOWED_SCREENS = new Set([
   'profile',
   'training-center',
   'my-journey',
+  'my-progress',
   'weekly-challenge',
   'one-min-max',
+  'static-world',
+  'power-world',
+  'champions-arena',
   'coach',
+  'program-templates',
+  'customize-program',
+  'quick-workout',
   'paywall',
+  'welcome-offer',
   'redeem-code',
+  'notifications',
+  'notification-settings',
 ]);
+
+function httpsUrl(value: unknown): string | null {
+  const url = text(value);
+  return url && /^https:\/\/[^\s]+$/i.test(url) ? url : null;
+}
+
+function stringParams(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'string') out[key] = v;
+    else if (typeof v === 'number' || typeof v === 'boolean') out[key] = String(v);
+  }
+  return out;
+}
 
 // The pop-up only announces fresh messages; older ones wait in the inbox.
 const PROMPT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -76,6 +117,13 @@ export function toInboxItem(row: InboxRow): InboxItem {
     createdAt: row.created_at,
     unread: row.read_at == null,
     screen: kind === 'news' && screen && ALLOWED_SCREENS.has(screen) ? screen : null,
+    params: stringParams(data.params),
+    url: kind === 'news' ? httpsUrl(data.url) : null,
+    buttonLabel: text(data.button),
+    imageUrl: httpsUrl(data.image_url),
+    popup: data.popup !== false && data.popup !== 'false',
+    expiresAt: text(data.expires_at),
+    giftText: kind === 'gift' ? text(data.gift_text) : null,
     code: kind === 'discount' ? text(data.code) : null,
     claimId: kind === 'gift' ? text(data.claim_id) : null,
     giftTier: rawTier === 'first' || rawTier === 'pro' || rawTier === 'max' ? rawTier : null,
@@ -89,10 +137,34 @@ export function giftState(claim: GiftClaim | undefined, nowMs: number): GiftStat
   return new Date(claim.claim_by).getTime() > nowMs ? 'claimable' : 'expired';
 }
 
-/** The message the app-open pop-up shows: the newest unread one, if recent. */
-export function pickPromptItem(items: InboxItem[], nowMs: number): InboxItem | null {
+export function isExpired(item: InboxItem, nowMs: number): boolean {
+  if (!item.expiresAt) return false;
+  const at = new Date(item.expiresAt).getTime();
+  return Number.isFinite(at) && at <= nowMs;
+}
+
+/** The inbox list: everything that hasn't expired. */
+export function visibleItems(items: InboxItem[], nowMs: number): InboxItem[] {
+  return items.filter((i) => !isExpired(i, nowMs));
+}
+
+/** Where a news message's button goes inside the app, or null. */
+export function routeFor(item: InboxItem): string | null {
+  if (!item.screen) return null;
+  const query = Object.entries(item.params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return `/${item.screen}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * The message the pop-up shows: the newest unread one, if recent, not expired,
+ * not marked inbox-only, and not already shown in this app session.
+ */
+export function pickPromptItem(items: InboxItem[], nowMs: number, alreadyShown: ReadonlySet<string> = new Set()): InboxItem | null {
   const fresh = items
-    .filter((i) => i.unread && nowMs - new Date(i.createdAt).getTime() <= PROMPT_MAX_AGE_MS)
+    .filter((i) => i.unread && i.popup && !alreadyShown.has(i.id) && !isExpired(i, nowMs)
+      && nowMs - new Date(i.createdAt).getTime() <= PROMPT_MAX_AGE_MS)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return fresh[0] ?? null;
 }

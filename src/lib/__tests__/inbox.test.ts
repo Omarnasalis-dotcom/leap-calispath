@@ -1,4 +1,4 @@
-import { giftState, isGroupOn, pickPromptItem, toInboxItem, withGroup, type GiftClaim, type InboxRow } from '../inbox';
+import { giftState, isExpired, isGroupOn, pickPromptItem, routeFor, toInboxItem, visibleItems, withGroup, type GiftClaim, type InboxRow } from '../inbox';
 
 const NOW = new Date('2026-11-17T12:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
@@ -38,6 +38,45 @@ describe('toInboxItem', () => {
   });
 });
 
+describe('message extras (usable later without an app release)', () => {
+  it('reads a link, button text, picture and params', () => {
+    const item = toInboxItem(row({ data: {
+      kind: 'news', screen: 'weekly-challenge', params: { tab: 'team', week: 3, x: { nested: true } },
+      url: 'https://example.com/a', button: 'JOIN', image_url: 'https://example.com/a.jpg',
+    } }));
+    expect(item).toMatchObject({ url: 'https://example.com/a', buttonLabel: 'JOIN', imageUrl: 'https://example.com/a.jpg', params: { tab: 'team', week: '3' } });
+    expect(routeFor(item)).toBe('/weekly-challenge?tab=team&week=3');
+  });
+
+  it('only accepts https links and pictures', () => {
+    const item = toInboxItem(row({ data: { kind: 'news', url: 'http://example.com', image_url: 'javascript:alert(1)' } }));
+    expect(item.url).toBeNull();
+    expect(item.imageUrl).toBeNull();
+  });
+
+  it('has no route without a screen', () => {
+    expect(routeFor(toInboxItem(row({ data: { kind: 'news', params: { a: 'b' } } })))).toBeNull();
+  });
+
+  it('allows the newer destination screens', () => {
+    for (const screen of ['my-progress', 'static-world', 'power-world', 'program-templates', 'notification-settings']) {
+      expect(toInboxItem(row({ data: { kind: 'news', screen } })).screen).toBe(screen);
+    }
+  });
+
+  it('hides an expired message and keeps the rest', () => {
+    const live = toInboxItem(row({ id: 'live', data: { kind: 'news', expires_at: new Date(NOW + DAY).toISOString() } }));
+    const gone = toInboxItem(row({ id: 'gone', data: { kind: 'news', expires_at: new Date(NOW - DAY).toISOString() } }));
+    const plain = toInboxItem(row({ id: 'plain' }));
+    expect(isExpired(gone, NOW)).toBe(true);
+    expect(visibleItems([live, gone, plain], NOW).map((i) => i.id)).toEqual(['live', 'plain']);
+  });
+
+  it('reads a gift with its own text', () => {
+    expect(toInboxItem(row({ data: { kind: 'gift', claim_id: 'c1', gift_text: '50 Journey points' } })).giftText).toBe('50 Journey points');
+  });
+});
+
 describe('giftState', () => {
   const claim: GiftClaim = { id: 'c1', tier: 'pro', days: 14, claim_by: new Date(NOW + DAY).toISOString(), claimed_at: null };
 
@@ -60,6 +99,15 @@ describe('pickPromptItem', () => {
 
   it('ignores unread messages older than 14 days', () => {
     expect(pickPromptItem([toInboxItem(row({ created_at: new Date(NOW - 15 * DAY).toISOString() }))], NOW)).toBeNull();
+  });
+
+  it('skips inbox-only, expired and already-shown messages', () => {
+    const quiet = toInboxItem(row({ id: 'quiet', data: { kind: 'news', popup: false } }));
+    const gone = toInboxItem(row({ id: 'gone', data: { kind: 'news', expires_at: new Date(NOW - 1000).toISOString() } }));
+    const shown = toInboxItem(row({ id: 'shown' }));
+    const next = toInboxItem(row({ id: 'next', created_at: new Date(NOW - 2 * DAY).toISOString() }));
+    expect(pickPromptItem([quiet, gone, shown, next], NOW, new Set(['shown']))?.id).toBe('next');
+    expect(pickPromptItem([quiet, gone], NOW)).toBeNull();
   });
 
   it('returns null with nothing unread', () => {

@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeAsync } from '../../hooks/useSafeAsync';
 import { InboxService } from '../../services/InboxService';
-import { giftState, type GiftClaim, type InboxItem } from '../../lib/inbox';
+import { giftState, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
 import { formatUntilDate } from '../../lib/coachUsage';
 import { track } from '../../lib/analytics';
 import { t } from '../../i18n';
@@ -39,10 +39,12 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
   const styles = useMemo(() => getStyles(c), [c]);
   const { refreshProfile } = useAuth();
   const { runAsync, isExecuting } = useSafeAsync();
+  const [justClaimed, setJustClaimed] = useState(false);
   const [claimedUntil, setClaimedUntil] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const state = claimedUntil ? 'claimed' : giftState(claim, Date.now());
+  const state = justClaimed ? 'claimed' : giftState(claim, Date.now());
+  const newsRoute = routeFor(item);
 
   const open = (route: string) => {
     track('admin_message_action', { kind: item.kind, source });
@@ -61,6 +63,7 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
           return;
         }
         track('gift_claimed', { tier: result.tier, days: result.days, source });
+        setJustClaimed(true);
         setClaimedUntil(result.accessExpiresAt);
         onClaimed?.(claimId);
         void refreshProfile();
@@ -69,9 +72,16 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     });
   };
 
-  const giftLabel = item.giftTier && item.giftDays
-    ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
-    : null;
+  // A web link (a store page, a post, a form) opens outside the app.
+  const openLink = (url: string) => {
+    track('admin_message_action', { kind: item.kind, source });
+    Linking.openURL(url).catch(() => { });
+  };
+
+  const giftLabel = item.giftText
+    ?? (item.giftTier && item.giftDays
+      ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
+      : null);
 
   return (
     <View style={bare ? styles.bare : styles.card}>
@@ -86,11 +96,19 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
         {item.unread && !bare && <View style={styles.unreadDot} accessibilityLabel={t('inbox.unread')} />}
       </View>
 
+      {item.imageUrl && (
+        <Image source={{ uri: item.imageUrl }} style={styles.image} resizeMode="cover" accessibilityIgnoresInvertColors />
+      )}
+
       <Text style={styles.body}>{item.body}</Text>
 
-      {item.kind === 'news' && item.screen && (
-        <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => open(`/${item.screen}`)}>
-          <Text style={styles.secondaryBtnText}>{t('inbox.open')}</Text>
+      {item.kind === 'news' && (item.url || newsRoute) && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.secondaryBtn}
+          onPress={() => (item.url ? openLink(item.url) : open(newsRoute as string))}
+        >
+          <Text style={styles.secondaryBtnText}>{item.buttonLabel ?? t('inbox.open')}</Text>
         </TouchableOpacity>
       )}
 
@@ -173,6 +191,8 @@ function getStyles(c: TCPalette) {
     date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
     unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.coral },
     body: { color: c.textBody, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, lineHeight: 21 },
+    // Width and ratio both set: a remote picture has no size of its own.
+    image: { width: '100%', aspectRatio: 16 / 9, borderRadius: 12, backgroundColor: c.inputBg },
     codeBox: {
       borderColor: c.borderStrong,
       borderWidth: 1,
