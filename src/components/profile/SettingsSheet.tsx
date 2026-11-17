@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Linking, ScrollView } from 'react-native';
+import { checkUpdateAvailable } from '../../lib/appVersion';
+import { track } from '../../lib/analytics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Purchases from 'react-native-purchases';
 import { router } from 'expo-router';
@@ -19,6 +21,8 @@ interface SettingsSheetProps {
   onClose: () => void;
 }
 
+const UPDATE_BLUE = '#4A9EFF';
+
 export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { theme, mode, toggleTheme } = useTheme();
   const { signOut, profile, refreshProfile } = useAuth();
@@ -27,6 +31,17 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { status: fairPlay } = useFairPlay();
   const underReview = (fairPlay?.holds.length ?? 0) > 0;
   const [savingHidden, setSavingHidden] = useState(false);
+  // A newer version in the store (app_config.latest_version): an Update row
+  // at the top. It used to be a blue arrow in the Profile header.
+  const [update, setUpdate] = useState<{ version: string; storeUrl: string } | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    checkUpdateAvailable().then((available) => {
+      if (!cancelled) setUpdate(available);
+    });
+    return () => { cancelled = true; };
+  }, [visible]);
 
   // "Hide me from leaderboards": others stop seeing you on every board (Team
   // boards and Champions Arena excepted); you still see your own rows.
@@ -111,7 +126,27 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           onPress={(e) => e.stopPropagation()}
         >
           <View style={styles.handle} />
+          {/* The rows scroll when they don't fit (Arabic text is taller,
+              small phones, the Update row), so none hides under the status bar. */}
+          <ScrollView style={styles.rows} bounces={false} showsVerticalScrollIndicator={false}>
           <Text style={[styles.title, { color: theme.text.tertiary }]}>{t('settings.title')}</Text>
+
+          {update && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.row, { borderBottomColor: theme.card.border }]}
+              onPress={() => {
+                track('update_chip_tapped', { version: update.version, from: 'settings' });
+                Linking.openURL(update.storeUrl).catch(() => {});
+              }}
+            >
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="arrow-down-circle-outline" size={18} color={UPDATE_BLUE} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.updateApp')}</Text>
+              </View>
+              <Text style={[styles.rowValue, { color: UPDATE_BLUE }]}>{t('settings.updateVersion', { version: update.version })}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.row, { borderBottomColor: theme.card.border }]}
@@ -248,6 +283,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           <View style={styles.deleteWrap}>
             <DeleteAccountModal />
           </View>
+          </ScrollView>
 
           <TouchableOpacity style={[styles.closeButton, { borderColor: theme.card.border }]} onPress={onClose}>
             <Text style={[styles.closeButtonText, { color: theme.text.secondary }]}>{t('settings.close')}</Text>
@@ -270,6 +306,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 32,
+    maxHeight: '90%',
+  },
+  rows: {
+    flexShrink: 1,
   },
   handle: {
     width: 36,

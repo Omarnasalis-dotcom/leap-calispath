@@ -68,6 +68,30 @@ export class InboxService {
   }
 
   /** Marks messages as seen in the app (read + opened). Never throws. */
+  /**
+   * Opening the Notifications screen reads everything: every unread row the
+   * bell counts, including ones the list doesn't show (past the newest 60,
+   * expired, or hidden with data.inbox = false), so the badge always clears.
+   * The rows actually shown also count as opened. Never throws.
+   */
+  static async markAllSeen(shownIds: string[]): Promise<void> {
+    const now = new Date().toISOString();
+    try {
+      await supabase
+        .from('notifications')
+        .update({ read_at: now })
+        .or(INBOX_FILTER)
+        .gte('created_at', windowStart())
+        .is('read_at', null);
+      if (shownIds.length > 0) {
+        await supabase.from('notifications').update({ opened_at: now }).in('id', shownIds).is('opened_at', null);
+      }
+    } catch (err) {
+      if (__DEV__) console.log('[Inbox] markAllSeen failed', err);
+    }
+    emitChanged();
+  }
+
   static async markSeen(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     const now = new Date().toISOString();
