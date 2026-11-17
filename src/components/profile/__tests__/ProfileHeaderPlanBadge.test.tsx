@@ -4,7 +4,6 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 
 jest.mock('../CommunitySection', () => ({ CommunitySection: () => null }));
 jest.mock('../OfferGiftChip', () => ({ OfferGiftChip: () => null }));
-jest.mock('../UpdateChip', () => ({ UpdateChip: () => null }));
 jest.mock('../../../services/LeaderboardService', () => ({}));
 jest.mock('../../../hooks/useTutorialTarget', () => ({ useTutorialTarget: () => ({ ref: { current: null }, onLayout: () => {} }) }));
 jest.mock('@expo/vector-icons', () => ({ MaterialCommunityIcons: () => null }));

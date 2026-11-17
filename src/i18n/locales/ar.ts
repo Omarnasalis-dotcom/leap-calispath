@@ -33,6 +33,8 @@ const ar: Translations = {
     manageSubscription: 'إدارة الاشتراك',
     redeemCode: 'استخدام كود',
     notifications: 'الإشعارات',
+    updateApp: 'حدّث التطبيق',
+    updateVersion: 'v{{version}}',
     signOut: 'تسجيل الخروج',
     close: 'إغلاق',
     title: 'الإعدادات',

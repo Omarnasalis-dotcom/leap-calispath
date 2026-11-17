@@ -31,6 +31,8 @@ const en = {
     manageSubscription: 'Manage Subscription',
     redeemCode: 'Redeem a Code',
     notifications: 'Notifications',
+    updateApp: 'Update the app',
+    updateVersion: 'v{{version}}',
     signOut: 'Leave the Arena',
     close: 'CLOSE',
     title: 'SETTINGS',
