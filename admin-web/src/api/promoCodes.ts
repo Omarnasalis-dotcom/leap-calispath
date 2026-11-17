@@ -40,6 +40,7 @@ export interface PromoCodeInput {
  */
 export const PROMO_OFFERS: Array<{ product_id: string; offer_id: string; label: string }> = [
   { product_id: 'pro:pro-1month', offer_id: 'pro-1month-code', label: 'Pro 1 month · 38% off × 2 months' },
+  { product_id: 'pro:pro-1month', offer_id: 'pro-1month-50off', label: 'Pro 1 month · 50% off' },
   { product_id: 'pro:pro-2months', offer_id: 'pro-2months-code', label: 'Pro 2 months · 30% off × 2 periods (4 months)' },
   { product_id: 'max:max-1month', offer_id: 'max-1month-code', label: 'Max 1 month · 29% off × 2 months' },
   { product_id: 'max:max-1month', offer_id: 'max-1month-50off', label: 'Max 1 month · 50% off' },
