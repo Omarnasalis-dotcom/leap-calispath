@@ -112,10 +112,12 @@ export async function setCoachingPaused(
   if (error) throw new Error(error.message);
 }
 
+export type GiftDuration = '7day' | '14day' | '1month' | '3month' | '6month';
+
 export async function grantAccess(
   userId: string,
   tier: 'first' | 'pro' | 'max',
-  durationType: '1month' | '3month' | '6month',
+  durationType: GiftDuration,
 ): Promise<void> {
   const { data, error } = await supabase.rpc('admin_grant_access', {
     p_user_id: userId,
@@ -125,7 +127,11 @@ export async function grantAccess(
   if (error) throw new Error(error.message);
   const result = data as { success: boolean; error?: string };
   if (!result?.success) {
-    throw new Error(result?.error ?? 'Grant failed');
+    throw new Error(
+      result?.error === 'HAS_ACTIVE_SUBSCRIPTION'
+        ? 'This person has an active store subscription, so a gift is not applied (the next renewal would overwrite it).'
+        : result?.error ?? 'Grant failed',
+    );
   }
 }
 

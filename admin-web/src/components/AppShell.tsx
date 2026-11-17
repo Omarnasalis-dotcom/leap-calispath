@@ -101,6 +101,7 @@ const ADMIN_NAV: NavGroup[] = [
     id: 'revenue',
     label: 'Revenue & settings',
     items: [
+      { to: '/messages', label: 'Messages' },
       { to: '/promo-codes', label: 'Promo codes' },
       { to: '/fair-play/limits', label: 'Fair Play limits' },
       // Not in use: invite codes are retired and Tournament ships with V2.
