@@ -19,7 +19,7 @@ import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { wraMilestoneProgress } from '../../lib/worldProgress';
-import { getSubscriptionTier, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
+import { getSubscriptionTier, hasActiveAccess, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
 import { t, FLIP_X } from '../../i18n';
 
 const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
@@ -218,6 +218,10 @@ export function ProfileHeader({
     : t('profile.warriorCaps');
   const subscriptionTier = getSubscriptionTier(profile, paywallEnabled);
   const isExpiredSubscriber = hasExpiredSubscription(profile, paywallEnabled);
+  // A real Max plan (bought or gifted) opens the plan screen to see its end
+  // date, like Pro. Max that comes from being staff or from the paywall being
+  // off has no plan to show, and would drop straight into the store sheet.
+  const badgeOpensPlan = subscriptionTier !== 'max' || hasActiveAccess(profile);
   const wraMilestone = wraMilestoneProgress(wraScore);
   // Each world's slice of the bar = its points / milestone target. Once the
   // top milestone is passed the bar is full, split by share of the total.
@@ -264,8 +268,8 @@ export function ProfileHeader({
             sharing a row with it. */}
         <View style={styles.tierBadgeRow}>
           <TouchableOpacity
-            activeOpacity={subscriptionTier === 'max' ? 1 : 0.7}
-            disabled={subscriptionTier === 'max'}
+            activeOpacity={badgeOpensPlan ? 0.7 : 1}
+            disabled={!badgeOpensPlan}
             onPress={onOpenPaywall}
             style={[
               styles.subscriptionBadge,

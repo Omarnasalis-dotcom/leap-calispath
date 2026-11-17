@@ -537,7 +537,8 @@ const en = {
   paywall: {
     yourPlan: 'YOUR PLAN',
     active: 'ACTIVE',
-    renewsOn: 'Renews {{date}}',
+    // True for every plan: a gift ends, a store plan may renew or not.
+    activeUntil: 'Active until {{date}}',
     replaceNote: "Picking a new plan replaces the one you have now. It doesn't stack on top of it.",
     seePlans: 'SEE PLANS',
     notNow: 'Not now',

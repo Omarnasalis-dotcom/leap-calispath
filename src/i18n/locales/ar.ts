@@ -602,7 +602,7 @@ const ar: Translations = {
   paywall: {
     yourPlan: 'خطتك',
     active: 'فعّالة',
-    renewsOn: 'تتجدد في {{date}}',
+    activeUntil: 'نشطة حتى {{date}}',
     replaceNote: 'اختيار خطة جديدة يحل محل خطتك الحالية ولا يُضاف إليها.',
     seePlans: 'عرض الخطط',
     notNow: 'ليس الآن',
