@@ -9,6 +9,7 @@ import {
   grantRole,
   revokeAccess,
   setCoachingPaused,
+  type GiftDuration,
 } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
 import {
@@ -101,7 +102,7 @@ export function UserDetailPage() {
   const [grantTier, setGrantTier] = useState<'first' | 'pro' | 'max'>('pro');
 
   const grantMutation = useMutation({
-    mutationFn: (durationType: '1month' | '3month' | '6month') =>
+    mutationFn: (durationType: GiftDuration) =>
       grantAccess(id, grantTier, durationType),
     onSuccess: () => {
       toast('Access gifted');
@@ -336,12 +337,12 @@ export function UserDetailPage() {
               ))}
             </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {(['1month', '3month', '6month'] as const).map((d) => (
+              {(['7day', '14day', '1month', '3month', '6month'] as const).map((d) => (
                 <ConfirmButton
                   key={d}
-                  label={`Gift ${d.replace('month', ' month')}`}
-                  title={`Gift ${grantTier} — ${d.replace('month', ' month')} of access to ${u.display_name || u.email}?`}
-                  body={`Adds on top of any existing access (extends access_expires_at). Sets tier=${grantTier} with that tier's real AI Coach budget/message caps — same structure as a real paying subscriber, not unlimited. Marked as an admin grant, not a real subscription.`}
+                  label={`Gift ${d.replace('month', ' month').replace('day', ' days')}`}
+                  title={`Gift ${grantTier} — ${d.replace('month', ' month').replace('day', ' days')} of access to ${u.display_name || u.email}?`}
+                  body={`Applied right away, with no message to the person (to send a gift they claim, use Messages). Adds on top of any existing gift time and never lowers their tier. Sets that tier's real AI Coach budget/message caps. Not applied to someone with an active store subscription.`}
                   confirmLabel="Grant"
                   onConfirm={() => grantMutation.mutateAsync(d)}
                 />

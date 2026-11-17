@@ -36,6 +36,7 @@ import { ChallengeAnalyticsPage } from '@/pages/challenges/ChallengeAnalyticsPag
 import { TeamChallengesPage } from '@/pages/challenges/TeamChallengesPage';
 import { LiveChallengesPage } from '@/pages/challenges/LiveChallengesPage';
 import { PromoCodesPage } from '@/pages/promoCodes/PromoCodesPage';
+import { MessagesPage } from '@/pages/messages/MessagesPage';
 import { ExerciseLibraryPage } from '@/pages/coaching/ExerciseLibraryPage';
 import { ClientsPage } from '@/pages/coaching/ClientsPage';
 import { CoachDashboardPage } from '@/pages/coaching/CoachDashboardPage';
@@ -116,6 +117,7 @@ const router = createBrowserRouter(
                 <Route path="challenges/teams" element={<TeamChallengesPage />} />
                 <Route path="challenges/live" element={<LiveChallengesPage />} />
                 <Route path="promo-codes" element={<PromoCodesPage />} />
+                <Route path="messages" element={<MessagesPage />} />
                 <Route path="leaderboards" element={<LeaderboardsPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />
                 <Route path="fair-play" element={<FlagsPage />} />
