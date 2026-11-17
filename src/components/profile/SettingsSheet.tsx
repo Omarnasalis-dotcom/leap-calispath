@@ -185,6 +185,19 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           {Platform.OS !== 'web' && (
             <TouchableOpacity
               style={[styles.row, { borderBottomColor: theme.card.border }]}
+              onPress={() => { onClose(); router.push('/notification-settings'); }}
+            >
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="bell-outline" size={18} color={theme.text.secondary} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.notifications')}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} style={FLIP_X} />
+            </TouchableOpacity>
+          )}
+
+          {Platform.OS !== 'web' && (
+            <TouchableOpacity
+              style={[styles.row, { borderBottomColor: theme.card.border }]}
               onPress={() => { onClose(); router.push('/redeem-code'); }}
             >
               <View style={styles.rowLeft}>

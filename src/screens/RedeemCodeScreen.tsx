@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Purchases from 'react-native-purchases';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,7 +47,10 @@ export function RedeemCodeScreen() {
   const { profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const isIOS = Platform.OS === 'ios';
-  const [code, setCode] = useState('');
+  // A discount message opens this screen with its code (?code=); Android
+  // fills the box, iPhone's code sheet is Apple's and can't be pre-filled.
+  const { code: codeParam } = useLocalSearchParams<{ code?: string }>();
+  const [code, setCode] = useState(typeof codeParam === 'string' ? codeParam : '');
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('enter');
   const [busy, setBusy] = useState(false);

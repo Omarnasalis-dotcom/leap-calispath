@@ -1,0 +1,208 @@
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSafeAsync } from '../../hooks/useSafeAsync';
+import { InboxService } from '../../services/InboxService';
+import { giftState, type GiftClaim, type InboxItem } from '../../lib/inbox';
+import { formatUntilDate } from '../../lib/coachUsage';
+import { track } from '../../lib/analytics';
+import { t } from '../../i18n';
+import { TC_COLORS, TCPalette } from '../../../constants/trainingCenterTokens';
+
+const ICON: Record<InboxItem['kind'], keyof typeof MaterialCommunityIcons.glyphMap> = {
+  news: 'bullhorn-outline',
+  gift: 'gift-outline',
+  discount: 'ticket-percent-outline',
+};
+
+interface Props {
+  item: InboxItem;
+  claim?: GiftClaim;
+  /** Where the card is shown, for analytics. */
+  source: 'inbox' | 'prompt';
+  /** Called before the card's button leaves the current screen (closes the pop-up). */
+  onNavigate?: () => void;
+  /** Called with the gift's new end date once claimed. */
+  onClaimed?: (claimId: string) => void;
+  /** The pop-up shows the card without its own frame. */
+  bare?: boolean;
+}
+
+// One message from the Leap team: news, a discount code, or a gift to claim.
+// Shared by the inbox list and the app-open pop-up.
+export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }: Props) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => getStyles(c), [c]);
+  const { refreshProfile } = useAuth();
+  const { runAsync, isExecuting } = useSafeAsync();
+  const [claimedUntil, setClaimedUntil] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const state = claimedUntil ? 'claimed' : giftState(claim, Date.now());
+
+  const open = (route: string) => {
+    track('admin_message_action', { kind: item.kind, source });
+    onNavigate?.();
+    router.push(route as never);
+  };
+
+  const claimGift = () => {
+    if (!item.claimId) return;
+    const claimId = item.claimId;
+    setError(null);
+    runAsync(() => InboxService.claimGift(claimId), {
+      onSuccess: (result) => {
+        if (!result.ok) {
+          setError(t(`inbox.errors.${result.error}`, { defaultValue: t('inbox.errors.UNKNOWN') }));
+          return;
+        }
+        track('gift_claimed', { tier: result.tier, days: result.days, source });
+        setClaimedUntil(result.accessExpiresAt);
+        onClaimed?.(claimId);
+        void refreshProfile();
+      },
+      onError: () => setError(t('inbox.errors.UNKNOWN')),
+    });
+  };
+
+  const giftLabel = item.giftTier && item.giftDays
+    ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
+    : null;
+
+  return (
+    <View style={bare ? styles.bare : styles.card}>
+      <View style={styles.head}>
+        <View style={styles.iconWell}>
+          <MaterialCommunityIcons name={ICON[item.kind]} size={20} color={c.coral} />
+        </View>
+        <View style={styles.headText}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.date}>{formatUntilDate(item.createdAt)}</Text>
+        </View>
+        {item.unread && !bare && <View style={styles.unreadDot} accessibilityLabel={t('inbox.unread')} />}
+      </View>
+
+      <Text style={styles.body}>{item.body}</Text>
+
+      {item.kind === 'news' && item.screen && (
+        <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => open(`/${item.screen}`)}>
+          <Text style={styles.secondaryBtnText}>{t('inbox.open')}</Text>
+        </TouchableOpacity>
+      )}
+
+      {item.kind === 'discount' && item.code && (
+        <>
+          <View style={styles.codeBox}>
+            <Text style={styles.codeLabel}>{t('inbox.yourCode')}</Text>
+            {/* selectable: press and hold copies it (iPhone's code sheet can't be pre-filled). */}
+            <Text style={styles.code} selectable>{item.code}</Text>
+            <Text style={styles.codeHint}>{t('inbox.copyHint')}</Text>
+          </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.primaryBtn}
+            onPress={() => open(`/redeem-code?code=${encodeURIComponent(item.code ?? '')}`)}
+          >
+            <Text style={styles.primaryBtnText}>{t('inbox.useCode')}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {item.kind === 'gift' && (
+        <>
+          {giftLabel && (
+            <View style={styles.giftPill}>
+              <Text style={styles.giftPillText}>{giftLabel}</Text>
+            </View>
+          )}
+          {state === 'claimable' && (
+            <>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[styles.primaryBtn, isExecuting && styles.disabled]}
+                disabled={isExecuting}
+                onPress={claimGift}
+              >
+                {isExecuting ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>{t('inbox.claim')}</Text>}
+              </TouchableOpacity>
+              {claim && <Text style={styles.note}>{t('inbox.claimBy', { date: formatUntilDate(claim.claim_by) })}</Text>}
+            </>
+          )}
+          {state === 'claimed' && (
+            <View style={styles.stateRow}>
+              <MaterialCommunityIcons name="check-circle" size={18} color={c.coral} />
+              <Text style={styles.stateText}>
+                {claimedUntil ? t('inbox.claimedUntil', { date: formatUntilDate(claimedUntil) }) : t('inbox.claimed')}
+              </Text>
+            </View>
+          )}
+          {state === 'expired' && <Text style={styles.note}>{t('inbox.expired')}</Text>}
+          {error && <Text style={styles.error}>{error}</Text>}
+        </>
+      )}
+    </View>
+  );
+}
+
+function getStyles(c: TCPalette) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: c.cardRaised,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+      gap: 12,
+    },
+    bare: { alignSelf: 'stretch', gap: 12 },
+    head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    iconWell: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.iconWell,
+    },
+    headText: { flex: 1, gap: 2 },
+    title: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 16, lineHeight: 22 },
+    date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
+    unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.coral },
+    body: { color: c.textBody, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, lineHeight: 21 },
+    codeBox: {
+      borderColor: c.borderStrong,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: c.inputBg,
+    },
+    codeLabel: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
+    code: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 22, letterSpacing: 3 },
+    codeHint: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 11 },
+    giftPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: c.chipActiveBg,
+      borderRadius: 999,
+      paddingVertical: 5,
+      paddingHorizontal: 12,
+    },
+    giftPillText: { color: c.coralText, fontFamily: 'PlusJakartaSans-Bold', fontSize: 12 },
+    primaryBtn: { backgroundColor: c.coral, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 15, letterSpacing: 1.6 },
+    secondaryBtn: { borderColor: c.borderStrong, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    secondaryBtnText: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1.4 },
+    disabled: { opacity: 0.5 },
+    note: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, lineHeight: 18 },
+    stateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    stateText: { flex: 1, color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, lineHeight: 20 },
+    error: { color: c.coralText, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13 },
+  });
+}

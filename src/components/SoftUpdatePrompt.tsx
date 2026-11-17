@@ -16,7 +16,8 @@ const SHOW_DELAY_MS = 1200;
 // "Update available" pop-up for installs below app_config.soft_minimum_version
 // (but not below minimum_version, which is ForceUpdateScreen's full block).
 // "Later" closes it; it asks again on the first open of the next day.
-export function SoftUpdatePrompt({ storeUrl }: { storeUrl: string }) {
+// onDecided(false) = no update card this app open, so another pop-up may show.
+export function SoftUpdatePrompt({ storeUrl, onDecided }: { storeUrl: string; onDecided?: (willShow: boolean) => void }) {
   const { theme } = useTheme();
   const { loading, profileLoading, profile, profileLoadFailed, user } = useAuth();
   const [visible, setVisible] = useState(false);
@@ -49,7 +50,10 @@ export function SoftUpdatePrompt({ storeUrl }: { storeUrl: string }) {
       } catch {
         // Unreadable storage: still show it once this session.
       }
-      if (!mountedRef.current || !softPromptDue(lastShown, today)) return;
+      if (!mountedRef.current) return;
+      const due = softPromptDue(lastShown, today);
+      onDecided?.(due);
+      if (!due) return;
       timerRef.current = setTimeout(() => {
         if (!mountedRef.current) return;
         setVisible(true);

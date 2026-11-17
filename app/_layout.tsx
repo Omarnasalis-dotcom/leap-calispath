@@ -131,6 +131,9 @@ import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { SideRestHost } from '../src/components/coaching/BlockRestTimer';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
 import { SoftUpdatePrompt } from '../src/components/SoftUpdatePrompt';
+import { MessagePrompt } from '../src/components/inbox/MessagePrompt';
+import { InboxService } from '../src/services/InboxService';
+import { track } from '../src/lib/analytics';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
 import { syncLanguageDirection } from '../src/i18n/language';
 import { t } from '../src/i18n';
@@ -311,7 +314,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inPaywall = segments[0] === 'paywall';
   // The welcome offer opens right after the assessment's tier reveal, still
   // mid-onboarding, and leads to the paywall or the code screen.
-  const inOfferRoute = segments[0] === 'welcome-offer' || segments[0] === 'redeem-code';
+  // Messages from the Leap team (a tapped gift or code push) open the same way.
+  const inOfferRoute = segments[0] === 'welcome-offer' || segments[0] === 'redeem-code' || segments[0] === 'notifications';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
@@ -419,6 +423,8 @@ function RootLayout() {
   const router = useRouter();
   const navigationRef = useNavigationContainerRef();
   const [forceUpdate, setForceUpdate] = useState<ForceUpdateStatus | null>(null);
+  // null until the "Update available" card has decided whether it shows today.
+  const [softUpdateShows, setSoftUpdateShows] = useState<boolean | null>(null);
 
   useEffect(() => {
     checkForceUpdate().then(setForceUpdate);
@@ -433,6 +439,11 @@ function RootLayout() {
 
     function handleNotificationResponse(response: Notifications.NotificationResponse) {
       const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      // A message from the Leap team: count the tap, with or without a screen.
+      if (typeof data?.message_id === 'string') {
+        track('admin_message_push_opened', { kind: typeof data.kind === 'string' ? data.kind : null });
+        void InboxService.markPushOpened(data.message_id);
+      }
       const screen = data?.screen;
       if (typeof screen !== 'string') return;
 
@@ -504,7 +515,10 @@ function RootLayout() {
                     </AuthGuard>
                     <TutorialOverlay />
                     <SideRestHost />
-                    {forceUpdate?.kind === 'soft' && <SoftUpdatePrompt storeUrl={forceUpdate.storeUrl} />}
+                    {forceUpdate?.kind === 'soft' && <SoftUpdatePrompt storeUrl={forceUpdate.storeUrl} onDecided={setSoftUpdateShows} />}
+                    {/* One pop-up per app open: the update card wins; a message from
+                        the Leap team shows when no update card is due. */}
+                    {(forceUpdate?.kind !== 'soft' || softUpdateShows === false) && <MessagePrompt />}
                   </View>
                 </TutorialProvider>
               </AuthProvider>
