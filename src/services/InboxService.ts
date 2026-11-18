@@ -35,7 +35,7 @@ export class InboxService {
   static async fetchInbox(): Promise<InboxItem[]> {
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, type, title, body, data, read_at, created_at')
+      .select('id, type, title, body, data, read_at, created_at, acted_at')
       .or(INBOX_FILTER)
       .gte('created_at', windowStart())
       .order('created_at', { ascending: false })
@@ -102,6 +102,40 @@ export class InboxService {
       if (__DEV__) console.log('[Inbox] markSeen failed', err);
     }
     emitChanged();
+  }
+
+  /**
+   * The person tapped a notification or its button (Join, Defend, Build week,
+   * Use code...): it leaves "Needs you". Never throws.
+   */
+  static async markActed(id: string): Promise<void> {
+    const now = new Date().toISOString();
+    try {
+      await supabase.from('notifications').update({ acted_at: now }).eq('id', id).is('acted_at', null);
+      await supabase.from('notifications').update({ opened_at: now }).eq('id', id).is('opened_at', null);
+    } catch (err) {
+      if (__DEV__) console.log('[Inbox] markActed failed', err);
+    }
+  }
+
+  /**
+   * Whether each "Needs you" item is done (get_inbox_status): true = done,
+   * false = still to do, missing = the server can't tell (the screen decides
+   * from acted_at and age). Never throws: a failure just leaves it to the screen.
+   */
+  static async fetchStatus(ids: string[]): Promise<Record<string, boolean>> {
+    if (ids.length === 0) return {};
+    try {
+      const { data, error } = await supabase.rpc('get_inbox_status', { p_ids: ids });
+      if (error) return {};
+      const out: Record<string, boolean> = {};
+      for (const row of (data ?? []) as { id: string; resolved: boolean | null }[]) {
+        if (typeof row.resolved === 'boolean') out[row.id] = row.resolved;
+      }
+      return out;
+    } catch {
+      return {};
+    }
   }
 
   /** A tapped push: counts the message as opened. Never throws. */

@@ -1,4 +1,3 @@
-import { t } from '../i18n';
 // The Notifications screen. It lists two things from the notifications table:
 // - messages from the Leap team (admin-web Messages page, migration
 //   20261117120000_admin_messages_and_gifts): type 'admin_message'; data says
@@ -34,6 +33,27 @@ export interface InboxRow {
   data: Record<string, unknown> | null;
   read_at: string | null;
   created_at: string;
+  /** When the person tapped the item or its button (migration 20261119100000). */
+  acted_at?: string | null;
+}
+
+/**
+ * The names inside a notification, saved as separate fields by the server
+ * (notification_fields, migration 20261119100000), so the screen can lead
+ * with them in either language. Missing on anything the server couldn't read.
+ */
+export interface NotificationFields {
+  challengeName: string | null;
+  /** Who overtook you; null = "someone". */
+  byName: string | null;
+  /** 'score' = a world or Well-Rounded board; 'time' = a strength tier. */
+  overtakenKind: 'score' | 'time' | null;
+  /** English board name as the server wrote it: Well-Rounded, Power World, Static World, 1MM. */
+  boardName: string | null;
+  tier: number | null;
+  /** The AI Coach week just finished. */
+  week: number | null;
+  programName: string | null;
 }
 
 export interface InboxItem {
@@ -65,6 +85,8 @@ export interface InboxItem {
   claimId: string | null;
   giftTier: GiftTier | null;
   giftDays: number | null;
+  actedAt: string | null;
+  fields: NotificationFields;
 }
 
 export interface GiftClaim {
@@ -108,7 +130,27 @@ const ALLOWED_SCREENS = new Set([
 const NOT_PARAMS = new Set([
   'screen', 'kind', 'message_id', 'inbox', 'popup', 'button', 'url', 'image_url', 'expires_at', 'params',
   'code', 'claim_id', 'gift_tier', 'gift_days', 'gift_text', 'key',
+  // notification_fields: describe the notification, not the screen.
+  'challenge_name', 'by_name', 'board_name', 'tier', 'week', 'program_id', 'program_name',
 ]);
+
+const num = (v: unknown): number | null => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+function fieldsOf(data: Record<string, unknown>): NotificationFields {
+  const kind = text(data.kind);
+  return {
+    challengeName: text(data.challenge_name),
+    byName: text(data.by_name),
+    overtakenKind: kind === 'score' || kind === 'time' ? kind : null,
+    boardName: text(data.board_name),
+    tier: num(data.tier),
+    week: num(data.week),
+    programName: text(data.program_name),
+  };
+}
 
 function httpsUrl(value: unknown): string | null {
   const url = text(value);
@@ -180,6 +222,8 @@ export function toInboxItem(row: InboxRow): InboxItem {
     claimId: kind === 'gift' ? text(data.claim_id) : null,
     giftTier: rawTier === 'first' || rawTier === 'pro' || rawTier === 'max' ? rawTier : null,
     giftDays: Number.isFinite(days) && days > 0 ? days : null,
+    actedAt: row.acted_at ?? null,
+    fields: fieldsOf(data),
   };
 }
 
@@ -187,48 +231,6 @@ export function giftState(claim: GiftClaim | undefined, nowMs: number): GiftStat
   if (!claim) return 'unknown';
   if (claim.claimed_at) return 'claimed';
   return new Date(claim.claim_by).getTime() > nowMs ? 'claimable' : 'expired';
-}
-
-export type DayGroup = 'today' | 'week' | 'earlier';
-
-const startOfDay = (ms: number) => {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
-
-/** Which heading a notification sits under: today, the 6 days before, or earlier (phone's local days). */
-export function dayGroup(createdAt: string, nowMs: number): DayGroup {
-  const at = new Date(createdAt).getTime();
-  const today = startOfDay(nowMs);
-  if (!Number.isFinite(at) || at >= today) return 'today';
-  return at >= today - 6 * 86400000 ? 'week' : 'earlier';
-}
-
-/** The list cut into Today / This week / Earlier, keeping its order; empty groups left out. */
-export function groupByDay(items: InboxItem[], nowMs: number): { group: DayGroup; items: InboxItem[] }[] {
-  const order: DayGroup[] = ['today', 'week', 'earlier'];
-  const buckets = new Map<DayGroup, InboxItem[]>();
-  for (const item of items) {
-    const g = dayGroup(item.createdAt, nowMs);
-    buckets.set(g, [...(buckets.get(g) ?? []), item]);
-  }
-  return order.filter((g) => buckets.has(g)).map((group) => ({ group, items: buckets.get(group)! }));
-}
-
-/** The short time on each row: "now", "25m", "3h" today; the weekday this week; the date before. */
-export function timeLabel(createdAt: string, nowMs: number, locale?: string): string {
-  const at = new Date(createdAt).getTime();
-  if (!Number.isFinite(at)) return '';
-  const group = dayGroup(createdAt, nowMs);
-  if (group === 'today') {
-    const minutes = Math.max(0, Math.floor((nowMs - at) / 60000));
-    if (minutes < 1) return t('inbox.justNow');
-    if (minutes < 60) return t('inbox.minutesShort', { count: minutes });
-    return t('inbox.hoursShort', { count: Math.floor(minutes / 60) });
-  }
-  if (group === 'week') return new Date(at).toLocaleDateString(locale, { weekday: 'short' });
-  return new Date(at).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 export function isExpired(item: InboxItem, nowMs: number): boolean {

@@ -33,7 +33,8 @@ const button = (r: ReactTestRenderer, label: string) =>
 const base: InboxItem = {
   id: 'n1', type: 'admin_message', kind: 'news', title: 'New feature', body: 'Try it today', createdAt: '2026-11-17T10:00:00Z',
   unread: true, screen: null, params: {}, url: null, buttonLabel: null, imageUrl: null, popup: true, expiresAt: null,
-  code: null, claimId: null, giftTier: null, giftDays: null, giftText: null,
+  code: null, claimId: null, giftTier: null, giftDays: null, giftText: null, actedAt: null,
+  fields: { challengeName: null, byName: null, overtakenKind: null, boardName: null, tier: null, week: null, programName: null },
 };
 const gift: InboxItem = { ...base, kind: 'gift', claimId: 'c1', giftTier: 'pro', giftDays: 14 };
 const openClaim: GiftClaim = { id: 'c1', tier: 'pro', days: 14, claim_by: '2099-01-01T00:00:00Z', claimed_at: null };
