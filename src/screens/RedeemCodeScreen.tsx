@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Purchases from 'react-native-purchases';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { notePlanBeforeChange } from '../lib/planWelcome';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { hasActiveAccess } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
@@ -105,6 +106,7 @@ export function RedeemCodeScreen() {
   const handleOpenAppleSheet = async () => {
     setError(null);
     before.current = profile;
+    void notePlanBeforeChange(profile);
     track('redeem_code_submitted', { platform: 'ios' });
     try {
       await Purchases.presentCodeRedemptionSheet();
@@ -127,6 +129,7 @@ export function RedeemCodeScreen() {
     setError(null);
     setBusy(true);
     before.current = profile;
+    void notePlanBeforeChange(profile);
     track('redeem_code_submitted', { platform: 'android' });
     try {
       const { data, error: rpcError } = await supabase.rpc('claim_promo_code', { p_code: normalized });
