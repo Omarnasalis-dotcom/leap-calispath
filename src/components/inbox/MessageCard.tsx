@@ -67,6 +67,8 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
   const { refreshProfile } = useAuth();
   const { runAsync, isExecuting } = useSafeAsync();
   const [justClaimed, setJustClaimed] = useState(false);
+  // The server's answer wins over what the list loaded (e.g. claimed on another phone).
+  const [serverState, setServerState] = useState<'claimed' | 'expired' | null>(null);
   const [claimedUntil, setClaimedUntil] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -81,7 +83,10 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
       .catch(() => { });
   };
 
-  const state = justClaimed ? 'claimed' : giftState(claim, Date.now());
+  // 'unknown' = the gift's details didn't load: still offer the button, the
+  // server checks the claim either way.
+  const loaded = justClaimed ? 'claimed' : serverState ?? giftState(claim, Date.now());
+  const state = loaded === 'unknown' ? 'claimable' : loaded;
   const newsRoute = routeFor(item);
 
   const open = (route: string) => {
@@ -97,6 +102,14 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     runAsync(() => InboxService.claimGift(claimId), {
       onSuccess: (result) => {
         if (!result.ok) {
+          if (result.error === 'ALREADY_CLAIMED') {
+            setServerState('claimed');
+            return;
+          }
+          if (result.error === 'EXPIRED') {
+            setServerState('expired');
+            return;
+          }
           setError(t(`inbox.errors.${result.error}`, { defaultValue: t('inbox.errors.UNKNOWN') }));
           return;
         }

@@ -38,7 +38,15 @@ export function getSubscriptionTier(profile: Profile | null, paywallEnabled: boo
 export function hasExpiredSubscription(profile: Profile | null, paywallEnabled: boolean): boolean {
   if (!paywallEnabled) return false;
   if (profile?.is_admin === true || profile?.is_coach === true) return false;
+  // Only a plan they bought: someone whose gift ended never subscribed, so
+  // they see FREE + Upgrade (and the welcome offer), not EXPIRED + Renew.
+  if (!hasStorePurchase(profile)) return false;
   return !!profile?.subscription_tier && !hasActiveAccess(profile);
+}
+
+/** Whether the person ever bought a plan from a store (a gift doesn't count). */
+export function hasStorePurchase(profile: Profile | null): boolean {
+  return !!profile?.rc_original_transaction_id || profile?.entitlement_source === 'rc_subscription';
 }
 
 // "Pro" here means "any paid tier" — First/Pro/Max all pass. This is what

@@ -97,6 +97,7 @@ export const MESSAGE_SCREENS: Array<{ value: string; label: string }> = [
 export const SKIP_REASONS: Record<string, string> = {
   opted_out: 'switched off news and offers',
   has_subscription: 'already have a store subscription',
+  has_access: 'have a plan running (a gift or a grant), so a code would be refused',
   staff: 'coaches and admins (already have full access)',
   old_app: 'on an app version that cannot claim a gift (below 1.2.20)',
   no_platform: 'phone type not known yet (no code to give)',

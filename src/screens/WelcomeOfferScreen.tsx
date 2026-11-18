@@ -8,7 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { track } from '../lib/analytics';
-import { markOfferSeen, type OfferPrice, type OfferTrigger } from '../lib/offerPrompt';
+import { giftEndedAt, markOfferSeen, type OfferPrice, type OfferTrigger } from '../lib/offerPrompt';
 import { loadOffer, PREVIEW_PRICE } from '../lib/offerStore';
 import { isRTL, t } from '../i18n';
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, seg } from '../lib/fx/easing';
@@ -55,7 +55,12 @@ export function WelcomeOfferScreen({ trigger, preview = false }: Props) {
           return;
         }
         // Counts as shown once the offer is on screen: it never comes back for this moment.
-        if (profile?.id && trigger !== 'banner') markOfferSeen(profile.id, trigger);
+        if (profile?.id && trigger === 'gift_ended') {
+          const endedAt = giftEndedAt(profile);
+          if (endedAt) markOfferSeen(profile.id, 'gift_ended', endedAt);
+        } else if (profile?.id && trigger !== 'banner') {
+          markOfferSeen(profile.id, trigger);
+        }
         track('offer_screen_viewed', { trigger, percent_off: price.percentOff });
         setState({ phase: 'ready', price });
       } catch (err) {
@@ -89,6 +94,7 @@ export function WelcomeOfferScreen({ trigger, preview = false }: Props) {
   const title =
     trigger === 'program_complete' ? t('offer.titleProgramDone')
     : trigger === 'banner' ? t('offer.titleBanner')
+    : trigger === 'gift_ended' ? t('offer.titleGiftEnded')
     : t('offer.titleWelcome');
 
   return (

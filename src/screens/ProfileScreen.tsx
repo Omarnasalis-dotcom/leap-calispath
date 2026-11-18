@@ -30,6 +30,8 @@ import { LeaderboardService, GlobalWellRoundedEntry } from '../services/Leaderbo
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
+import { giftEndedAt } from '../lib/offerPrompt';
+import { offerRoute } from '../lib/offerStore';
 import { getActiveProgramSummary, peekActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
 import { ActiveProgramCard } from '../components/profile/ActiveProgramCard';
 import { ChallengeService } from '../services/ChallengeService';
@@ -246,6 +248,25 @@ export function ProfileScreen({
         .then((c) => setWeeklyChallengeTitle(c?.title ?? null))
         .catch(() => {});
     }, [profile?.id, profile?.strength_tier])
+  );
+
+  // A gift (a plan Leap granted) just ended: the welcome offer, once per gift,
+  // the first time Profile shows after the end (offerPrompt.ts 'gift_ended').
+  // offerRoute is null unless it's due and the store has an offer for them.
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id || !giftEndedAt(profile)) return;
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      offerRoute('gift_ended', { userId: profile.id, paywallEnabled, profile }).then((route) => {
+        if (route && !cancelled) timer = setTimeout(() => { if (!cancelled) router.push(route as never); }, 700);
+      });
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile?.id, profile?.access_expires_at, profile?.rc_original_transaction_id, paywallEnabled])
   );
 
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);

@@ -4,10 +4,15 @@ jest.mock('../appVersion', () => ({ checkFirstTimeOfferEnabled: jest.fn() }));
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { checkFirstTimeOfferEnabled } from '../appVersion';
-import { isOfferAudience, isOfferDue, loadOfferSeen, markOfferSeen, offerDue, offerPrice } from '../offerPrompt';
+import { giftEndedAt, isOfferAudience, isOfferDue, loadOfferSeen, markOfferSeen, offerDue, offerPrice } from '../offerPrompt';
 
 const free = { is_admin: false, is_coach: false, subscription_tier: null, access_expires_at: null };
 const base = { platform: 'ios', paywallEnabled: true, offerEnabled: true, profile: free };
+const FUTURE = '2999-01-01T00:00:00Z';
+const PAST = '2026-01-01T00:00:00Z';
+const paid = { ...free, subscription_tier: 'pro', access_expires_at: FUTURE, entitlement_source: 'rc_subscription', rc_original_transaction_id: 'tx1' };
+const onGift = { ...free, subscription_tier: 'pro', access_expires_at: FUTURE, entitlement_source: 'admin_grant' };
+const giftEnded = { ...onGift, access_expires_at: PAST };
 
 describe('isOfferAudience', () => {
   it('is a free user who never subscribed, on a phone, with both switches on', () => {
@@ -15,15 +20,33 @@ describe('isOfferAudience', () => {
     expect(isOfferAudience({ ...base, platform: 'android' })).toBe(true);
   });
 
-  it('excludes web, switches off, admins, coaches and anyone who ever had a plan', () => {
+  it('excludes web, switches off, admins, coaches, anyone with a plan running and anyone who ever bought', () => {
     expect(isOfferAudience({ ...base, platform: 'web' })).toBe(false);
     expect(isOfferAudience({ ...base, paywallEnabled: false })).toBe(false);
     expect(isOfferAudience({ ...base, offerEnabled: false })).toBe(false);
     expect(isOfferAudience({ ...base, profile: null })).toBe(false);
     expect(isOfferAudience({ ...base, profile: { ...free, is_admin: true } })).toBe(false);
     expect(isOfferAudience({ ...base, profile: { ...free, is_coach: true } })).toBe(false);
-    expect(isOfferAudience({ ...base, profile: { ...free, subscription_tier: 'pro' } })).toBe(false);
-    expect(isOfferAudience({ ...base, profile: { ...free, access_expires_at: '2026-01-01T00:00:00Z' } })).toBe(false);
+    expect(isOfferAudience({ ...base, profile: paid })).toBe(false);
+    expect(isOfferAudience({ ...base, profile: onGift })).toBe(false);
+    // Bought before, now lapsed: not a first-timer.
+    expect(isOfferAudience({ ...base, profile: { ...paid, access_expires_at: PAST } })).toBe(false);
+    expect(isOfferAudience({ ...base, profile: { ...giftEnded, rc_original_transaction_id: 'tx1' } })).toBe(false);
+  });
+
+  it('still counts someone whose gift ended as new', () => {
+    expect(isOfferAudience({ ...base, profile: giftEnded })).toBe(true);
+  });
+});
+
+describe('giftEndedAt', () => {
+  it('is the end date of a gift that ended, for someone who never bought', () => {
+    expect(giftEndedAt(giftEnded)).toBe(PAST);
+    expect(giftEndedAt(onGift)).toBeNull();
+    expect(giftEndedAt(free)).toBeNull();
+    expect(giftEndedAt({ ...paid, access_expires_at: PAST })).toBeNull();
+    expect(giftEndedAt({ ...giftEnded, rc_original_transaction_id: 'tx1' })).toBeNull();
+    expect(giftEndedAt(null)).toBeNull();
   });
 });
 
@@ -68,7 +91,7 @@ describe('isOfferDue', () => {
 
   it('asks the server switch only for the audience', async () => {
     (checkFirstTimeOfferEnabled as jest.Mock).mockResolvedValue(true);
-    await expect(isOfferDue('assessment', { userId: 'u1', paywallEnabled: true, profile: { ...free, subscription_tier: 'pro' } })).resolves.toBe(false);
+    await expect(isOfferDue('assessment', { userId: 'u1', paywallEnabled: true, profile: paid })).resolves.toBe(false);
     expect(checkFirstTimeOfferEnabled).not.toHaveBeenCalled();
     await expect(isOfferDue('assessment', { userId: 'u1', paywallEnabled: true, profile: free })).resolves.toBe(true);
   });
@@ -80,6 +103,21 @@ describe('isOfferDue', () => {
     await markOfferSeen('u1', 'assessment');
     await expect(isOfferDue('assessment', { userId: 'u1', paywallEnabled: true, profile: free })).resolves.toBe(false);
     await expect(isOfferDue('banner', { userId: 'u1', paywallEnabled: true, profile: free })).resolves.toBe(true);
+  });
+
+  it('shows the gift-ended offer once per gift', async () => {
+    (checkFirstTimeOfferEnabled as jest.Mock).mockResolvedValue(true);
+    // Never had a gift, or the gift is still running: nothing to show.
+    await expect(isOfferDue('gift_ended', { userId: 'u1', paywallEnabled: true, profile: free })).resolves.toBe(false);
+    await expect(isOfferDue('gift_ended', { userId: 'u1', paywallEnabled: true, profile: onGift })).resolves.toBe(false);
+    await expect(isOfferDue('gift_ended', { userId: 'u1', paywallEnabled: true, profile: giftEnded })).resolves.toBe(true);
+    await markOfferSeen('u1', 'gift_ended', PAST);
+    await expect(isOfferDue('gift_ended', { userId: 'u1', paywallEnabled: true, profile: giftEnded })).resolves.toBe(false);
+    // A later gift that ends shows it again.
+    const laterEnd = '2026-06-01T00:00:00Z';
+    await expect(isOfferDue('gift_ended', { userId: 'u1', paywallEnabled: true, profile: { ...giftEnded, access_expires_at: laterEnd } })).resolves.toBe(true);
+    // Seeing the gift-ended offer doesn't use up the other moments.
+    await expect(isOfferDue('program_complete', { userId: 'u1', paywallEnabled: true, profile: giftEnded })).resolves.toBe(true);
   });
 });
 

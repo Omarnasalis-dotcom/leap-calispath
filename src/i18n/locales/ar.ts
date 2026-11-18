@@ -491,6 +491,7 @@ const ar: Translations = {
     titleWelcome: 'هدية ترحيب لك',
     titleProgramDone: 'أنهيت البرنامج! واصل التقدّم',
     titleBanner: 'عرض الترحيب الخاص بك',
+    titleGiftEnded: 'انتهت هديتك. واصل التقدّم',
     body: 'تمرّن بذكاء أكبر مع Pro، وبسعر أقل في أشهرك الأولى.',
     planPro: 'PRO',
     percentOff: '−{{percent}}٪',

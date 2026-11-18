@@ -38,6 +38,8 @@ export interface Profile {
   access_granted_at?: string | null;
   invite_code_used?: string | null;
   entitlement_source?: string | null;
+  /** Set once the person has bought from a store (RevenueCat); a gift never sets it. */
+  rc_original_transaction_id?: string | null;
   subscription_tier?: string | null;
   entitlement_period_start?: string | null;
   ai_coach_budget_usd?: number | null;
