@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // The Notifications screen. It lists two things from the notifications table:
 // - messages from the Leap team (admin-web Messages page, migration
 //   20261117120000_admin_messages_and_gifts): type 'admin_message'; data says
@@ -188,17 +189,46 @@ export function giftState(claim: GiftClaim | undefined, nowMs: number): GiftStat
   return new Date(claim.claim_by).getTime() > nowMs ? 'claimable' : 'expired';
 }
 
-/**
- * The Notifications screen shows new ones as full cards and the ones already
- * opened as one-line rows. A gift still waiting to be claimed stays a full
- * card (its button is the point); one whose claim didn't load counts as
- * waiting, the server checks it.
- */
-export function showsFullCard(item: InboxItem, claim: GiftClaim | undefined, nowMs: number): boolean {
-  if (item.unread) return true;
-  if (item.kind !== 'gift') return false;
-  const state = giftState(claim, nowMs);
-  return state === 'claimable' || state === 'unknown';
+export type DayGroup = 'today' | 'week' | 'earlier';
+
+const startOfDay = (ms: number) => {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+/** Which heading a notification sits under: today, the 6 days before, or earlier (phone's local days). */
+export function dayGroup(createdAt: string, nowMs: number): DayGroup {
+  const at = new Date(createdAt).getTime();
+  const today = startOfDay(nowMs);
+  if (!Number.isFinite(at) || at >= today) return 'today';
+  return at >= today - 6 * 86400000 ? 'week' : 'earlier';
+}
+
+/** The list cut into Today / This week / Earlier, keeping its order; empty groups left out. */
+export function groupByDay(items: InboxItem[], nowMs: number): { group: DayGroup; items: InboxItem[] }[] {
+  const order: DayGroup[] = ['today', 'week', 'earlier'];
+  const buckets = new Map<DayGroup, InboxItem[]>();
+  for (const item of items) {
+    const g = dayGroup(item.createdAt, nowMs);
+    buckets.set(g, [...(buckets.get(g) ?? []), item]);
+  }
+  return order.filter((g) => buckets.has(g)).map((group) => ({ group, items: buckets.get(group)! }));
+}
+
+/** The short time on each row: "now", "25m", "3h" today; the weekday this week; the date before. */
+export function timeLabel(createdAt: string, nowMs: number, locale?: string): string {
+  const at = new Date(createdAt).getTime();
+  if (!Number.isFinite(at)) return '';
+  const group = dayGroup(createdAt, nowMs);
+  if (group === 'today') {
+    const minutes = Math.max(0, Math.floor((nowMs - at) / 60000));
+    if (minutes < 1) return t('inbox.justNow');
+    if (minutes < 60) return t('inbox.minutesShort', { count: minutes });
+    return t('inbox.hoursShort', { count: Math.floor(minutes / 60) });
+  }
+  if (group === 'week') return new Date(at).toLocaleDateString(locale, { weekday: 'short' });
+  return new Date(at).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 export function isExpired(item: InboxItem, nowMs: number): boolean {

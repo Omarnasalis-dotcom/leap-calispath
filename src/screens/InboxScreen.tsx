@@ -1,19 +1,26 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { InboxService } from '../services/InboxService';
-import { MessageCard } from '../components/inbox/MessageCard';
-import { MessageRow } from '../components/inbox/MessageRow';
-import { showsFullCard, visibleItems, type GiftClaim, type InboxItem } from '../lib/inbox';
+import { InboxRow } from '../components/inbox/InboxRow';
+import { groupByDay, visibleItems, type DayGroup, type GiftClaim, type InboxItem } from '../lib/inbox';
 import { track } from '../lib/analytics';
 import { FLIP_X, t } from '../i18n';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
-// Messages from the Leap team (/notifications): news, discount codes and
-// gifts to claim. Opened from the bell on Profile or by tapping a gift push.
+const GROUP_LABEL = {
+  today: 'inbox.today',
+  week: 'inbox.thisWeek',
+  earlier: 'inbox.earlier',
+} as const satisfies Record<DayGroup, string>;
+
+// The Notifications screen (/notifications): messages from the Leap team
+// (news, discount codes, gifts to claim) and the app's own notifications, as
+// one feed grouped Today / This week / Earlier. Opened from the bell on
+// Profile or by tapping a gift push.
 export function InboxScreen() {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
@@ -33,8 +40,8 @@ export function InboxScreen() {
       setItems(list);
       setClaims(claimMap);
       setFailed(false);
-      // The dots stay for this visit; the badge clears now (all of it, even
-      // rows the list doesn't show, so the bell can't get stuck on a number).
+      // New ones stay marked for this visit; the badge clears now (all of it,
+      // even rows the list doesn't show, so the bell can't get stuck on a number).
       const unreadIds = list.filter((i) => i.unread).map((i) => i.id);
       void InboxService.markAllSeen(unreadIds);
     } catch {
@@ -49,41 +56,14 @@ export function InboxScreen() {
     }, [load]),
   );
 
-  const claimFor = (item: InboxItem) => (item.claimId ? claims[item.claimId] : undefined);
-
-  // New ones (and a gift still to claim) are full cards at the top; the ones
-  // already opened fold into one-line rows below. A tapped row opens in place
-  // as a full card, so the rows around it split into separate groups.
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  const { fresh, earlier } = useMemo(() => {
-    const now = Date.now();
-    const list = items ?? [];
-    const full = list.filter((i) => showsFullCard(i, i.claimId ? claims[i.claimId] : undefined, now));
-    return { fresh: full, earlier: list.filter((i) => !full.includes(i)) };
-  }, [items, claims]);
-  const earlierGroups = useMemo(() => {
-    const groups: { expanded: boolean; items: InboxItem[] }[] = [];
-    for (const item of earlier) {
-      const open = expanded.has(item.id);
-      const last = groups[groups.length - 1];
-      if (!open && last && !last.expanded) last.items.push(item);
-      else groups.push({ expanded: open, items: [item] });
-    }
-    return groups;
-  }, [earlier, expanded]);
-
   const refresh = async () => {
     setRefreshing(true);
     await load();
     if (isMounted.current) setRefreshing(false);
   };
+
+  const groups = useMemo(() => groupByDay(items ?? [], Date.now()), [items]);
+  const newCount = useMemo(() => (items ?? []).filter((i) => i.unread).length, [items]);
 
   return (
     <View style={styles.screen}>
@@ -96,8 +76,11 @@ export function InboxScreen() {
         >
           <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} style={FLIP_X} />
         </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: 'center' }}>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{t('inbox.title')}</Text>
+          {newCount > 0 && (
+            <Text style={styles.headerSub} accessibilityLiveRegion="polite">{t('inbox.newCount', { count: newCount })}</Text>
+          )}
         </View>
         <View style={{ width: 26 }} />
       </View>
@@ -106,7 +89,7 @@ export function InboxScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={c.coral} />}
       >
-        {items === null && !failed && <ActivityIndicator color={c.coral} style={{ marginTop: 40 }} />}
+        {items === null && !failed && <Skeleton styles={styles} />}
 
         {failed && (
           <View style={styles.empty}>
@@ -127,39 +110,40 @@ export function InboxScreen() {
           </View>
         )}
 
-        {!failed && fresh.map((item) => (
-          <MessageCard key={item.id} item={item} claim={claimFor(item)} source="inbox" />
-        ))}
-
-        {!failed && earlier.length > 0 && (
-          <>
-            {fresh.length > 0 && <Text style={styles.sectionLabel}>{t('inbox.earlier')}</Text>}
-            {earlierGroups.map((group) =>
-              group.expanded ? (
-                <MessageCard
-                  key={group.items[0].id}
-                  item={group.items[0]}
-                  claim={claimFor(group.items[0])}
-                  source="inbox"
-                  onCollapse={() => toggle(group.items[0].id)}
+        {!failed && groups.map(({ group, items: groupItems }) => (
+          <View key={group} style={styles.group}>
+            <Text style={styles.groupLabel} accessibilityRole="header">{t(GROUP_LABEL[group])}</Text>
+            <View style={styles.groupList}>
+              {groupItems.map((item, i) => (
+                <InboxRow
+                  key={item.id}
+                  item={item}
+                  claim={item.claimId ? claims[item.claimId] : undefined}
+                  divider={i > 0}
                 />
-              ) : (
-                <View key={group.items[0].id} style={styles.group}>
-                  {group.items.map((item, i) => (
-                    <MessageRow
-                      key={item.id}
-                      item={item}
-                      claim={claimFor(item)}
-                      divider={i > 0}
-                      onPress={() => toggle(item.id)}
-                    />
-                  ))}
-                </View>
-              ),
-            )}
-          </>
-        )}
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
+    </View>
+  );
+}
+
+/** Grey rows in the list's shape while it loads. */
+function Skeleton({ styles }: { styles: ReturnType<typeof getStyles> }) {
+  return (
+    <View style={styles.group} accessibilityLabel={t('inbox.loading')}>
+      <View style={[styles.skeletonBar, { width: 64, marginHorizontal: 16 }]} />
+      {[0, 1, 2, 3].map((i) => (
+        <View key={i} style={styles.skeletonRow}>
+          <View style={styles.skeletonIcon} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={[styles.skeletonBar, { width: '60%' }]} />
+            <View style={[styles.skeletonBar, { width: '90%' }]} />
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -174,22 +158,23 @@ function getStyles(c: TCPalette) {
       paddingTop: 14,
       paddingBottom: 10,
     },
+    headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
     headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
-    content: { padding: TC_LAYOUT.screenPadding, paddingBottom: 48, gap: 12 },
-    sectionLabel: {
+    headerSub: { color: c.coralText, fontFamily: 'PlusJakartaSans-Bold', fontSize: 12 },
+    // Rows run edge to edge; the groups carry the rhythm.
+    content: { paddingTop: 4, paddingBottom: 48, gap: 22 },
+    group: { gap: 8 },
+    groupLabel: {
       color: c.textMuted,
       fontFamily: 'BarlowCondensed-Bold',
-      fontSize: 13,
+      fontSize: 14,
       letterSpacing: 1.4,
-      marginTop: 8,
-      marginBottom: -4,
+      paddingHorizontal: TC_LAYOUT.screenPadding,
     },
-    group: {
-      backgroundColor: c.cardRaised,
+    groupList: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      borderWidth: 1,
-      borderRadius: 16,
-      overflow: 'hidden',
     },
     empty: { alignItems: 'center', gap: 10, paddingTop: 56, paddingHorizontal: 24 },
     emptyIcon: {
@@ -204,5 +189,8 @@ function getStyles(c: TCPalette) {
     emptyText: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, lineHeight: 21, textAlign: 'center' },
     retryBtn: { borderColor: c.borderStrong, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginTop: 6 },
     retryText: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1.4 },
+    skeletonRow: { flexDirection: 'row', gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
+    skeletonIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: c.inputBg },
+    skeletonBar: { height: 11, borderRadius: 6, backgroundColor: c.inputBg },
   });
 }
