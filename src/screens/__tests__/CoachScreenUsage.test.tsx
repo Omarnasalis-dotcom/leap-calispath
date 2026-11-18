@@ -37,6 +37,10 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), navigate: jest.fn(), back: jest.fn() } }));
 jest.mock('expo-blur', () => ({ BlurView: 'BlurView' }));
+// The first-chat tour lives in the app's TutorialProvider (tested on its own).
+jest.mock('../../hooks/useScreenTour', () => ({ useScreenTour: () => ({ replay: jest.fn() }) }));
+jest.mock('../../hooks/useTutorialTarget', () => ({ useTutorialTarget: () => ({ ref: { current: null }, onLayout: undefined }) }));
+jest.mock('../../lib/coachStart', () => ({ fetchWeekReviewReady: () => Promise.resolve(false) }));
 jest.mock('@expo/vector-icons', () => ({ MaterialCommunityIcons: 'Icon' }));
 jest.mock('../../lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('react-native-purchases', () => ({ __esModule: true, default: {} }));

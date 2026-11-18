@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
 import { TOURS } from '../components/tutorial/tutorialSteps';
 import { Rect, TargetId, TourId, TutorialStep } from '../types/tutorial';
@@ -37,7 +37,7 @@ interface TutorialContextType {
   /** Next button: runs a real step's registered action, else just next(). */
   advance: () => void;
   requestRemeasure: () => void;
-  start: (tourId?: TourId) => void;
+  start: (tourId?: TourId, captions?: Partial<Record<TargetId, string>>) => void;
   next: () => void;
   skip: () => void;
   dismiss: () => void;
@@ -58,8 +58,16 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
 
+  // Captions a screen fills in when it starts its tour (e.g. the AI Coach's
+  // real message allowance), in place of the step's fixed text.
+  const [captions, setCaptions] = useState<Partial<Record<TargetId, string>>>({});
   const steps = TOURS[tourId];
-  const currentStep = steps[stepIndex];
+  const baseStep = steps[stepIndex];
+  const override = captions[baseStep.targetId];
+  const currentStep = useMemo(
+    () => (override ? { ...baseStep, caption: override } : baseStep),
+    [baseStep, override]
+  );
 
   const dismiss = useCallback(() => {
     setActive(false);
@@ -67,7 +75,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     setTargets({});
   }, []);
 
-  const start = useCallback((nextTourId: TourId = 'main') => {
+  const start = useCallback((nextTourId: TourId = 'main', nextCaptions?: Partial<Record<TargetId, string>>) => {
+    setCaptions(nextCaptions ?? {});
     setTourId(nextTourId);
     setTargets({});
     setStepIndex(0);

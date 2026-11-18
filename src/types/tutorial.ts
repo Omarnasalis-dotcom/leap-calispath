@@ -49,12 +49,14 @@ export type TargetId =
   | 'quick.firstCard'
   | 'templates.recommended'
   | 'templates.difficultyFilter'
-  | 'templates.firstRow';
+  | 'templates.firstRow'
+  | 'coach.starters'
+  | 'coach.usage';
 
 // 'main' is the app-wide first-run tour (Profile -> worlds -> TRAIN ->
 // Journey); the rest are short per-screen tours that auto-start the first
 // time their own screen opens.
-export type TourId = 'main' | 'customize' | 'quickWorkout' | 'templates';
+export type TourId = 'main' | 'customize' | 'quickWorkout' | 'templates' | 'coach';
 
 export type TutorialStepMode = 'real' | 'decoy';
 
