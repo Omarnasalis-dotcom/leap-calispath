@@ -28,6 +28,7 @@ const TONE_BY_TYPE: Record<string, 'accent' | 'ok' | 'warn'> = {
   new_subscription: 'ok',
   program_review_request: 'accent',
   program_review_overdue: 'warn',
+  free_program_offer_skipped: 'warn',
 };
 
 const ICON_BY_TYPE: Record<string, string> = {
@@ -41,6 +42,7 @@ const ICON_BY_TYPE: Record<string, string> = {
   new_subscription: '💳',
   program_review_request: '🛡️',
   program_review_overdue: '⏰',
+  free_program_offer_skipped: '🎁',
 };
 
 function NotificationIcon({ type }: { type: string }) {
