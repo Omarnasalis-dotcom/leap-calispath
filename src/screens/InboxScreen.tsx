@@ -6,7 +6,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { InboxService } from '../services/InboxService';
 import { MessageCard } from '../components/inbox/MessageCard';
-import { visibleItems, type GiftClaim, type InboxItem } from '../lib/inbox';
+import { MessageRow } from '../components/inbox/MessageRow';
+import { showsFullCard, visibleItems, type GiftClaim, type InboxItem } from '../lib/inbox';
 import { track } from '../lib/analytics';
 import { FLIP_X, t } from '../i18n';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
@@ -47,6 +48,36 @@ export function InboxScreen() {
       void load();
     }, [load]),
   );
+
+  const claimFor = (item: InboxItem) => (item.claimId ? claims[item.claimId] : undefined);
+
+  // New ones (and a gift still to claim) are full cards at the top; the ones
+  // already opened fold into one-line rows below. A tapped row opens in place
+  // as a full card, so the rows around it split into separate groups.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const { fresh, earlier } = useMemo(() => {
+    const now = Date.now();
+    const list = items ?? [];
+    const full = list.filter((i) => showsFullCard(i, i.claimId ? claims[i.claimId] : undefined, now));
+    return { fresh: full, earlier: list.filter((i) => !full.includes(i)) };
+  }, [items, claims]);
+  const earlierGroups = useMemo(() => {
+    const groups: { expanded: boolean; items: InboxItem[] }[] = [];
+    for (const item of earlier) {
+      const open = expanded.has(item.id);
+      const last = groups[groups.length - 1];
+      if (!open && last && !last.expanded) last.items.push(item);
+      else groups.push({ expanded: open, items: [item] });
+    }
+    return groups;
+  }, [earlier, expanded]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -96,14 +127,38 @@ export function InboxScreen() {
           </View>
         )}
 
-        {!failed && items?.map((item) => (
-          <MessageCard
-            key={item.id}
-            item={item}
-            claim={item.claimId ? claims[item.claimId] : undefined}
-            source="inbox"
-          />
+        {!failed && fresh.map((item) => (
+          <MessageCard key={item.id} item={item} claim={claimFor(item)} source="inbox" />
         ))}
+
+        {!failed && earlier.length > 0 && (
+          <>
+            {fresh.length > 0 && <Text style={styles.sectionLabel}>{t('inbox.earlier')}</Text>}
+            {earlierGroups.map((group) =>
+              group.expanded ? (
+                <MessageCard
+                  key={group.items[0].id}
+                  item={group.items[0]}
+                  claim={claimFor(group.items[0])}
+                  source="inbox"
+                  onCollapse={() => toggle(group.items[0].id)}
+                />
+              ) : (
+                <View key={group.items[0].id} style={styles.group}>
+                  {group.items.map((item, i) => (
+                    <MessageRow
+                      key={item.id}
+                      item={item}
+                      claim={claimFor(item)}
+                      divider={i > 0}
+                      onPress={() => toggle(item.id)}
+                    />
+                  ))}
+                </View>
+              ),
+            )}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -121,6 +176,21 @@ function getStyles(c: TCPalette) {
     },
     headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
     content: { padding: TC_LAYOUT.screenPadding, paddingBottom: 48, gap: 12 },
+    sectionLabel: {
+      color: c.textMuted,
+      fontFamily: 'BarlowCondensed-Bold',
+      fontSize: 13,
+      letterSpacing: 1.4,
+      marginTop: 8,
+      marginBottom: -4,
+    },
+    group: {
+      backgroundColor: c.cardRaised,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
     empty: { alignItems: 'center', gap: 10, paddingTop: 56, paddingHorizontal: 24 },
     emptyIcon: {
       width: 64,

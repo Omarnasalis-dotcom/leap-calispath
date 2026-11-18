@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, Linking } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark' }) }));
 const mockRefreshProfile = jest.fn();
 jest.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ refreshProfile: mockRefreshProfile }) }));

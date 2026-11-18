@@ -188,6 +188,19 @@ export function giftState(claim: GiftClaim | undefined, nowMs: number): GiftStat
   return new Date(claim.claim_by).getTime() > nowMs ? 'claimable' : 'expired';
 }
 
+/**
+ * The Notifications screen shows new ones as full cards and the ones already
+ * opened as one-line rows. A gift still waiting to be claimed stays a full
+ * card (its button is the point); one whose claim didn't load counts as
+ * waiting, the server checks it.
+ */
+export function showsFullCard(item: InboxItem, claim: GiftClaim | undefined, nowMs: number): boolean {
+  if (item.unread) return true;
+  if (item.kind !== 'gift') return false;
+  const state = giftState(claim, nowMs);
+  return state === 'claimable' || state === 'unknown';
+}
+
 export function isExpired(item: InboxItem, nowMs: number): boolean {
   if (!item.expiresAt) return false;
   const at = new Date(item.expiresAt).getTime();

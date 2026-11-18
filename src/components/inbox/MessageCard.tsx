@@ -9,6 +9,7 @@ import { InboxService } from '../../services/InboxService';
 import { INBOX_TYPE, giftState, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
 import { formatUntilDate } from '../../lib/coachUsage';
 import { track } from '../../lib/analytics';
+import { notePlanBeforeChange } from '../../lib/planWelcome';
 import { t } from '../../i18n';
 import { TC_COLORS, TCPalette } from '../../../constants/trainingCenterTokens';
 
@@ -40,9 +41,17 @@ const TYPE_ICON: Record<string, IconName> = {
   program_review_ready: 'shield-check-outline',
 };
 
-function iconFor(item: InboxItem): IconName {
+export function iconFor(item: InboxItem): IconName {
   if (item.type === INBOX_TYPE) return ICON[item.kind];
   return TYPE_ICON[item.type] ?? 'bell-outline';
+}
+
+/** "PRO · 7 days free", or the gift's own text when it isn't a plan. */
+export function giftLabelFor(item: InboxItem): string | null {
+  return item.giftText
+    ?? (item.giftTier && item.giftDays
+      ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
+      : null);
 }
 
 interface Props {
@@ -56,15 +65,17 @@ interface Props {
   onClaimed?: (claimId: string) => void;
   /** The pop-up shows the card without its own frame. */
   bare?: boolean;
+  /** An opened row tapped open on the Notifications screen: folds back into a row. */
+  onCollapse?: () => void;
 }
 
 // One message from the Leap team: news, a discount code, or a gift to claim.
 // Shared by the inbox list and the app-open pop-up.
-export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }: Props) {
+export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare, onCollapse }: Props) {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const styles = useMemo(() => getStyles(c), [c]);
-  const { refreshProfile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const { runAsync, isExecuting } = useSafeAsync();
   const [justClaimed, setJustClaimed] = useState(false);
   // The server's answer wins over what the list loaded (e.g. claimed on another phone).
@@ -99,6 +110,7 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     if (!item.claimId) return;
     const claimId = item.claimId;
     setError(null);
+    void notePlanBeforeChange(profile);
     runAsync(() => InboxService.claimGift(claimId), {
       onSuccess: (result) => {
         if (!result.ok) {
@@ -129,10 +141,7 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     Linking.openURL(url).catch(() => { });
   };
 
-  const giftLabel = item.giftText
-    ?? (item.giftTier && item.giftDays
-      ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
-      : null);
+  const giftLabel = giftLabelFor(item);
 
   return (
     <View style={bare ? styles.bare : styles.card}>
@@ -145,6 +154,16 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
           <Text style={styles.date}>{formatUntilDate(item.createdAt)}</Text>
         </View>
         {item.unread && !bare && <View style={styles.unreadDot} accessibilityLabel={t('inbox.unread')} />}
+        {onCollapse && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t('inbox.collapse')}
+            onPress={onCollapse}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <MaterialCommunityIcons name="chevron-up" size={22} color={c.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {item.imageUrl && (
