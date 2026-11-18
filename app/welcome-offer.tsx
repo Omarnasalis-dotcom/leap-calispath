@@ -4,7 +4,7 @@ import { WelcomeOfferScreen } from '../src/screens/WelcomeOfferScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 import type { OfferTrigger } from '../src/lib/offerPrompt';
 
-const TRIGGERS: OfferTrigger[] = ['assessment', 'program_complete', 'banner'];
+const TRIGGERS: OfferTrigger[] = ['assessment', 'program_complete', 'banner', 'gift_ended'];
 
 export default function Route() {
   const { trigger, preview } = useLocalSearchParams<{ trigger?: string; preview?: string }>();

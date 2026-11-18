@@ -129,6 +129,22 @@ describe('gift', () => {
     expect(mockRefreshProfile).not.toHaveBeenCalled();
   });
 
+  it('switches to Claimed when the server says it was already claimed (e.g. on another phone)', async () => {
+    mockClaimGift.mockResolvedValue({ ok: false, error: 'ALREADY_CLAIMED' });
+    await act(async () => { r = create(<MessageCard item={gift} claim={openClaim} source="inbox" />); });
+    await act(async () => { button(r, 'CLAIM GIFT').props.onPress(); });
+    expect(button(r, 'CLAIM GIFT')).toBeUndefined();
+    expect(allText(r)).toContain('Gift claimed');
+  });
+
+  it('switches to Expired when the server says the deadline passed', async () => {
+    mockClaimGift.mockResolvedValue({ ok: false, error: 'EXPIRED' });
+    await act(async () => { r = create(<MessageCard item={gift} claim={openClaim} source="inbox" />); });
+    await act(async () => { button(r, 'CLAIM GIFT').props.onPress(); });
+    expect(button(r, 'CLAIM GIFT')).toBeUndefined();
+    expect(allText(r)).toContain('expired');
+  });
+
   it('falls back to the general message for an unknown error', async () => {
     mockClaimGift.mockResolvedValue({ ok: false, error: 'SOMETHING_NEW' });
     await act(async () => { r = create(<MessageCard item={gift} claim={openClaim} source="inbox" />); });
@@ -155,8 +171,8 @@ describe('gift', () => {
     expect(button(r, 'CLAIM GIFT')).toBeUndefined();
   });
 
-  it('has no claim button while the claim could not be loaded', async () => {
+  it('still offers the claim button when the claim could not be loaded (the server checks it)', async () => {
     await act(async () => { r = create(<MessageCard item={gift} source="inbox" />); });
-    expect(button(r, 'CLAIM GIFT')).toBeUndefined();
+    expect(button(r, 'CLAIM GIFT')).toBeDefined();
   });
 });

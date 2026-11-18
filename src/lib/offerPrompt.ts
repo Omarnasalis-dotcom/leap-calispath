@@ -8,17 +8,22 @@ import { checkFirstTimeOfferEnabled } from './appVersion';
 //  - 'program_complete': after finishing the last day of the free program
 //  - 'banner': from Profile's gift (OfferGiftChip), which stays while the
 //    store has an offer for the person
-// Only for people who never had a paid plan, while the paywall and
+//  - 'gift_ended': the first time the app is used after a gift (or any
+//    granted plan) ended, once per gift
+// Only for people with no plan running who never bought one from a store
+// (a gift doesn't count as buying), while the paywall and
 // app_config.first_time_offer_enabled are on. The stores enforce who
 // really gets the intro; this only decides when to show the screen.
 // Plan: docs/features/PRICING_AND_FIRST_TIME_OFFER_PLAN.md (Part 2).
 
-export type OfferTrigger = 'assessment' | 'program_complete' | 'banner';
+export type OfferTrigger = 'assessment' | 'program_complete' | 'banner' | 'gift_ended';
 
 /** What this device remembers, per user (ISO dates). */
 export interface OfferSeen {
   assessment?: string;
   program_complete?: string;
+  /** The end date of the gift whose ending already showed the offer. */
+  gift_ended?: string;
 }
 
 interface AudienceInput {
@@ -30,20 +35,44 @@ interface AudienceInput {
     is_coach?: boolean | null;
     subscription_tier?: string | null;
     access_expires_at?: string | null;
+    entitlement_source?: string | null;
+    rc_original_transaction_id?: string | null;
   } | null;
 }
 
-/** Who may see the offer at all. "Never subscribed" = no plan was ever granted. */
-export function isOfferAudience({ platform, paywallEnabled, offerEnabled, profile }: AudienceInput): boolean {
+type OfferProfile = NonNullable<AudienceInput['profile']>;
+
+const isRunning = (profile: OfferProfile, nowMs: number) =>
+  !!profile.access_expires_at && new Date(profile.access_expires_at).getTime() > nowMs;
+
+/**
+ * When a gift (a plan granted by Leap, not bought) ended, or null. Only for
+ * someone who never bought from a store.
+ */
+export function giftEndedAt(profile: OfferProfile | null | undefined, nowMs = Date.now()): string | null {
+  if (!profile?.access_expires_at || profile.rc_original_transaction_id) return null;
+  if (profile.entitlement_source === 'rc_subscription') return null;
+  return isRunning(profile, nowMs) ? null : profile.access_expires_at;
+}
+
+/**
+ * Who may see the offer at all: nothing running now, and never bought from a
+ * store. Someone whose gift ended still counts as new (the stores agree).
+ */
+export function isOfferAudience({ platform, paywallEnabled, offerEnabled, profile }: AudienceInput, nowMs = Date.now()): boolean {
   if (platform !== 'ios' && platform !== 'android') return false;
   if (!paywallEnabled || !offerEnabled || !profile) return false;
   if (profile.is_admin === true || profile.is_coach === true) return false;
-  return !profile.subscription_tier && !profile.access_expires_at;
+  if (profile.rc_original_transaction_id || profile.entitlement_source === 'rc_subscription') return false;
+  return !isRunning(profile, nowMs);
 }
 
 /** Whether a moment should show the offer, given what was already seen. */
-export function offerDue(trigger: OfferTrigger, seen: OfferSeen): boolean {
+export function offerDue(trigger: OfferTrigger, seen: OfferSeen, endedAt: string | null = null): boolean {
   switch (trigger) {
+    case 'gift_ended':
+      // Once per gift: a later gift that ends shows it again.
+      return !!endedAt && seen.gift_ended !== endedAt;
     case 'assessment':
       return !seen.assessment;
     case 'program_complete':
@@ -66,11 +95,12 @@ export async function loadOfferSeen(userId: string): Promise<OfferSeen> {
   }
 }
 
-export async function markOfferSeen(userId: string, field: keyof OfferSeen): Promise<void> {
+/** value: what to remember (the gift's end date for 'gift_ended'). */
+export async function markOfferSeen(userId: string, field: keyof OfferSeen, value?: string): Promise<void> {
   try {
     const seen = await loadOfferSeen(userId);
-    if (seen[field]) return;
-    await AsyncStorage.setItem(key(userId), JSON.stringify({ ...seen, [field]: new Date().toISOString() }));
+    if (field === 'gift_ended' ? seen.gift_ended === value : seen[field]) return;
+    await AsyncStorage.setItem(key(userId), JSON.stringify({ ...seen, [field]: value ?? new Date().toISOString() }));
   } catch {
     // Device storage is a convenience here: at worst the offer shows again.
   }
@@ -86,7 +116,7 @@ export async function isOfferDue(
   // Cheap checks first, so most users never hit the network for this.
   if (!isOfferAudience({ ...base, offerEnabled: true })) return false;
   const [offerEnabled, seen] = await Promise.all([checkFirstTimeOfferEnabled(), loadOfferSeen(input.userId)]);
-  return isOfferAudience({ ...base, offerEnabled }) && offerDue(trigger, seen);
+  return isOfferAudience({ ...base, offerEnabled }) && offerDue(trigger, seen, giftEndedAt(input.profile));
 }
 
 // ── Prices ──────────────────────────────────────────────────────────────

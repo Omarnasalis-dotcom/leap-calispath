@@ -439,6 +439,7 @@ const en = {
     titleWelcome: 'A welcome gift for you',
     titleProgramDone: 'Program complete! Keep going',
     titleBanner: 'Your welcome offer',
+    titleGiftEnded: 'Your gift has ended. Keep going',
     body: 'Train smarter with Pro, at a lower price for your first months.',
     planPro: 'PRO',
     percentOff: '−{{percent}}%',

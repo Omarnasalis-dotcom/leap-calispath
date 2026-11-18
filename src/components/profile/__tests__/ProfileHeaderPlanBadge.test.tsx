@@ -85,9 +85,15 @@ describe('plan badge on Profile', () => {
     expect(badge.props.disabled).toBe(true);
   });
 
-  it('an ended plan shows EXPIRED and opens the plans', () => {
-    const { badge, label } = renderBadge({ subscription_tier: 'max', access_expires_at: past });
+  it('an ended plan they bought shows EXPIRED and opens the plans', () => {
+    const { badge, label } = renderBadge({ subscription_tier: 'max', access_expires_at: past, entitlement_source: 'rc_subscription', rc_original_transaction_id: 'tx1' });
     expect(label).toBe('EXPIRED');
+    expect(badge.props.disabled).toBe(false);
+  });
+
+  it('an ended gift shows FREE, not EXPIRED (they never subscribed)', () => {
+    const { badge, label } = renderBadge({ subscription_tier: 'pro', access_expires_at: past, entitlement_source: 'admin_grant' });
+    expect(label).toBe('FREE');
     expect(badge.props.disabled).toBe(false);
   });
 });

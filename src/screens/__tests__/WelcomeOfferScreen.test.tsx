@@ -9,7 +9,8 @@ jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock
 jest.mock('expo-haptics', () => ({ impactAsync: jest.fn(() => Promise.resolve()), ImpactFeedbackStyle: { Light: 'light' } }));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark' }) }));
-jest.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ profile: { id: 'u1' } }) }));
+let mockProfile: Record<string, unknown> = { id: 'u1' };
+jest.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ profile: mockProfile }) }));
 jest.mock('react-native-purchases', () => ({
   __esModule: true,
   INTRO_ELIGIBILITY_STATUS: { INTRO_ELIGIBILITY_STATUS_INELIGIBLE: 1, INTRO_ELIGIBILITY_STATUS_ELIGIBLE: 2 },
@@ -49,10 +50,10 @@ const proPackage = (introPrice: unknown) => ({
 const intro = { price: 999.99, priceString: 'E£999.99', cycles: 2, periodUnit: 'MONTH', periodNumberOfUnits: 1 };
 
 let r: ReactTestRenderer;
-beforeEach(() => { jest.clearAllMocks(); clearOfferCache(); });
+beforeEach(() => { jest.clearAllMocks(); clearOfferCache(); mockProfile = { id: 'u1' }; });
 afterEach(() => { act(() => r?.unmount()); jest.restoreAllMocks(); });
 
-async function open(trigger: 'assessment' | 'program_complete' | 'banner' = 'assessment') {
+async function open(trigger: 'assessment' | 'program_complete' | 'banner' | 'gift_ended' = 'assessment') {
   await act(async () => { r = create(<WelcomeOfferScreen trigger={trigger} />); });
 }
 
@@ -133,4 +134,15 @@ it('keeps the store answer for the session, per account', async () => {
   P.getAppUserID.mockResolvedValueOnce('u2');
   await open();
   expect(P.getOfferings).toHaveBeenCalledTimes(2);
+});
+
+it('after a gift ends: its own title, and remembers that gift so it shows once', async () => {
+  await AsyncStorage.clear();
+  jest.replaceProperty(Platform, 'OS', 'android');
+  P.getOfferings.mockResolvedValue(proPackage(intro));
+  mockProfile = { id: 'u1', subscription_tier: 'pro', access_expires_at: '2026-01-01T00:00:00Z', entitlement_source: 'admin_grant' };
+  await open('gift_ended');
+  expect(allText(r)).toContain('Your gift has ended. Keep going');
+  expect((await loadOfferSeen('u1')).gift_ended).toBe('2026-01-01T00:00:00Z');
+  expect((await loadOfferSeen('u1')).assessment).toBeUndefined();
 });
