@@ -6,7 +6,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { InboxService } from '../services/InboxService';
-import { ActionCard, ChallengeGroupRow, HeroCoachCard, TimelineRow, TIMELINE_INSET } from '../components/inbox/feed/FeedParts';
+import { ActionCard, ChallengeGroupRow, DOT, HeroCoachCard, ROW_MIN_HEIGHT, TimelineRow, TIMELINE_INSET } from '../components/inbox/feed/FeedParts';
 import { INBOX_WINDOW_DAYS, type GiftClaim, type InboxItem } from '../lib/inbox';
 import { buildFeed, foldChallenges, groupByMonth, type ActivityEntry } from '../lib/inboxFeed';
 import { track } from '../lib/analytics';
@@ -257,7 +257,7 @@ function Skeleton({ styles }: { styles: ReturnType<typeof getStyles> }) {
 }
 
 const CARD_INSET = 16;
-const LINE_START = TIMELINE_INSET + 18 - 0.75;
+const LINE_START = TIMELINE_INSET + DOT / 2 - 0.75;
 
 function getStyles(c: TCPalette) {
   return StyleSheet.create({
@@ -308,8 +308,8 @@ function getStyles(c: TCPalette) {
     timelineLine: {
       position: 'absolute',
       start: LINE_START,
-      top: 30,
-      bottom: 30,
+      top: ROW_MIN_HEIGHT / 2,
+      bottom: ROW_MIN_HEIGHT / 2,
       width: 1.5,
       backgroundColor: c.dividerStrong,
     },
@@ -336,7 +336,7 @@ function getStyles(c: TCPalette) {
     retryText: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1.4 },
     skeletonBlock: { backgroundColor: c.inputBg, borderRadius: 18 },
     skeletonRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: TIMELINE_INSET - CARD_INSET },
-    skeletonDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.inputBg },
+    skeletonDot: { width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: c.inputBg },
     skeletonBar: { height: 12, borderRadius: 6, backgroundColor: c.inputBg },
   });
 }

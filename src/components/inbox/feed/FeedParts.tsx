@@ -76,7 +76,7 @@ function Tile({ item, where, size }: { item: InboxItem; where: 'card' | 'timelin
         justifyContent: 'center',
       }}
     >
-      <MaterialCommunityIcons name={icon} size={where === 'card' ? 22 : 16} color={col.fg} />
+      <MaterialCommunityIcons name={icon} size={where === 'card' ? 22 : 20} color={col.fg} />
     </View>
   );
 }
@@ -359,8 +359,10 @@ function cardStyles(c: TCPalette, dark: boolean) {
 
 // ─── Timeline row ───────────────────────────────────────────────────────────
 
-const DOT = 36;
+export const DOT = 44;
 export const TIMELINE_INSET = 20;
+/** Row height; the timeline line runs between the first and last row centres. */
+export const ROW_MIN_HEIGHT = 64;
 
 export function TimelineRow({ item, onActed }: { item: InboxItem; onActed: (id: string) => void }) {
   const { mode } = useTheme();
@@ -443,14 +445,14 @@ export function ChallengeGroupRow({ items, onActed }: { items: InboxItem[]; onAc
 
 function rowStyles(c: TCPalette) {
   return StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60, paddingVertical: 8, paddingHorizontal: TIMELINE_INSET },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: ROW_MIN_HEIGHT, paddingVertical: 8, paddingHorizontal: TIMELINE_INSET },
     dotRing: { padding: 3, borderRadius: (DOT + 6) / 2, backgroundColor: c.screenBg, margin: -3 },
     text: { flex: 1, gap: 2 },
     line: { color: c.textBody, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, lineHeight: 20 },
     bold: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold' },
     sub: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, lineHeight: 18 },
     meta: { alignItems: 'flex-end', gap: 6 },
-    date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
+    date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 10.5 },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.coral },
   });
 }
