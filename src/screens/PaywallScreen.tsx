@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
@@ -8,7 +8,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
+import { hasActiveAccess, getSubscriptionTier, hasExpiredSubscription } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 import { notePlanBeforeChange } from '../lib/planWelcome';
@@ -63,7 +63,14 @@ export function PaywallScreen() {
   const muted = { color: theme.text.secondary };
   const alreadySubscribed = hasActiveAccess(profile);
   const currentTier = getSubscriptionTier(profile, paywallEnabled);
-  const [step, setStep] = useState<Step>(alreadySubscribed ? 'context' : 'presenting');
+  // The plan badge on Profile opens "your plan" first for everyone (Free and
+  // Expired too): what they're on and what upgrading unlocks, then the plans.
+  // Feature gates still go straight to the store's plans.
+  const fromBadge = source === 'profile_badge';
+  const planState: 'active' | 'expired' | 'free' = alreadySubscribed
+    ? 'active'
+    : hasExpiredSubscription(profile, paywallEnabled) ? 'expired' : 'free';
+  const [step, setStep] = useState<Step>(alreadySubscribed || fromBadge ? 'context' : 'presenting');
 
   // router.replace('/') alone doesn't clear whatever screen the paywall was
   // opened on top of (e.g. Customize Program) — '/' is itself just a
@@ -155,7 +162,7 @@ export function PaywallScreen() {
     // upgrade-vs-fresh-purchase on its own (confirmed no such option exists
     // in this project's paywall config). A Free user has nothing to be
     // confused about, so they skip straight to the paywall as before.
-    if (alreadySubscribed) return;
+    if (alreadySubscribed || fromBadge) return;
 
     // Calling presentPaywall() while THIS screen's own push-in transition
     // is still animating races react-native-screens' native transition —
@@ -208,6 +215,16 @@ export function PaywallScreen() {
       ? new Date(profile.access_expires_at).toLocaleDateString(isArabic ? 'ar' : undefined, { month: 'short', day: 'numeric', year: 'numeric' })
       : null;
     const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+    const planName = planState === 'active'
+      ? currentTier.toUpperCase()
+      : planState === 'expired' ? String(profile?.subscription_tier ?? 'pro').toUpperCase() : t('paywall.planFree');
+    const title = planState === 'active' ? t('paywall.changePlan')
+      : planState === 'expired' ? t('paywall.titleExpired') : t('paywall.titleFree');
+    const unlocks: { icon: keyof typeof MaterialCommunityIcons.glyphMap; title: string; body: string }[] = [
+      { icon: 'robot-outline', title: t('planWelcome.coachTitle'), body: t('planWelcome.coachBodyPro') },
+      { icon: 'dumbbell', title: t('planWelcome.libraryTitle'), body: t('planWelcome.libraryBody') },
+      { icon: 'tune-variant', title: t('planWelcome.customTitle'), body: t('planWelcome.customBody') },
+    ];
     return (
       <SafeAreaView style={[styles.container, bg]}>
         <View style={styles.planScreen}>
@@ -215,34 +232,80 @@ export function PaywallScreen() {
             <MaterialCommunityIcons name="close" size={26} color={c.textPrimary} />
           </TouchableOpacity>
 
+          <ScrollView style={styles.planScroll} contentContainerStyle={styles.planScrollContent} showsVerticalScrollIndicator={false}>
           <Text style={[styles.eyebrow, { color: c.coralText }]}>{t('paywall.yourPlan')}</Text>
-          <Text style={[styles.planTitle, { color: c.textPrimary }]}>{t('paywall.changePlan')}</Text>
+          <Text style={[styles.planTitle, { color: c.textPrimary }]}>{title}</Text>
 
           <View style={[styles.planCard, { backgroundColor: c.cardRaised, borderColor: c.border }]}>
             <View style={styles.planRow}>
-              <Text style={[styles.planName, { color: c.textPrimary }]}>{currentTier.toUpperCase()}</Text>
-              <View style={styles.activeChip}>
-                <View style={styles.activeDot} />
-                <Text style={styles.activeText}>{t('paywall.active')}</Text>
-              </View>
+              <Text style={[styles.planName, { color: c.textPrimary }]}>{planName}</Text>
+              {planState === 'active' && (
+                <View style={styles.activeChip}>
+                  <View style={styles.activeDot} />
+                  <Text style={styles.activeText}>{t('paywall.active')}</Text>
+                </View>
+              )}
+              {planState === 'expired' && (
+                <View style={styles.expiredChip}>
+                  {/* Lighter on dark: the badge brown alone is too faint there. */}
+                  <Text style={[styles.expiredText, mode === 'dark' && { color: '#E39A88' }]}>{t('paywall.expired')}</Text>
+                </View>
+              )}
+              {planState === 'free' && (
+                <View style={[styles.currentChip, { borderColor: c.borderStrong }]}>
+                  <Text style={[styles.currentText, { color: c.textSecondary }]}>{t('paywall.currentPlan')}</Text>
+                </View>
+              )}
             </View>
-            {expiresLabel && (
+            {expiresLabel && planState !== 'free' && (
               <View style={[styles.renewRow, { borderTopColor: c.border }]}>
-                <MaterialCommunityIcons name="calendar-check-outline" size={18} color={c.textSecondary} />
-                <Text style={[styles.renewText, { color: c.textBody }]}>{t('paywall.activeUntil', { date: expiresLabel })}</Text>
+                <MaterialCommunityIcons
+                  name={planState === 'active' ? 'calendar-check-outline' : 'calendar-remove-outline'}
+                  size={18}
+                  color={c.textSecondary}
+                />
+                <Text style={[styles.renewText, { color: c.textBody }]}>
+                  {planState === 'active' ? t('paywall.activeUntil', { date: expiresLabel }) : t('paywall.endedOn', { date: expiresLabel })}
+                </Text>
               </View>
             )}
           </View>
 
-          <View style={styles.noteRow}>
-            <MaterialCommunityIcons name="information-outline" size={18} color={c.textSecondary} />
-            <Text style={[styles.noteText, { color: c.textSecondary }]}>{t('paywall.replaceNote')}</Text>
-          </View>
+          {planState === 'active' ? (
+            <View style={styles.noteRow}>
+              <MaterialCommunityIcons name="information-outline" size={18} color={c.textSecondary} />
+              <Text style={[styles.noteText, { color: c.textSecondary }]}>{t('paywall.replaceNote')}</Text>
+            </View>
+          ) : (
+            <View style={styles.unlocks}>
+              <Text style={[styles.unlockLabel, { color: c.textSecondary }]}>
+                {planState === 'expired' ? t('paywall.renewLabel') : t('paywall.unlockLabel')}
+              </Text>
+              {unlocks.map((u) => (
+                <View key={u.title} style={[styles.unlockRow, { borderColor: c.border, backgroundColor: c.cardRaised }]}>
+                  <View style={[styles.unlockIcon, { backgroundColor: c.iconWell }]}>
+                    <MaterialCommunityIcons name={u.icon} size={20} color={c.coral} />
+                  </View>
+                  <View style={styles.unlockText}>
+                    <Text style={[styles.unlockTitle, { color: c.textPrimary }]}>{u.title}</Text>
+                    <Text style={[styles.unlockBody, { color: c.textSecondary }]}>{u.body}</Text>
+                  </View>
+                  <MaterialCommunityIcons name="lock-outline" size={18} color={c.textSecondary} accessibilityElementsHidden importantForAccessibility="no" />
+                </View>
+              ))}
+            </View>
+          )}
+          </ScrollView>
 
           <View style={styles.planFooter}>
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: c.coral }]} onPress={present} accessibilityRole="button">
               <Text style={styles.primaryBtnText}>{t('paywall.seePlans')}</Text>
             </TouchableOpacity>
+            {planState !== 'active' && (
+              <TouchableOpacity style={styles.notNowBtn} onPress={() => router.replace('/redeem-code')} accessibilityRole="button">
+                <Text style={[styles.codeLink, { color: c.coralText }]}>{t('offer.haveCode')}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.notNowBtn} onPress={close} accessibilityRole="button">
               <Text style={[styles.notNowText, { color: c.textSecondary }]}>{t('paywall.notNow')}</Text>
             </TouchableOpacity>
@@ -320,7 +383,21 @@ const styles = StyleSheet.create({
   renewText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 18, paddingHorizontal: 2 },
   noteText: { flex: 1, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13.5, lineHeight: 20, textAlign: 'left' },
-  planFooter: { marginTop: 'auto', paddingBottom: 12, gap: 4 },
+  planFooter: { paddingTop: 12, paddingBottom: 12, gap: 4 },
+  planScroll: { flex: 1 },
+  planScrollContent: { paddingBottom: 12 },
+  expiredChip: { backgroundColor: 'rgba(161,88,74,0.14)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  expiredText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.2, color: '#a1584a' },
+  currentChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  currentText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.2 },
+  unlocks: { marginTop: 24, gap: 10 },
+  unlockLabel: { fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1.6, marginBottom: 2 },
+  unlockRow: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 14, padding: 14 },
+  unlockIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  unlockText: { flex: 1, gap: 2 },
+  unlockTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 15, lineHeight: 21 },
+  unlockBody: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, lineHeight: 19 },
+  codeLink: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14 },
   primaryBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   primaryBtnText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 17, letterSpacing: 1.6 },
   notNowBtn: { alignItems: 'center', paddingVertical: 14 },

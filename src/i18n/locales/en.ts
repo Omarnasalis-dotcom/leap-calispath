@@ -603,6 +603,14 @@ const en = {
     },
   },
   paywall: {
+    planFree: 'FREE',
+    titleFree: 'Unlock the full app',
+    titleExpired: 'Your plan has ended',
+    currentPlan: 'CURRENT PLAN',
+    expired: 'EXPIRED',
+    endedOn: 'Ended on {{date}}',
+    unlockLabel: 'UPGRADE TO UNLOCK',
+    renewLabel: 'RENEW TO GET THESE BACK',
     yourPlan: 'YOUR PLAN',
     active: 'ACTIVE',
     // True for every plan: a gift ends, a store plan may renew or not.
