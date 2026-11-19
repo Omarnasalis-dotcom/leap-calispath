@@ -88,7 +88,8 @@ export function ProfileScreen({
   };
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
   const onOpenAdmin = () => router.push('/admin-tournament');
-  const onOpenPaywall = () => router.push('/paywall');
+  // The plan badge and the Upgrade pill: "your plan" first, then the plans.
+  const onOpenPaywall = () => router.push('/paywall?from=profile_badge');
 
   const { profile, user, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode } = useTheme();
