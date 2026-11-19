@@ -10,7 +10,7 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-notifications', () => ({ addNotificationReceivedListener: () => ({ remove: jest.fn() }) }));
 const mockUnread = jest.fn();
 jest.mock('../../../services/InboxService', () => ({
-  InboxService: { fetchUnreadCount: () => mockUnread() },
+  InboxService: { fetchBadgeCount: () => mockUnread() },
   onInboxChanged: () => () => { },
 }));
 

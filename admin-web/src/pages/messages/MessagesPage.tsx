@@ -398,6 +398,8 @@ export function MessagesPage() {
   const problem = preview?.problem ? messageError(preview.problem) : null;
   const canSend = previewIsCurrent && !!preview && !preview.problem && preview.total > 0;
   const skipped = Object.entries(preview?.skipped ?? {});
+  // Arabic is optional, but an empty field sends those people the English text.
+  const missingArabic = !!preview && preview.arabic > 0 && (!form.titleAr.trim() || !form.bodyAr.trim());
 
   const columns: Column<AdminMessage>[] = [
     { key: 'when', header: 'Sent', render: (m) => (
@@ -478,7 +480,7 @@ export function MessagesPage() {
             <Field label="Message (English)" hint={`${form.bodyEn.length}/400${form.kind === 'discount' ? ' · write {code} where the code goes' : ''}`}>
               <textarea className="field" rows={3} maxLength={400} value={form.bodyEn} onChange={(e) => set({ bodyEn: e.target.value })} />
             </Field>
-            <Field label="Title (Arabic)" hint="Empty = Arabic users get the English text">
+            <Field label="Title (Arabic)" hint="Empty = people using the app in Arabic get the English text">
               <input className="field" dir="rtl" maxLength={80} value={form.titleAr} onChange={(e) => set({ titleAr: e.target.value })} />
             </Field>
             <Field label="Message (Arabic)">
@@ -593,6 +595,12 @@ export function MessagesPage() {
                     </div>
                   )}
                 </>
+              )}
+              {missingArabic && (
+                <div className="notice">
+                  {preview!.arabic.toLocaleString()} {preview!.arabic === 1 ? 'person uses' : 'people use'} the app in Arabic and will get this in English.
+                  Add the Arabic {!form.titleAr.trim() && !form.bodyAr.trim() ? 'title and message' : !form.titleAr.trim() ? 'title' : 'message'} first.
+                </div>
               )}
               {problem && <div className="error-note">{problem}</div>}
               {testMutation.error && <ErrorNote error={testMutation.error} />}

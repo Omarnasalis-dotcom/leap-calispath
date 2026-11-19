@@ -8,13 +8,13 @@ import { useMountedRef } from '../../hooks/useMountedRef';
 import { t } from '../../i18n';
 
 // Bell on Profile that opens the Notifications screen, with the number of
-// unread items on it ("9+" above nine).
+// unread items plus what still needs the person on it ("9+" above nine).
 export function InboxBell({ color, style }: { color: string; style?: StyleProp<ViewStyle> }) {
   const [unread, setUnread] = useState(0);
   const isMounted = useMountedRef();
 
   const refresh = useCallback(() => {
-    InboxService.fetchUnreadCount()
+    InboxService.fetchBadgeCount()
       .then((n) => {
         if (isMounted.current) setUnread(n);
       })

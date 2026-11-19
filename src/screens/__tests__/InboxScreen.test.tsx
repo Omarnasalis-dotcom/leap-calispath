@@ -12,7 +12,9 @@ jest.mock('expo-router', () => {
     useFocusEffect: (cb: () => void) => R.useEffect(cb, [cb]),
   };
 });
-jest.mock('../../lib/analytics', () => ({ track: jest.fn() }));
+const mockTrack = jest.fn();
+jest.mock('../../lib/analytics', () => ({ track: (...a: unknown[]) => mockTrack(...a) }));
+jest.mock('expo-notifications', () => ({ addNotificationReceivedListener: () => ({ remove: jest.fn() }) }));
 const mockSetString = jest.fn().mockResolvedValue(true);
 jest.mock('expo-clipboard', () => ({ setStringAsync: (...a: unknown[]) => mockSetString(...a) }));
 const mockFetch = jest.fn();
@@ -23,7 +25,14 @@ const mockMarkAllSeen = jest.fn();
 const mockMarkActed = jest.fn();
 jest.mock('../../services/InboxService', () => ({
   InboxService: {
-    fetchInbox: () => mockFetch(),
+    // Same steps as the real one, over the mocks below.
+    fetchFeedData: async () => {
+      const { STATUS_TYPES } = jest.requireActual('../../lib/inboxFeed');
+      const items = (await mockFetch()) as InboxItem[];
+      const claims = await mockClaims();
+      const status = await mockStatus(items.filter((i) => STATUS_TYPES.has(i.type)).map((i) => i.id));
+      return { items, claims, status };
+    },
     fetchGiftClaims: () => mockClaims(),
     fetchStatus: (...a: unknown[]) => mockStatus(...a),
     markAllSeen: (...a: unknown[]) => mockMarkAllSeen(...a),
@@ -33,7 +42,7 @@ jest.mock('../../services/InboxService', () => ({
 }));
 
 import { InboxScreen } from '../InboxScreen';
-import { ActionCard, HeroCoachCard, TimelineRow } from '../../components/inbox/feed/FeedParts';
+import { ActionCard, ChallengeGroupRow, HeroCoachCard, TimelineRow } from '../../components/inbox/feed/FeedParts';
 import type { InboxItem, NotificationFields } from '../../lib/inbox';
 
 const noFields: NotificationFields = { challengeName: null, byName: null, overtakenKind: null, boardName: null, tier: null, week: null, programName: null };
@@ -92,8 +101,11 @@ it('puts what needs the person first, then the activity by month', async () => {
   expect(text).toContain('yahia_shinnawy passed you');
   expect(text).toContain('On Well-Rounded');
   expect(text).toContain('ACTIVITY');
-  expect(text).toContain("You're all caught up");
-  expect(mockStatus).toHaveBeenCalledWith([w7.id, loop.id, old.id]);
+  // Things are waiting: no "caught up", the list just ends.
+  expect(text).not.toContain("You're all caught up");
+  expect(text).toContain("That's everything from the last 60 days");
+  expect(mockStatus).toHaveBeenCalledWith([w7.id, loop.id, passed.id, old.id]);
+  expect(mockTrack).toHaveBeenCalledWith('inbox_needs_shown', { count: 3, kinds: 'coach,challenge,overtaken' });
 });
 
 it('Build week opens the AI Coach with the week review, and the card leaves Needs you', async () => {
@@ -144,10 +156,13 @@ it('a code can be copied or used', async () => {
   expect(router.push).toHaveBeenCalledWith('/redeem-code?code=MAX50');
 });
 
-it('hides Needs you when nothing is waiting, and opens settings from the header', async () => {
+it('says all caught up first when nothing is waiting, and opens settings from the header', async () => {
   mockFetch.mockResolvedValue([item({ title: 'Old news', createdAt: '2026-10-01T10:00:00Z' })]);
   await act(async () => { r = create(<InboxScreen />); });
-  expect(allText(r)).not.toContain('NEEDS YOU');
+  const text = allText(r);
+  expect(text).not.toContain('NEEDS YOU');
+  expect(text.indexOf("You're all caught up")).toBeLessThan(text.indexOf('ACTIVITY'));
+  expect(text).toContain('Nothing needs you right now.');
   await act(async () => { button(r, 'Notification settings')!.props.onPress(); });
   expect(router.push).toHaveBeenCalledWith('/notification-settings');
 });
@@ -157,4 +172,47 @@ it('shows the empty message when there is nothing', async () => {
   await act(async () => { r = create(<InboxScreen />); });
   expect(allText(r)).toContain('Nothing here yet');
   expect(allText(r)).not.toContain("You're all caught up");
+});
+
+it('a Defend card leaves once the server says the person is back ahead', async () => {
+  const passed = item({ type: 'leaderboard_overtaken', screen: 'profile', params: { activeTab: 'profile', board: 'wra' },
+    fields: { overtakenKind: 'score', boardName: 'Well-Rounded', byName: 'yahia_shinnawy' } });
+  mockFetch.mockResolvedValue([passed]);
+  mockStatus.mockResolvedValue({ [passed.id]: true });
+  await act(async () => { r = create(<InboxScreen />); });
+  expect(r.root.findAllByType(ActionCard)).toHaveLength(0);
+  expect(r.root.findAllByType(TimelineRow).map((n) => n.props.item.id)).toEqual([passed.id]);
+});
+
+it('lists what arrived since the last visit under New, before the months', async () => {
+  const fresh = item({ title: 'Fresh news', unread: true });
+  const older = item({ title: 'Older news', createdAt: '2026-10-01T10:00:00Z' });
+  mockFetch.mockResolvedValue([fresh, older]);
+  await act(async () => { r = create(<InboxScreen />); });
+  const text = allText(r);
+  expect(text.indexOf('New')).toBeLessThan(text.indexOf('Fresh news'));
+  expect(text.indexOf('Fresh news')).toBeLessThan(text.indexOf('October'));
+  expect(mockMarkAllSeen).toHaveBeenCalledWith([fresh.id]);
+});
+
+it("folds a month's weekly challenges into one row that opens to show them", async () => {
+  const days = (n: number) => new Date(Date.now() - n * 86400000);
+  // Three starts in one month, all over a week old.
+  const month = days(40);
+  const at = (d: number) => new Date(month.getFullYear(), month.getMonth(), d, 12).toISOString();
+  const a = item({ type: 'weekly_challenge_started', screen: 'weekly-challenge', fields: { challengeName: 'Beasts' }, createdAt: at(20) });
+  const b = item({ type: 'weekly_challenge_started', screen: 'weekly-challenge', fields: { challengeName: 'Fresh start' }, createdAt: at(13) });
+  const c = item({ type: 'weekly_challenge_started', screen: 'weekly-challenge', fields: { challengeName: 'Loop' }, createdAt: at(6) });
+  mockFetch.mockResolvedValue([a, b, c]);
+  mockStatus.mockResolvedValue({ [a.id]: true, [b.id]: true, [c.id]: true });
+  await act(async () => { r = create(<InboxScreen />); });
+  expect(r.root.findAllByType(ChallengeGroupRow)).toHaveLength(1);
+  expect(r.root.findAllByType(TimelineRow)).toHaveLength(0);
+  expect(allText(r)).toContain('3 weekly challenges started');
+  expect(allText(r)).toContain('Beasts, Fresh start, Loop');
+  await act(async () => { button(r, '3 weekly challenges started')!.props.onPress(); });
+  expect(r.root.findAllByType(TimelineRow)).toHaveLength(3);
+  // An old challenge's row opens nothing: the challenge screen shows this week's.
+  await act(async () => { r.root.findAllByType(TimelineRow)[0].findByProps({ accessibilityRole: 'button' }).props.onPress(); });
+  expect(router.push).not.toHaveBeenCalled();
 });

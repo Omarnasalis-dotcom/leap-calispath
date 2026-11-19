@@ -23,6 +23,9 @@ export interface Feed {
   activity: InboxItem[];
 }
 
+/** Types the server can say are done (get_inbox_status): the week built, the challenge entered or over, back ahead on the board. */
+export const STATUS_TYPES = new Set(['week_complete_nudge', 'weekly_challenge_started', 'leaderboard_overtaken']);
+
 const DAY = 86400000;
 /** Without a server answer, an item counts as waiting for this long (unless tapped). */
 export const PENDING_DAYS = 7;
@@ -125,6 +128,49 @@ export function buildFeed(
     cards: [...gifts, ...shown],
     activity: sorted.filter((i) => !used.has(i.id)),
   };
+}
+
+/**
+ * What the bell counts: everything unread, plus what still needs the person
+ * but was already seen ("Needs you"), so the bell doesn't go quiet while a
+ * week waits to be built or a gift to be claimed.
+ */
+export function badgeCount(unread: number, feed: Feed): number {
+  const waiting = [feed.hero, ...feed.cards].filter((e): e is ActionEntry => !!e && !e.item.unread);
+  return unread + waiting.length;
+}
+
+/** One line of the activity timeline: a notification, or a month's weekly-challenge starts folded together. */
+export type ActivityEntry =
+  | { kind: 'item'; item: InboxItem }
+  | { kind: 'challenges'; key: string; items: InboxItem[] };
+
+/**
+ * A month's weekly-challenge starts (two or more) fold into one row, placed
+ * where the newest one was; they're the same message every week.
+ */
+export function foldChallenges(items: InboxItem[]): ActivityEntry[] {
+  const challenges = items.filter((i) => i.type === 'weekly_challenge_started');
+  if (challenges.length < 2) return items.map((item) => ({ kind: 'item' as const, item }));
+  const out: ActivityEntry[] = [];
+  let placed = false;
+  for (const item of items) {
+    if (item.type !== 'weekly_challenge_started') {
+      out.push({ kind: 'item', item });
+    } else if (!placed) {
+      out.push({ kind: 'challenges', key: `challenges:${item.id}`, items: challenges });
+      placed = true;
+    }
+  }
+  return out;
+}
+
+/**
+ * A challenge that started over a week ago is over: its row opens nothing,
+ * since the challenge screen shows this week's challenge, not that one.
+ */
+export function isPastChallenge(item: InboxItem, nowMs: number): boolean {
+  return item.type === 'weekly_challenge_started' && ageDays(item, nowMs) > PENDING_DAYS;
 }
 
 /** Activity cut into calendar months, newest first; the year only when it isn't this year. */

@@ -1,4 +1,4 @@
-import { buildFeed, dateLabel, groupByMonth, itemRoute, NEEDS_YOU_CAP, timelineText, withBoldName } from '../inboxFeed';
+import { badgeCount, buildFeed, dateLabel, foldChallenges, groupByMonth, isPastChallenge, itemRoute, NEEDS_YOU_CAP, timelineText, withBoldName } from '../inboxFeed';
 import type { InboxItem, NotificationFields } from '../inbox';
 
 const now = new Date('2026-11-19T12:00:00').getTime();
@@ -146,5 +146,41 @@ describe('where each notification goes', () => {
   it('old overtakes that only said "profile" open their board from the saved names', () => {
     expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', fields: { overtakenKind: 'score', boardName: 'Well-Rounded' } }))).toBe('/profile?activeTab=profile&board=wra');
     expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', fields: { overtakenKind: 'time', tier: 0 } }))).toBe('/profile?activeTab=strength&boardTier=0');
+  });
+});
+
+describe('badgeCount', () => {
+  it('adds what still needs the person but was already seen', () => {
+    const gift = item({ kind: 'gift', claimId: 'c1', unread: false });
+    const challenge = item({ type: 'weekly_challenge_started', unread: true });
+    const feed = buildFeed([gift, challenge], {}, {}, now);
+    // 1 unread (the challenge, already counted) + the seen gift.
+    expect(badgeCount(1, feed)).toBe(2);
+    expect(badgeCount(0, buildFeed([], {}, {}, now))).toBe(0);
+  });
+});
+
+describe('foldChallenges', () => {
+  it('folds two or more challenge starts into one entry where the newest was', () => {
+    const news = item({ title: 'news' });
+    const c1 = item({ type: 'weekly_challenge_started' });
+    const over = item({ type: 'leaderboard_overtaken' });
+    const c2 = item({ type: 'weekly_challenge_started' });
+    const out = foldChallenges([news, c1, over, c2]);
+    expect(out.map((e) => e.kind)).toEqual(['item', 'challenges', 'item']);
+    expect(out[1].kind === 'challenges' && out[1].items.map((i) => i.id)).toEqual([c1.id, c2.id]);
+  });
+  it('leaves a single challenge as it is', () => {
+    const c1 = item({ type: 'weekly_challenge_started' });
+    expect(foldChallenges([c1])).toEqual([{ kind: 'item', item: c1 }]);
+  });
+});
+
+describe('isPastChallenge', () => {
+  it('is true only for a challenge start over a week old', () => {
+    const now = Date.now();
+    expect(isPastChallenge(item({ type: 'weekly_challenge_started', createdAt: new Date(now - 8 * 86400000).toISOString() }), now)).toBe(true);
+    expect(isPastChallenge(item({ type: 'weekly_challenge_started', createdAt: new Date(now - 2 * 86400000).toISOString() }), now)).toBe(false);
+    expect(isPastChallenge(item({ type: 'leaderboard_overtaken', createdAt: new Date(now - 30 * 86400000).toISOString() }), now)).toBe(false);
   });
 });
