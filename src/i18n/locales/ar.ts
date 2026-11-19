@@ -601,6 +601,7 @@ const ar: Translations = {
     heroHeadline: 'أنهيت الأسبوع {{n}}.\nالأسبوع {{next}} هو التالي.',
     heroBody: 'مدرّبك لديه نتائج الأسبوع {{n}} وجاهز لبناء المرحلة التالية.',
     heroCta: 'ابنِ الأسبوع {{next}}',
+    heroDraft: 'حلّل الأسبوع {{n}} وابنِ الأسبوع {{next}}.',
     overChallenge: 'تحدٍّ',
     overLeaderboard: 'لوحة الصدارة',
     overGift: 'هدية',

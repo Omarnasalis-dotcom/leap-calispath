@@ -532,6 +532,7 @@ const en = {
     heroHeadline: 'WEEK {{n}} DONE.\nWEEK {{next}} IS NEXT.',
     heroBody: 'Your coach has your Week {{n}} results and is ready to build the next block.',
     heroCta: 'Build Week {{next}}',
+    heroDraft: 'Analyze my Week {{n}} and build Week {{next}}.',
     overChallenge: 'CHALLENGE',
     overLeaderboard: 'LEADERBOARD',
     overGift: 'GIFT',

@@ -102,7 +102,8 @@ export function HeroCoachCard({ entry, onActed }: { entry: ActionEntry; onActed:
   const build = () => {
     track('ai_week_review_tapped', { from: 'notifications' });
     onActed(entry.item.id);
-    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } } as never);
+    // Ready in the message box; the athlete taps send.
+    router.push({ pathname: '/coach', params: { draft: t('inboxFeed.heroDraft', { n: week, next: week + 1 }) } } as never);
   };
   return (
     <View style={styles.card}>

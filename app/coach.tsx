@@ -8,7 +8,7 @@ export default function Route() {
   // Set by CoachFab (src/components/coach/CoachFab.tsx) when a starter
   // prompt chip is tapped from the FAB's open panel — sends that prompt
   // immediately instead of showing the empty-state welcome screen.
-  const { firstPrompt, tour } = useLocalSearchParams<{ firstPrompt?: string; tour?: string }>();
+  const { firstPrompt, tour, draft } = useLocalSearchParams<{ firstPrompt?: string; tour?: string; draft?: string }>();
 
   return (
     <SpartanLayout hideToggle>
@@ -16,6 +16,8 @@ export default function Route() {
         onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         initialPrompt={typeof firstPrompt === 'string' ? firstPrompt : undefined}
         startTour={tour === '1'}
+        // Typed into the message box, not sent: the athlete taps send (Notifications "Build Week n").
+        draftPrompt={typeof draft === 'string' ? draft : undefined}
       />
     </SpartanLayout>
   );

@@ -114,7 +114,7 @@ it('Build week opens the AI Coach with the week review, and the card leaves Need
   mockStatus.mockResolvedValue({ [w7.id]: false });
   await act(async () => { r = create(<InboxScreen />); });
   await act(async () => { button(r, 'Build Week 8')!.props.onPress(); });
-  expect(router.push).toHaveBeenCalledWith({ pathname: '/coach', params: { firstPrompt: "I finished this week. Let's review it and build next week." } });
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/coach', params: { draft: 'Analyze my Week 7 and build Week 8.' } });
   expect(mockMarkActed).toHaveBeenCalledWith(w7.id);
   expect(r.root.findAllByType(HeroCoachCard)).toHaveLength(0);
   expect(r.root.findAllByType(TimelineRow)).toHaveLength(1);
