@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { ACTIVITY_TYPES, INBOX_TYPE, INBOX_WINDOW_DAYS, belongsInInbox, toInboxItem, type GiftClaim, type InboxItem, type InboxRow } from '../lib/inbox';
+import { ACTIVITY_TYPES, INBOX_TYPE, INBOX_WINDOW_DAYS, belongsInInbox, toInboxItem, visibleItems, type GiftClaim, type InboxItem, type InboxRow } from '../lib/inbox';
+import { STATUS_TYPES, badgeCount, buildFeed } from '../lib/inboxFeed';
 
 // The Notifications screen: the list, the unread dot, gift claims and the
 // notification switches. Reads are the user's own rows (RLS).
@@ -42,6 +43,32 @@ export class InboxService {
       .limit(INBOX_LIMIT);
     if (error) throw new Error(error.message);
     return ((data ?? []) as InboxRow[]).filter(belongsInInbox).map(toInboxItem);
+  }
+
+  /**
+   * Everything the Notifications screen shows: the visible items, their gift
+   * claims and which "Needs you" items the server says are done. Throws only
+   * if the list itself fails; claims and status fall back to empty.
+   */
+  static async fetchFeedData(): Promise<{ items: InboxItem[]; claims: Record<string, GiftClaim>; status: Record<string, boolean> }> {
+    const items = visibleItems(await InboxService.fetchInbox(), Date.now());
+    const claimIds = items.map((i) => i.claimId).filter((id): id is string => !!id);
+    const statusIds = items.filter((i) => STATUS_TYPES.has(i.type)).map((i) => i.id);
+    const [claims, status] = await Promise.all([
+      InboxService.fetchGiftClaims(claimIds).catch(() => ({})),
+      InboxService.fetchStatus(statusIds),
+    ]);
+    return { items, claims, status };
+  }
+
+  /** The bell's number: unread, plus "Needs you" items already seen (badgeCount). */
+  static async fetchBadgeCount(): Promise<number> {
+    const [unread, data] = await Promise.all([
+      InboxService.fetchUnreadCount(),
+      InboxService.fetchFeedData().catch(() => null),
+    ]);
+    if (!data) return unread;
+    return badgeCount(unread, buildFeed(data.items, data.claims, data.status, Date.now()));
   }
 
   static async fetchUnreadCount(): Promise<number> {

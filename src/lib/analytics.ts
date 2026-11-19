@@ -65,6 +65,7 @@ export type AnalyticsEvent =
   | 'soft_update_tapped'
   | 'soft_update_later'
   | 'inbox_viewed'
+  | 'inbox_needs_shown'
   | 'admin_message_shown'
   | 'admin_message_action'
   | 'admin_message_push_opened'

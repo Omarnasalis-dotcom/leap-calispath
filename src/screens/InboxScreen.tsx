@@ -1,25 +1,24 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { InboxService } from '../services/InboxService';
-import { ActionCard, HeroCoachCard, TimelineRow, TIMELINE_INSET } from '../components/inbox/feed/FeedParts';
-import { visibleItems, type GiftClaim, type InboxItem } from '../lib/inbox';
-import { buildFeed, groupByMonth } from '../lib/inboxFeed';
+import { ActionCard, ChallengeGroupRow, DOT, HeroCoachCard, ROW_MIN_HEIGHT, TimelineRow, TIMELINE_INSET } from '../components/inbox/feed/FeedParts';
+import { INBOX_WINDOW_DAYS, type GiftClaim, type InboxItem } from '../lib/inbox';
+import { buildFeed, foldChallenges, groupByMonth, type ActivityEntry } from '../lib/inboxFeed';
 import { track } from '../lib/analytics';
 import { FLIP_X, isArabic, t } from '../i18n';
 import { TC_COLORS, TCPalette } from '../../constants/trainingCenterTokens';
 
-/** Types the server can say are done (get_inbox_status). */
-const STATUS_TYPES = new Set(['week_complete_nudge', 'weekly_challenge_started']);
-
 // The Notifications screen (/notifications), "action-first": what still needs
 // the person at the top ("Needs you": the AI Coach week to build, a challenge
 // to join, a leaderboard to defend, a gift to claim, a code to use), then
-// everything else as a month-by-month timeline. Opened from the bell on
-// Profile or by tapping a gift push. Layout rules: src/lib/inboxFeed.ts.
+// everything else as a timeline: what arrived since the last visit under
+// "New", then month by month. Opened from the bell on Profile or by tapping
+// a gift push. Layout rules: src/lib/inboxFeed.ts.
 export function InboxScreen() {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
@@ -30,24 +29,28 @@ export function InboxScreen() {
   const [status, setStatus] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Unread when they arrived on screen: they stay under "New" until the
+  // person leaves, even though opening the screen marks them read.
+  const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
 
-  const load = useCallback(async () => {
+  // countShown: only the load when the screen opens records what "Needs you"
+  // showed, not every refresh (pull, back to the app, a push landing).
+  const load = useCallback(async (countShown = false) => {
     try {
-      const list = visibleItems(await InboxService.fetchInbox(), Date.now());
-      const claimIds = list.map((i) => i.claimId).filter((id): id is string => !!id);
-      const statusIds = list.filter((i) => STATUS_TYPES.has(i.type)).map((i) => i.id);
-      const [claimMap, statusMap] = await Promise.all([
-        InboxService.fetchGiftClaims(claimIds).catch(() => ({})),
-        InboxService.fetchStatus(statusIds),
-      ]);
+      const data = await InboxService.fetchFeedData();
       if (!isMounted.current) return;
-      setItems(list);
-      setClaims(claimMap);
-      setStatus(statusMap);
+      setItems(data.items);
+      setClaims(data.claims);
+      setStatus(data.status);
       setFailed(false);
-      // The badge clears on open (all of it, even rows the list doesn't show,
-      // so the bell can't get stuck on a number). "Needs you" stays until done.
-      const unreadIds = list.filter((i) => i.unread).map((i) => i.id);
+      const unreadIds = data.items.filter((i) => i.unread).map((i) => i.id);
+      if (unreadIds.length > 0) setNewIds((prev) => new Set([...prev, ...unreadIds]));
+      // What the person was shown up front, to measure how often it's acted on.
+      const shown = buildFeed(data.items, data.claims, data.status, Date.now());
+      const kinds = [shown.hero, ...shown.cards].filter(Boolean).map((e) => e!.kind);
+      if (countShown && kinds.length > 0) track('inbox_needs_shown', { count: kinds.length, kinds: kinds.join(',') });
+      // Opening reads everything (even rows the list doesn't show, so no
+      // unread count gets stuck). The bell then counts only "Needs you".
       void InboxService.markAllSeen(unreadIds);
     } catch {
       if (isMounted.current) setFailed(true);
@@ -57,7 +60,17 @@ export function InboxScreen() {
   useFocusEffect(
     useCallback(() => {
       track('inbox_viewed');
-      void load();
+      void load(true);
+      // While the screen is open: a push that lands, or coming back to the app, refreshes it.
+      const appState = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void load();
+      });
+      const received = Platform.OS === 'web' ? null : Notifications.addNotificationReceivedListener(() => void load());
+      return () => {
+        appState.remove();
+        received?.remove();
+        setNewIds(new Set());
+      };
     }, [load]),
   );
 
@@ -80,9 +93,15 @@ export function InboxScreen() {
   }, []);
 
   const feed = useMemo(() => buildFeed(items ?? [], claims, status, Date.now()), [items, claims, status]);
-  const months = useMemo(() => groupByMonth(feed.activity, Date.now(), isArabic ? 'ar' : undefined), [feed.activity]);
+  const fresh = useMemo(() => feed.activity.filter((i) => newIds.has(i.id)), [feed.activity, newIds]);
+  const months = useMemo(
+    () => groupByMonth(feed.activity.filter((i) => !newIds.has(i.id)), Date.now(), isArabic ? 'ar' : undefined)
+      .map((m) => ({ ...m, entries: foldChallenges(m.items) })),
+    [feed.activity, newIds],
+  );
   const needsCount = (feed.hero ? 1 : 0) + feed.cards.length;
   const hasItems = !!items && items.length > 0;
+  const hasActivity = fresh.length > 0 || months.length > 0;
 
   return (
     <View style={styles.screen}>
@@ -115,7 +134,7 @@ export function InboxScreen() {
         {failed && (
           <View style={hasItems ? styles.errorInline : styles.empty}>
             <Text style={styles.emptyText}>{t('inbox.loadFailed')}</Text>
-            <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={load}>
+            <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={() => load()}>
               <Text style={styles.retryText}>{t('inbox.retry')}</Text>
             </TouchableOpacity>
           </View>
@@ -128,6 +147,19 @@ export function InboxScreen() {
             </View>
             <Text style={styles.emptyTitle}>{t('inbox.emptyTitle')}</Text>
             <Text style={styles.emptyText}>{t('inbox.emptyBody')}</Text>
+          </View>
+        )}
+
+        {/* Nothing waiting: say so first, instead of opening on old history. */}
+        {hasItems && !failed && needsCount === 0 && (
+          <View style={styles.caughtUp}>
+            <View style={styles.caughtUpIcon}>
+              <MaterialCommunityIcons name="check" size={18} color={c.coral} />
+            </View>
+            <View style={styles.caughtUpWords}>
+              <Text style={styles.caughtUpTitle}>{t('inboxFeed.caughtUp')}</Text>
+              <Text style={styles.caughtUpBody}>{t('inboxFeed.caughtUpBody')}</Text>
+            </View>
           </View>
         )}
 
@@ -146,33 +178,62 @@ export function InboxScreen() {
           </View>
         )}
 
-        {hasItems && months.length > 0 && (
-          <View style={needsCount > 0 ? styles.activityAfterNeeds : null}>
+        {hasItems && hasActivity && (
+          <View style={styles.activity}>
             <Text style={[styles.sectionLabel, styles.activityLabel]} accessibilityRole="header">{t('inboxFeed.activity')}</Text>
+            {fresh.length > 0 && (
+              <TimelineGroup
+                label={t('inboxFeed.newLabel')}
+                accent
+                entries={fresh.map((item) => ({ kind: 'item' as const, item }))}
+                onActed={onActed}
+                styles={styles}
+              />
+            )}
             {months.map((month) => (
-              <View key={month.key}>
-                <Text style={styles.monthLabel}>{month.label}</Text>
-                <View>
-                  {/* From the first dot's centre to the last one's, inside this month only. */}
-                  {month.items.length > 1 && (
-                    <View
-                      style={styles.timelineLine}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                      pointerEvents="none"
-                    />
-                  )}
-                  {month.items.map((item) => (
-                    <TimelineRow key={item.id} item={item} onActed={onActed} />
-                  ))}
-                </View>
-              </View>
+              <TimelineGroup key={month.key} label={month.label} entries={month.entries} onActed={onActed} styles={styles} />
             ))}
           </View>
         )}
 
-        {hasItems && <Text style={styles.footer}>{t('inboxFeed.caughtUp')}</Text>}
+        {hasItems && hasActivity && <Text style={styles.footer}>{t('inboxFeed.endOfList', { days: INBOX_WINDOW_DAYS })}</Text>}
       </ScrollView>
+    </View>
+  );
+}
+
+/** One stretch of the timeline ("New", or a month) with its line from the first dot to the last. */
+function TimelineGroup({
+  label,
+  accent,
+  entries,
+  onActed,
+  styles,
+}: {
+  label: string;
+  accent?: boolean;
+  entries: ActivityEntry[];
+  onActed: (id: string) => void;
+  styles: ReturnType<typeof getStyles>;
+}) {
+  return (
+    <View>
+      <Text style={[styles.monthLabel, accent && styles.newLabel]} accessibilityRole="header">{label}</Text>
+      <View>
+        {entries.length > 1 && (
+          <View
+            style={styles.timelineLine}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+          />
+        )}
+        {entries.map((entry) =>
+          entry.kind === 'item'
+            ? <TimelineRow key={entry.item.id} item={entry.item} onActed={onActed} />
+            : <ChallengeGroupRow key={entry.key} items={entry.items} onActed={onActed} />,
+        )}
+      </View>
     </View>
   );
 }
@@ -198,7 +259,7 @@ function Skeleton({ styles }: { styles: ReturnType<typeof getStyles> }) {
 }
 
 const CARD_INSET = 16;
-const LINE_START = TIMELINE_INSET + 18 - 0.75;
+const LINE_START = TIMELINE_INSET + DOT / 2 - 0.75;
 
 function getStyles(c: TCPalette) {
   return StyleSheet.create({
@@ -221,7 +282,22 @@ function getStyles(c: TCPalette) {
       letterSpacing: 1.5,
       paddingHorizontal: TIMELINE_INSET - CARD_INSET,
     },
-    activityAfterNeeds: { marginTop: 28 },
+    activity: { marginTop: 28 },
+    caughtUp: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginHorizontal: CARD_INSET,
+      padding: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    caughtUpIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: c.iconWell },
+    caughtUpWords: { flex: 1, gap: 2 },
+    caughtUpTitle: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 15 },
+    caughtUpBody: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13 },
+    newLabel: { color: c.coralText },
     activityLabel: { paddingHorizontal: TIMELINE_INSET },
     monthLabel: {
       color: c.textMuted,
@@ -234,8 +310,8 @@ function getStyles(c: TCPalette) {
     timelineLine: {
       position: 'absolute',
       start: LINE_START,
-      top: 30,
-      bottom: 30,
+      top: ROW_MIN_HEIGHT / 2,
+      bottom: ROW_MIN_HEIGHT / 2,
       width: 1.5,
       backgroundColor: c.dividerStrong,
     },
@@ -262,7 +338,7 @@ function getStyles(c: TCPalette) {
     retryText: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1.4 },
     skeletonBlock: { backgroundColor: c.inputBg, borderRadius: 18 },
     skeletonRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: TIMELINE_INSET - CARD_INSET },
-    skeletonDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.inputBg },
+    skeletonDot: { width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: c.inputBg },
     skeletonBar: { height: 12, borderRadius: 6, backgroundColor: c.inputBg },
   });
 }

@@ -14,8 +14,8 @@ import { TutorialProvider, useTutorial } from '../../contexts/TutorialContext';
 import { useScreenTour } from '../useScreenTour';
 
 let seen: ReturnType<typeof useTutorial> | null = null;
-function Screen({ anyTime, captions }: { anyTime?: boolean; captions?: Record<string, string> }) {
-  useScreenTour('coach', true, { anyTime, captions });
+function Screen({ anyTime, captions, force }: { anyTime?: boolean; captions?: Record<string, string>; force?: boolean }) {
+  useScreenTour('coach', true, { anyTime, captions, force });
   seen = useTutorial();
   return null;
 }
@@ -45,4 +45,12 @@ it('other screens still only start for the recently onboarded', async () => {
   mockProfile = { id: 'u1', onboarding_completed_at: '2025-01-01T00:00:00Z' };
   await act(async () => { r = create(<TutorialProvider><Screen /></TutorialProvider>); });
   expect(seen!.active).toBe(false);
+});
+
+it('from the Welcome screen (force) it plays again, even when seen and long after onboarding', async () => {
+  mockProfile = { id: 'u1', onboarding_completed_at: '2025-01-01T00:00:00Z' };
+  await AsyncStorage.setItem('seen_tour_coach_u1', 'true');
+  await act(async () => { r = create(<TutorialProvider><Screen force /></TutorialProvider>); });
+  expect(seen!.active).toBe(true);
+  expect(seen!.tourId).toBe('coach');
 });

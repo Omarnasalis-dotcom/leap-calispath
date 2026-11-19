@@ -521,3 +521,18 @@ describe('AI Coach after a day card is added', () => {
     expect(trashButton().props.disabled).toBe(false);
   });
 });
+
+describe('ready-to-send message (Notifications "Build Week n")', () => {
+  it('is typed into the box and waits for the athlete to tap send', async () => {
+    await act(async () => { tree = create(<CoachScreen onBack={() => {}} draftPrompt="Analyze my Week 2 and build Week 3." />); });
+    await flush();
+    const input = tree!.root.findAllByType(TextInput).find(n => n.props.onChangeText)!;
+    expect(input.props.value).toBe('Analyze my Week 2 and build Week 3.');
+    expect(mockInvoke).not.toHaveBeenCalled();
+    const button = tree!.root.findAllByType(TouchableOpacity).find(n => n.props.accessibilityLabel === t('coach.send'))!;
+    await act(async () => { button.props.onPress(); });
+    await flush();
+    expect(mockInvoke).toHaveBeenCalled();
+    expect(JSON.stringify(mockInvoke.mock.calls[0][1])).toContain('Analyze my Week 2 and build Week 3.');
+  });
+});

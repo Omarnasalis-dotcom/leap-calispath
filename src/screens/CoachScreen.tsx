@@ -190,7 +190,13 @@ function consumeSseBuffer(buffer: string, onStage: (s: Stage) => void): { rest: 
   return { rest: buffer, final };
 }
 
-export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; initialPrompt?: string }) {
+export function CoachScreen({ onBack, initialPrompt, startTour, draftPrompt }: {
+  onBack: () => void;
+  initialPrompt?: string;
+  startTour?: boolean;
+  /** Put in the message box once the chat is ready (after setup, over any history); never sent by itself. */
+  draftPrompt?: string;
+}) {
   const { profile, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -303,6 +309,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // build the next) is live once the AI Coach program has a finished week.
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const showStarters = historyLoaded && !showSetup && messages.length === 0 && !loading;
+  const draftAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!draftPrompt || draftAppliedRef.current || !historyLoaded || showSetup) return;
+    draftAppliedRef.current = true;
+    setInputText(draftPrompt);
+  }, [draftPrompt, historyLoaded, showSetup]);
   const [weekReviewReady, setWeekReviewReady] = useState(false);
   useEffect(() => {
     if (!showStarters || !profile?.id) return;
@@ -323,6 +335,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const usageLine = usage ? coachUsageText(usage)?.messages : null;
   useScreenTour('coach', showStarters && (!!usage || usageWaitOver), {
     anyTime: true,
+    force: startTour,
     captions: usageLine ? { 'coach.usage': t('tour.coachUsageLive', { messages: usageLine.toUpperCase() }) } : undefined,
   });
   const { ref: startersTourRef, onLayout: onStartersTourLayout } = useTutorialTarget('coach.starters', scrollViewRef);

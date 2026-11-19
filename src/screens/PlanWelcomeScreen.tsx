@@ -8,7 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { track } from '../lib/analytics';
 import { markPlanWelcomeShown, type WelcomeTier } from '../lib/planWelcome';
-import { t } from '../i18n';
+import { FLIP_X, t } from '../i18n';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -19,16 +19,26 @@ interface Props {
   upgrade: boolean;
 }
 
+/** Where a feature (or button) leads; each opens with that screen's guide. */
+type Destination = 'coach' | 'programs' | 'custom';
+
+const ROUTES: Record<Destination, string> = {
+  coach: '/coach?tour=1',
+  programs: '/program-templates?tour=1',
+  custom: '/customize-program?tour=1',
+};
+
 interface Feature {
   icon: IconName;
   title: string;
   body: string;
+  opens?: Destination;
 }
 
 function featuresFor(tier: WelcomeTier, upgrade: boolean): Feature[] {
   if (upgrade) {
     return [
-      { icon: 'robot-outline', title: t('planWelcome.moreCoachTitle'), body: t('planWelcome.moreCoachBody') },
+      { icon: 'robot-outline', title: t('planWelcome.moreCoachTitle'), body: t('planWelcome.moreCoachBody'), opens: 'coach' },
       { icon: 'check-decagram-outline', title: t('planWelcome.keepTitle'), body: t('planWelcome.keepBody') },
     ];
   }
@@ -37,15 +47,17 @@ function featuresFor(tier: WelcomeTier, upgrade: boolean): Feature[] {
       icon: 'robot-outline',
       title: t('planWelcome.coachTitle'),
       body: tier === 'max' ? t('planWelcome.coachBodyMax') : t('planWelcome.coachBodyPro'),
+      opens: 'coach',
     },
-    { icon: 'dumbbell', title: t('planWelcome.libraryTitle'), body: t('planWelcome.libraryBody') },
-    { icon: 'tune-variant', title: t('planWelcome.customTitle'), body: t('planWelcome.customBody') },
+    { icon: 'dumbbell', title: t('planWelcome.libraryTitle'), body: t('planWelcome.libraryBody'), opens: 'programs' },
+    { icon: 'tune-variant', title: t('planWelcome.customTitle'), body: t('planWelcome.customBody'), opens: 'custom' },
   ];
 }
 
 // "Welcome to PRO / MAX": opened by Profile the first time it shows after
-// someone gets a plan (src/lib/planWelcome.ts). What they unlocked, then
-// where to start: the AI Coach or the program library.
+// someone gets a plan (src/lib/planWelcome.ts). What they unlocked (tap one
+// to open it), then where to start: the AI Coach or the program library.
+// Every way into a feature from here plays that screen's guide (?tour=1).
 export function PlanWelcomeScreen({ tier, upgrade }: Props) {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
@@ -80,16 +92,23 @@ export function PlanWelcomeScreen({ tier, upgrade }: Props) {
     transform: [{ scale: 1 + ring.value * 0.7 }],
   }));
 
-  const go = useCallback((action: 'coach' | 'programs' | 'later') => {
+  const go = useCallback((action: Destination | 'later', from: 'button' | 'feature' = 'button') => {
     if (left.current) return;
     left.current = true;
-    track('plan_welcome_action', { tier, upgrade, action });
+    track('plan_welcome_action', { tier, upgrade, action, from });
     if (action === 'later') {
       if (router.canGoBack()) router.back();
       else router.replace('/profile');
       return;
     }
-    router.replace(action === 'coach' ? '/coach' : '/program-templates');
+    // Opened from a link there may be nothing under this screen: put Profile
+    // there, so the feature's back arrow still has somewhere to go.
+    if (router.canGoBack()) {
+      router.replace(ROUTES[action] as never);
+    } else {
+      router.replace('/profile');
+      router.push(ROUTES[action] as never);
+    }
   }, [tier, upgrade]);
 
   const plan = tier.toUpperCase();
@@ -126,17 +145,44 @@ export function PlanWelcomeScreen({ tier, upgrade }: Props) {
         </Animated.Text>
 
         <View style={styles.features}>
-          {features.map((f, i) => (
-            <Animated.View key={f.title} entering={step(2 + i)} style={styles.feature}>
-              <View style={styles.featureIcon}>
-                <MaterialCommunityIcons name={f.icon} size={20} color={c.coral} />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureBody}>{f.body}</Text>
-              </View>
-            </Animated.View>
-          ))}
+          {features.map((f, i) => {
+            const opens = f.opens;
+            const inner = (
+              <>
+                <View style={styles.featureIcon}>
+                  <MaterialCommunityIcons name={f.icon} size={20} color={c.coral} />
+                </View>
+                <View style={styles.featureText}>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureBody}>{f.body}</Text>
+                </View>
+                {opens && <MaterialCommunityIcons name="chevron-right" size={22} color={c.textMuted} style={FLIP_X} />}
+              </>
+            );
+            return (
+              <Animated.View key={f.title} entering={step(2 + i)}>
+                {opens ? (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`${f.title}. ${f.body}`}
+                    accessibilityHint={t('planWelcome.guideHint')}
+                    activeOpacity={0.75}
+                    onPress={() => go(opens, 'feature')}
+                    style={styles.feature}
+                  >
+                    {inner}
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.feature}>{inner}</View>
+                )}
+              </Animated.View>
+            );
+          })}
+          {features.some((f) => f.opens) && (
+            <Animated.Text entering={step(2 + features.length)} style={styles.tapHint}>
+              {t('planWelcome.tapHint')}
+            </Animated.Text>
+          )}
         </View>
 
         <Animated.View entering={step(2 + features.length)} style={styles.actions}>
@@ -203,6 +249,7 @@ function getStyles(c: TCPalette) {
     featureText: { flex: 1, gap: 2 },
     featureTitle: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold', fontSize: 15, lineHeight: 21 },
     featureBody: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, lineHeight: 19 },
+    tapHint: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12.5, textAlign: 'center', marginTop: 2 },
     actions: { gap: 10, marginTop: 10 },
     startLabel: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.4, textAlign: 'center' },
     primaryBtn: {

@@ -239,7 +239,7 @@ function TemplateRowCard({
   );
 }
 
-export function ProgramTemplatesScreen() {
+export function ProgramTemplatesScreen({ startTour }: { startTour?: boolean } = {}) {
   const { user, profile, paywallEnabled } = useAuth();
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
@@ -249,7 +249,7 @@ export function ProgramTemplatesScreen() {
   const [recommendations, setRecommendations] = useState<LibraryTemplateRecommendation[]>([]);
   const [allTemplates, setAllTemplates] = useState<LibraryTemplateRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
-  const { replay: replayTour } = useScreenTour('templates', !loading);
+  const { replay: replayTour } = useScreenTour('templates', !loading, { force: startTour });
   const scrollRef = useRef<ScrollView>(null);
   const { ref: recommendedTourRef, onLayout: onRecommendedTourLayout } = useTutorialTarget('templates.recommended', scrollRef);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

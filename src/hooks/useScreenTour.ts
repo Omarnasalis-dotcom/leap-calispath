@@ -38,9 +38,15 @@ export function useScreenTour(
     anyTime?: boolean;
     /** Captions the screen fills in (see TutorialContext). */
     captions?: Partial<Record<TargetId, string>>;
+    /**
+     * Play it now, even if it was seen before or the person signed up long
+     * ago (opened from the Welcome to PRO/MAX screen with ?tour=1).
+     */
+    force?: boolean;
   },
 ) {
   const anyTime = options?.anyTime === true;
+  const force = options?.force === true;
   const captionsRef = useRef(options?.captions);
   captionsRef.current = options?.captions;
   const [offerOpen, setOfferOpen] = useState(false);
@@ -64,7 +70,7 @@ export function useScreenTour(
     // Never interrupt another tour — try again once it finishes.
     if (!ready || !focused || tutorial.active || attemptedRef.current) return;
     if (!profile?.id) return;
-    if (!anyTime) {
+    if (!anyTime && !force) {
       if (!profile.onboarding_completed_at) return;
       if (Date.now() - new Date(profile.onboarding_completed_at).getTime() > TOUR_AUTO_START_WINDOW_MS) return;
     }
@@ -72,20 +78,20 @@ export function useScreenTour(
     const key = seenKey(tourId, profile.id);
     (async () => {
       try {
-        if ((await AsyncStorage.getItem(key)) === 'true') return;
+        if (!force && (await AsyncStorage.getItem(key)) === 'true') return;
         // Marked seen up front so skipping (the offer or the tour partway)
         // or backgrounding the app mid-tour never re-triggers it; the help
         // button and Settings replay it.
         await AsyncStorage.setItem(key, 'true');
         if (!mountedRef.current) return;
-        if (ASK_FIRST.has(tourId)) setOfferOpen(true);
+        if (ASK_FIRST.has(tourId) && !force) setOfferOpen(true);
         else tutorial.start(tourId, captionsRef.current);
       } catch (e) {
         console.warn(`[useScreenTour] Failed to read tour storage (${tourId}):`, e);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focused, tutorial.active, profile?.id, profile?.onboarding_completed_at, tourId, anyTime]);
+  }, [ready, focused, tutorial.active, profile?.id, profile?.onboarding_completed_at, tourId, anyTime, force]);
 
   const { start } = tutorial;
   const replay = useCallback(() => start(tourId, captionsRef.current), [start, tourId]);

@@ -7,6 +7,7 @@ import type { GiftClaim, InboxItem } from '../../../lib/inbox';
 import {
   boardLabel,
   dateLabel,
+  isPastChallenge,
   itemRoute,
   tierLabel,
   timelineText,
@@ -27,7 +28,7 @@ type Tone = 'tint' | 'neutral' | 'ink' | 'solid';
 const locale = () => (isArabic ? 'ar' : undefined);
 
 // Each type keeps its own icon and tile, in the app's colours (red accent,
-// neutrals, and an inverted "ink" tile for the leaderboard) rather than new hues.
+// neutrals, and an "ink" tile for the leaderboard) rather than new hues.
 function visualFor(item: InboxItem, where: 'card' | 'timeline'): { icon: IconName; tone: Tone } {
   if (item.kind === 'gift') return { icon: 'gift-outline', tone: 'solid' };
   if (item.kind === 'discount') return { icon: 'ticket-percent-outline', tone: 'tint' };
@@ -42,10 +43,14 @@ function visualFor(item: InboxItem, where: 'card' | 'timeline'): { icon: IconNam
   }
 }
 
-function toneColors(c: TCPalette, tone: Tone): { bg: string; fg: string; border?: string } {
+function toneColors(c: TCPalette, tone: Tone, dark: boolean): { bg: string; fg: string; border?: string } {
   switch (tone) {
     case 'tint': return { bg: c.iconWell, fg: c.coral };
-    case 'ink': return { bg: c.textPrimary, fg: c.screenBg };
+    // Light: a dark tile on the pale page. Dark: a lifted grey, not a white
+    // block that would outshine the gift and challenge tiles.
+    case 'ink': return dark
+      ? { bg: 'rgba(255,255,255,0.14)', fg: '#FFFFFF', border: 'rgba(255,255,255,0.22)' }
+      : { bg: c.textPrimary, fg: c.screenBg };
     case 'solid': return { bg: c.coral, fg: '#000' };
     default: return { bg: c.inputBg, fg: c.textPrimary, border: c.border };
   }
@@ -55,7 +60,7 @@ function Tile({ item, where, size }: { item: InboxItem; where: 'card' | 'timelin
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const { icon, tone } = visualFor(item, where);
-  const col = toneColors(c, tone);
+  const col = toneColors(c, tone, mode === 'dark');
   return (
     <View
       accessibilityElementsHidden
@@ -71,7 +76,7 @@ function Tile({ item, where, size }: { item: InboxItem; where: 'card' | 'timelin
         justifyContent: 'center',
       }}
     >
-      <MaterialCommunityIcons name={icon} size={where === 'card' ? 22 : 16} color={col.fg} />
+      <MaterialCommunityIcons name={icon} size={where === 'card' ? 22 : 20} color={col.fg} />
     </View>
   );
 }
@@ -97,7 +102,8 @@ export function HeroCoachCard({ entry, onActed }: { entry: ActionEntry; onActed:
   const build = () => {
     track('ai_week_review_tapped', { from: 'notifications' });
     onActed(entry.item.id);
-    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } } as never);
+    // Ready in the message box; the athlete taps send.
+    router.push({ pathname: '/coach', params: { draft: t('inboxFeed.heroDraft', { n: week, next: week + 1 }) } } as never);
   };
   return (
     <View style={styles.card}>
@@ -354,8 +360,10 @@ function cardStyles(c: TCPalette, dark: boolean) {
 
 // ─── Timeline row ───────────────────────────────────────────────────────────
 
-const DOT = 36;
+export const DOT = 44;
 export const TIMELINE_INSET = 20;
+/** Row height; the timeline line runs between the first and last row centres. */
+export const ROW_MIN_HEIGHT = 64;
 
 export function TimelineRow({ item, onActed }: { item: InboxItem; onActed: (id: string) => void }) {
   const { mode } = useTheme();
@@ -363,7 +371,7 @@ export function TimelineRow({ item, onActed }: { item: InboxItem; onActed: (id: 
   const styles = useMemo(() => rowStyles(c), [c]);
   const [expanded, setExpanded] = useState(false);
   const { line, sub } = timelineText(item);
-  const to = itemRoute(item) ?? (item.url ? item.url : null);
+  const to = isPastChallenge(item, Date.now()) ? null : itemRoute(item) ?? (item.url ? item.url : null);
   const plain = line.map((s: Segment) => s.text).join('');
 
   return (
@@ -394,16 +402,58 @@ export function TimelineRow({ item, onActed }: { item: InboxItem; onActed: (id: 
   );
 }
 
+/**
+ * A month's weekly-challenge starts as one row ("4 weekly challenges
+ * started", their names under it); tapping shows each one.
+ */
+export function ChallengeGroupRow({ items, onActed }: { items: InboxItem[]; onActed: (id: string) => void }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => rowStyles(c), [c]);
+  const [open, setOpen] = useState(false);
+  const headline = t('inboxFeed.challengesGroup', { count: items.length });
+  const names = items
+    .map((i) => i.fields.challengeName ?? i.title)
+    .map((n) => (isArabic ? `\u2068${n}\u2069` : n))
+    .join(isArabic ? '، ' : ', ');
+  return (
+    <View>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={`${headline}. ${names}`}
+        accessibilityHint={open ? t('inboxFeed.hideChallenges') : t('inboxFeed.showChallenges')}
+        accessibilityState={{ expanded: open }}
+        activeOpacity={0.7}
+        onPress={() => setOpen((v) => !v)}
+        style={styles.row}
+      >
+        <View style={styles.dotRing} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Tile item={items[0]} where="timeline" size={DOT} />
+        </View>
+        <View style={styles.text}>
+          <Text style={[styles.line, styles.bold]}>{headline}</Text>
+          <Text style={styles.sub} numberOfLines={open ? undefined : 1}>{names}</Text>
+        </View>
+        <View style={styles.meta}>
+          <Text style={styles.date}>{dateLabel(items[0].createdAt, Date.now(), locale())}</Text>
+          <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
+        </View>
+      </TouchableOpacity>
+      {open && items.map((item) => <TimelineRow key={item.id} item={item} onActed={onActed} />)}
+    </View>
+  );
+}
+
 function rowStyles(c: TCPalette) {
   return StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60, paddingVertical: 8, paddingHorizontal: TIMELINE_INSET },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: ROW_MIN_HEIGHT, paddingVertical: 8, paddingHorizontal: TIMELINE_INSET },
     dotRing: { padding: 3, borderRadius: (DOT + 6) / 2, backgroundColor: c.screenBg, margin: -3 },
     text: { flex: 1, gap: 2 },
     line: { color: c.textBody, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, lineHeight: 20 },
     bold: { color: c.textPrimary, fontFamily: 'PlusJakartaSans-Bold' },
     sub: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, lineHeight: 18 },
     meta: { alignItems: 'flex-end', gap: 6 },
-    date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12 },
+    date: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 10.5 },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.coral },
   });
 }
