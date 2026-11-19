@@ -1,4 +1,4 @@
-import { buildFeed, dateLabel, groupByMonth, NEEDS_YOU_CAP, timelineText, withBoldName } from '../inboxFeed';
+import { buildFeed, dateLabel, groupByMonth, itemRoute, NEEDS_YOU_CAP, timelineText, withBoldName } from '../inboxFeed';
 import type { InboxItem, NotificationFields } from '../inbox';
 
 const now = new Date('2026-11-19T12:00:00').getTime();
@@ -124,5 +124,27 @@ describe('activity', () => {
     expect(withBoldName((name) => `before ${name} after`, 'X')).toEqual([
       { text: 'before ', bold: false }, { text: 'X', bold: true }, { text: ' after', bold: false },
     ]);
+  });
+});
+
+describe('where each notification goes', () => {
+  it('every type opens its screen', () => {
+    expect(itemRoute(challenge())).toBe('/weekly-challenge');
+    expect(itemRoute(item({ type: 'client_program_update', screen: 'warrior-program' }))).toBe('/warrior-program');
+    expect(itemRoute(item({ type: 'program_review_ready', screen: 'warrior-program' }))).toBe('/warrior-program');
+    expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'one-min-max', fields: { overtakenKind: 'score', boardName: '1MM' } }))).toBe('/one-min-max');
+    expect(itemRoute(item({ kind: 'discount', code: 'MAX50' }))).toBe('/redeem-code?code=MAX50');
+    expect(itemRoute(item({ screen: 'weekly-challenge', params: { tab: 'team' } }))).toBe('/weekly-challenge?tab=team');
+    expect(itemRoute(item({ kind: 'gift', claimId: 'c1' }))).toBeNull();
+  });
+
+  it('new overtakes keep the board they were sent with', () => {
+    expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', params: { activeTab: 'profile', board: 'wra' } }))).toBe('/profile?activeTab=profile&board=wra');
+    expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', params: { activeTab: 'strength', boardTier: '3' } }))).toBe('/profile?activeTab=strength&boardTier=3');
+  });
+
+  it('old overtakes that only said "profile" open their board from the saved names', () => {
+    expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', fields: { overtakenKind: 'score', boardName: 'Well-Rounded' } }))).toBe('/profile?activeTab=profile&board=wra');
+    expect(itemRoute(item({ type: 'leaderboard_overtaken', screen: 'profile', fields: { overtakenKind: 'time', tier: 0 } }))).toBe('/profile?activeTab=strength&boardTier=0');
   });
 });

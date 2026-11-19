@@ -3,10 +3,11 @@ import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, useWind
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { routeFor, type GiftClaim, type InboxItem } from '../../../lib/inbox';
+import type { GiftClaim, InboxItem } from '../../../lib/inbox';
 import {
   boardLabel,
   dateLabel,
+  itemRoute,
   tierLabel,
   timelineText,
   whoName,
@@ -75,16 +76,6 @@ function Tile({ item, where, size }: { item: InboxItem; where: 'card' | 'timelin
   );
 }
 
-/** Where the item (and its button) goes: its own screen, or a sensible default for its kind. */
-function destination(item: InboxItem, kind?: ActionKind): string | null {
-  if (item.kind === 'discount' && item.code) return `/redeem-code?code=${encodeURIComponent(item.code)}`;
-  const route = routeFor(item);
-  if (route) return route;
-  if (kind === 'challenge') return '/weekly-challenge';
-  if (kind === 'overtaken') return '/profile';
-  return null;
-}
-
 function go(item: InboxItem, onActed: (id: string) => void, kind?: ActionKind) {
   track('admin_message_action', { kind: item.kind, source: 'inbox', type: item.type });
   onActed(item.id);
@@ -92,7 +83,7 @@ function go(item: InboxItem, onActed: (id: string) => void, kind?: ActionKind) {
     Linking.openURL(item.url).catch(() => { });
     return;
   }
-  const to = destination(item, kind);
+  const to = itemRoute(item, kind);
   if (to) router.push(to as never);
 }
 
@@ -372,7 +363,7 @@ export function TimelineRow({ item, onActed }: { item: InboxItem; onActed: (id: 
   const styles = useMemo(() => rowStyles(c), [c]);
   const [expanded, setExpanded] = useState(false);
   const { line, sub } = timelineText(item);
-  const to = destination(item) ?? (item.url ? item.url : null);
+  const to = itemRoute(item) ?? (item.url ? item.url : null);
   const plain = line.map((s: Segment) => s.text).join('');
 
   return (

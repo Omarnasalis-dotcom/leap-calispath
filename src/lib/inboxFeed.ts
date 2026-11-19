@@ -2,7 +2,7 @@
 // notifications still need the person ("Needs you", with the AI Coach week
 // as the hero card), and the rest as a month-by-month activity timeline.
 // Pure functions over InboxItem; the screen loads the data.
-import { giftState, type GiftClaim, type InboxItem } from './inbox';
+import { giftState, routeFor, type GiftClaim, type InboxItem } from './inbox';
 import { TIER_NAMES } from '../types';
 import { isArabic, t } from '../i18n';
 
@@ -218,4 +218,23 @@ export function timelineText(item: InboxItem): { line: Segment[]; sub: string | 
     return { line: withBoldName((name) => t('inboxFeed.lineProgram', { name }), f.programName), sub: null };
   }
   return { line: [{ text: item.title, bold: true }], sub: item.body || null };
+}
+
+/**
+ * Where tapping an item goes (a card, its button or a timeline row), or null.
+ * Overtakes sent before 2026-11-17 only say "profile": they open the board
+ * they're about, read from their saved names, like the newer ones do.
+ */
+export function itemRoute(item: InboxItem, kind?: ActionKind | null): string | null {
+  if (item.kind === 'discount' && item.code) return `/redeem-code?code=${encodeURIComponent(item.code)}`;
+  if (item.type === 'leaderboard_overtaken' && item.screen === 'profile' && !item.params.board && !item.params.boardTier) {
+    const f = item.fields;
+    if (f.overtakenKind === 'time' && f.tier != null) return `/profile?activeTab=strength&boardTier=${f.tier}`;
+    if (f.boardName === 'Well-Rounded') return '/profile?activeTab=profile&board=wra';
+  }
+  const route = routeFor(item);
+  if (route) return route;
+  if (kind === 'challenge') return '/weekly-challenge';
+  if (kind === 'overtaken') return '/profile';
+  return null;
 }
