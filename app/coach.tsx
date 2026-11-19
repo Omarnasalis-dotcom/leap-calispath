@@ -8,13 +8,14 @@ export default function Route() {
   // Set by CoachFab (src/components/coach/CoachFab.tsx) when a starter
   // prompt chip is tapped from the FAB's open panel — sends that prompt
   // immediately instead of showing the empty-state welcome screen.
-  const { firstPrompt } = useLocalSearchParams<{ firstPrompt?: string }>();
+  const { firstPrompt, tour } = useLocalSearchParams<{ firstPrompt?: string; tour?: string }>();
 
   return (
     <SpartanLayout hideToggle>
       <CoachScreen
         onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         initialPrompt={typeof firstPrompt === 'string' ? firstPrompt : undefined}
+        startTour={tour === '1'}
       />
     </SpartanLayout>
   );

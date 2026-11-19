@@ -495,7 +495,7 @@ function DaySlotCard({
   );
 }
 
-export function CustomizeProgramScreen() {
+export function CustomizeProgramScreen({ startTour }: { startTour?: boolean } = {}) {
   const { user, profile, paywallEnabled } = useAuth();
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
@@ -504,7 +504,7 @@ export function CustomizeProgramScreen() {
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const { replay: replayTour } = useScreenTour('customize', !loading);
+  const { replay: replayTour } = useScreenTour('customize', !loading, { force: startTour });
   const { ref: filtersTourRef, onLayout: onFiltersTourLayout } = useTutorialTarget('customize.filters');
   const { ref: layoutToggleTourRef, onLayout: onLayoutToggleTourLayout } = useTutorialTarget('customize.layoutToggle');
   const { ref: quickBuildTourRef, onLayout: onQuickBuildTourLayout } = useTutorialTarget('customize.quickBuild');

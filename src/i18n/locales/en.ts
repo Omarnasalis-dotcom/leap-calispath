@@ -457,6 +457,8 @@ const en = {
     bannerTitle: 'Your welcome offer is waiting',
   },
   planWelcome: {
+    tapHint: 'Tap one for a quick guide.',
+    guideHint: 'Opens it with a quick guide',
     title: 'Welcome to {{plan}}',
     titleUpgrade: "You're on {{plan}} now",
     body: "Here's what you just unlocked.",

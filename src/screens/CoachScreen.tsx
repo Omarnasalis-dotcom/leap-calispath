@@ -190,7 +190,7 @@ function consumeSseBuffer(buffer: string, onStage: (s: Stage) => void): { rest: 
   return { rest: buffer, final };
 }
 
-export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; initialPrompt?: string }) {
+export function CoachScreen({ onBack, initialPrompt, startTour }: { onBack: () => void; initialPrompt?: string; startTour?: boolean }) {
   const { profile, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -323,6 +323,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const usageLine = usage ? coachUsageText(usage)?.messages : null;
   useScreenTour('coach', showStarters && (!!usage || usageWaitOver), {
     anyTime: true,
+    force: startTour,
     captions: usageLine ? { 'coach.usage': t('tour.coachUsageLive', { messages: usageLine.toUpperCase() }) } : undefined,
   });
   const { ref: startersTourRef, onLayout: onStartersTourLayout } = useTutorialTarget('coach.starters', scrollViewRef);

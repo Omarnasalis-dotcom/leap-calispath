@@ -513,6 +513,8 @@ const ar: Translations = {
     bannerTitle: 'عرض الترحيب بانتظارك',
   },
   planWelcome: {
+    tapHint: 'اضغط على أي ميزة لترى دليلًا سريعًا.',
+    guideHint: 'يفتحها مع دليل سريع',
     title: 'أهلًا بك في {{plan}}',
     titleUpgrade: 'أنت الآن على {{plan}}',
     body: 'هذا ما فتحته للتو.',
