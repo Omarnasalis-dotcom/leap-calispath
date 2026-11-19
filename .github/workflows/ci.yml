@@ -25,7 +25,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The translation key types sit near Node's default heap; give tsc room.
       - run: npx tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - run: npm test -- --ci
 
   admin-web:
