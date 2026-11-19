@@ -33,7 +33,9 @@ export function InboxScreen() {
   // person leaves, even though opening the screen marks them read.
   const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
 
-  const load = useCallback(async () => {
+  // countShown: only the load when the screen opens records what "Needs you"
+  // showed, not every refresh (pull, back to the app, a push landing).
+  const load = useCallback(async (countShown = false) => {
     try {
       const data = await InboxService.fetchFeedData();
       if (!isMounted.current) return;
@@ -46,7 +48,7 @@ export function InboxScreen() {
       // What the person was shown up front, to measure how often it's acted on.
       const shown = buildFeed(data.items, data.claims, data.status, Date.now());
       const kinds = [shown.hero, ...shown.cards].filter(Boolean).map((e) => e!.kind);
-      if (kinds.length > 0) track('inbox_needs_shown', { count: kinds.length, kinds: kinds.join(',') });
+      if (countShown && kinds.length > 0) track('inbox_needs_shown', { count: kinds.length, kinds: kinds.join(',') });
       // Opening reads everything (even rows the list doesn't show, so no
       // unread count gets stuck). The bell then counts only "Needs you".
       void InboxService.markAllSeen(unreadIds);
@@ -58,7 +60,7 @@ export function InboxScreen() {
   useFocusEffect(
     useCallback(() => {
       track('inbox_viewed');
-      void load();
+      void load(true);
       // While the screen is open: a push that lands, or coming back to the app, refreshes it.
       const appState = AppState.addEventListener('change', (state) => {
         if (state === 'active') void load();
@@ -132,7 +134,7 @@ export function InboxScreen() {
         {failed && (
           <View style={hasItems ? styles.errorInline : styles.empty}>
             <Text style={styles.emptyText}>{t('inbox.loadFailed')}</Text>
-            <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={load}>
+            <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={() => load()}>
               <Text style={styles.retryText}>{t('inbox.retry')}</Text>
             </TouchableOpacity>
           </View>

@@ -216,3 +216,12 @@ it("folds a month's weekly challenges into one row that opens to show them", asy
   await act(async () => { r.root.findAllByType(TimelineRow)[0].findByProps({ accessibilityRole: 'button' }).props.onPress(); });
   expect(router.push).not.toHaveBeenCalled();
 });
+
+it('records what Needs you showed once per visit, not on every refresh', async () => {
+  const loop = item({ type: 'weekly_challenge_started', fields: { challengeName: 'Loop B2' } });
+  mockFetch.mockResolvedValue([loop]);
+  await act(async () => { r = create(<InboxScreen />); });
+  const { ScrollView } = require('react-native');
+  await act(async () => { await r.root.findByType(ScrollView).props.refreshControl.props.onRefresh(); });
+  expect(mockTrack.mock.calls.filter((c) => c[0] === 'inbox_needs_shown')).toHaveLength(1);
+});
