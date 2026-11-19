@@ -11,6 +11,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
+import { notePlanBeforeChange } from '../lib/planWelcome';
 import { t, isArabic } from '../i18n';
 import { TC_COLORS } from '../../constants/trainingCenterTokens';
 
@@ -117,6 +118,7 @@ export function PaywallScreen() {
     setStep('presenting');
     track('paywall_viewed', { current_tier: currentTier, source });
     try {
+      void notePlanBeforeChange(profile);
       const result = await RevenueCatUI.presentPaywall();
       if (result === PAYWALL_RESULT.PURCHASED) track('purchase_completed', { from_tier: currentTier, source });
       else if (result === PAYWALL_RESULT.RESTORED) track('purchase_restored', { from_tier: currentTier, source });
@@ -143,7 +145,7 @@ export function PaywallScreen() {
       track('paywall_failed', { result: 'exception' });
       setStep('fallback');
     }
-  }, [pollForAccess, router, currentTier, source]);
+  }, [pollForAccess, router, currentTier, source, profile]);
 
   useEffect(() => {
     // Already-subscribed users land on the 'context' interstitial instead
@@ -192,6 +194,7 @@ export function PaywallScreen() {
 
   async function handleRestore() {
     setStep('confirming');
+    void notePlanBeforeChange(profile);
     try {
       await Purchases.restorePurchases();
     } catch (err) {

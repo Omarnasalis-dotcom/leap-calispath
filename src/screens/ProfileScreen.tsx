@@ -32,6 +32,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
 import { giftEndedAt } from '../lib/offerPrompt';
 import { offerRoute } from '../lib/offerStore';
+import { checkPlanWelcome } from '../lib/planWelcome';
 import { getActiveProgramSummary, peekActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
 import { ActiveProgramCard } from '../components/profile/ActiveProgramCard';
 import { ChallengeService } from '../services/ChallengeService';
@@ -267,6 +268,27 @@ export function ProfileScreen({
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile?.id, profile?.access_expires_at, profile?.rc_original_transaction_id, paywallEnabled])
+  );
+
+  // Someone just got Pro or Max (bought, restored, upgraded or a gift):
+  // "Welcome to PRO / MAX" once per plan (planWelcome.ts).
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      checkPlanWelcome(profile, paywallEnabled).then((due) => {
+        if (!due || cancelled) return;
+        timer = setTimeout(() => {
+          if (!cancelled) router.push(`/plan-welcome?tier=${due.tier}${due.upgrade ? '&upgrade=1' : ''}` as never);
+        }, 700);
+      });
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile?.id, profile?.subscription_tier, profile?.access_expires_at, profile?.is_admin, profile?.is_coach, paywallEnabled])
   );
 
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);

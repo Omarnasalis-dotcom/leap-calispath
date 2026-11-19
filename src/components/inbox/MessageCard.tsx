@@ -3,27 +3,14 @@ import { ActivityIndicator, Image, Linking, StyleSheet, Text, TouchableOpacity, 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { useSafeAsync } from '../../hooks/useSafeAsync';
-import { InboxService } from '../../services/InboxService';
-import { INBOX_TYPE, giftState, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
+import { INBOX_TYPE, routeFor, type GiftClaim, type InboxItem } from '../../lib/inbox';
+import { canCopy, copyCode as copyToClipboard, useGiftClaim } from './useGiftClaim';
 import { formatUntilDate } from '../../lib/coachUsage';
 import { track } from '../../lib/analytics';
 import { t } from '../../i18n';
 import { TC_COLORS, TCPalette } from '../../../constants/trainingCenterTokens';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
-
-// The clipboard module is native. A build made before it was added (an old
-// development client) doesn't have it, and importing it there throws: load it
-// softly, and fall back to press-and-hold on the code.
-let Clipboard: { setStringAsync: (text: string) => Promise<boolean> } | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Clipboard = require('expo-clipboard');
-} catch {
-  Clipboard = null;
-}
 
 const ICON: Record<InboxItem['kind'], IconName> = {
   news: 'bullhorn-outline',
@@ -40,9 +27,17 @@ const TYPE_ICON: Record<string, IconName> = {
   program_review_ready: 'shield-check-outline',
 };
 
-function iconFor(item: InboxItem): IconName {
+export function iconFor(item: InboxItem): IconName {
   if (item.type === INBOX_TYPE) return ICON[item.kind];
   return TYPE_ICON[item.type] ?? 'bell-outline';
+}
+
+/** "PRO · 7 days free", or the gift's own text when it isn't a plan. */
+export function giftLabelFor(item: InboxItem): string | null {
+  return item.giftText
+    ?? (item.giftTier && item.giftDays
+      ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
+      : null);
 }
 
 interface Props {
@@ -58,35 +53,20 @@ interface Props {
   bare?: boolean;
 }
 
-// One message from the Leap team: news, a discount code, or a gift to claim.
-// Shared by the inbox list and the app-open pop-up.
+// One message from the Leap team (news, a discount code, or a gift to claim)
+// as the app-open pop-up card. The Notifications screen uses InboxRow.
 export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }: Props) {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const styles = useMemo(() => getStyles(c), [c]);
-  const { refreshProfile } = useAuth();
-  const { runAsync, isExecuting } = useSafeAsync();
-  const [justClaimed, setJustClaimed] = useState(false);
-  // The server's answer wins over what the list loaded (e.g. claimed on another phone).
-  const [serverState, setServerState] = useState<'claimed' | 'expired' | null>(null);
-  const [claimedUntil, setClaimedUntil] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { state, claimGift, claiming: isExecuting, claimedUntil, error } = useGiftClaim(item, claim, source, onClaimed);
   const [copied, setCopied] = useState(false);
 
   const copyCode = () => {
-    if (!Clipboard || !item.code) return;
-    Clipboard.setStringAsync(item.code)
-      .then(() => {
-        track('admin_message_action', { kind: 'copy_code', source });
-        setCopied(true);
-      })
-      .catch(() => { });
+    if (!item.code) return;
+    copyToClipboard(item.code, source).then((ok) => { if (ok) setCopied(true); });
   };
 
-  // 'unknown' = the gift's details didn't load: still offer the button, the
-  // server checks the claim either way.
-  const loaded = justClaimed ? 'claimed' : serverState ?? giftState(claim, Date.now());
-  const state = loaded === 'unknown' ? 'claimable' : loaded;
   const newsRoute = routeFor(item);
 
   const open = (route: string) => {
@@ -95,44 +75,13 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
     router.push(route as never);
   };
 
-  const claimGift = () => {
-    if (!item.claimId) return;
-    const claimId = item.claimId;
-    setError(null);
-    runAsync(() => InboxService.claimGift(claimId), {
-      onSuccess: (result) => {
-        if (!result.ok) {
-          if (result.error === 'ALREADY_CLAIMED') {
-            setServerState('claimed');
-            return;
-          }
-          if (result.error === 'EXPIRED') {
-            setServerState('expired');
-            return;
-          }
-          setError(t(`inbox.errors.${result.error}`, { defaultValue: t('inbox.errors.UNKNOWN') }));
-          return;
-        }
-        track('gift_claimed', { tier: result.tier, days: result.days, source });
-        setJustClaimed(true);
-        setClaimedUntil(result.accessExpiresAt);
-        onClaimed?.(claimId);
-        void refreshProfile();
-      },
-      onError: () => setError(t('inbox.errors.UNKNOWN')),
-    });
-  };
-
   // A web link (a store page, a post, a form) opens outside the app.
   const openLink = (url: string) => {
     track('admin_message_action', { kind: item.kind, source });
     Linking.openURL(url).catch(() => { });
   };
 
-  const giftLabel = item.giftText
-    ?? (item.giftTier && item.giftDays
-      ? t('inbox.giftLabel', { plan: item.giftTier.toUpperCase(), count: item.giftDays })
-      : null);
+  const giftLabel = giftLabelFor(item);
 
   return (
     <View style={bare ? styles.bare : styles.card}>
@@ -169,7 +118,7 @@ export function MessageCard({ item, claim, source, onNavigate, onClaimed, bare }
             <Text style={styles.codeLabel}>{t('inbox.yourCode')}</Text>
             {/* selectable: press and hold copies it (iPhone's code sheet can't be pre-filled). */}
             <Text style={styles.code} selectable>{item.code}</Text>
-            {Clipboard ? (
+            {canCopy() ? (
               <TouchableOpacity accessibilityRole="button" style={styles.copyBtn} onPress={copyCode} hitSlop={8}>
                 <MaterialCommunityIcons name={copied ? 'check' : 'content-copy'} size={14} color={c.coralText} />
                 <Text style={styles.copyBtnText}>{copied ? t('inbox.copied') : t('inbox.copy')}</Text>

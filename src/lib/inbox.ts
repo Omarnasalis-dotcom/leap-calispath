@@ -33,6 +33,27 @@ export interface InboxRow {
   data: Record<string, unknown> | null;
   read_at: string | null;
   created_at: string;
+  /** When the person tapped the item or its button (migration 20261119100000). */
+  acted_at?: string | null;
+}
+
+/**
+ * The names inside a notification, saved as separate fields by the server
+ * (notification_fields, migration 20261119100000), so the screen can lead
+ * with them in either language. Missing on anything the server couldn't read.
+ */
+export interface NotificationFields {
+  challengeName: string | null;
+  /** Who overtook you; null = "someone". */
+  byName: string | null;
+  /** 'score' = a world or Well-Rounded board; 'time' = a strength tier. */
+  overtakenKind: 'score' | 'time' | null;
+  /** English board name as the server wrote it: Well-Rounded, Power World, Static World, 1MM. */
+  boardName: string | null;
+  tier: number | null;
+  /** The AI Coach week just finished. */
+  week: number | null;
+  programName: string | null;
 }
 
 export interface InboxItem {
@@ -64,6 +85,8 @@ export interface InboxItem {
   claimId: string | null;
   giftTier: GiftTier | null;
   giftDays: number | null;
+  actedAt: string | null;
+  fields: NotificationFields;
 }
 
 export interface GiftClaim {
@@ -107,7 +130,27 @@ const ALLOWED_SCREENS = new Set([
 const NOT_PARAMS = new Set([
   'screen', 'kind', 'message_id', 'inbox', 'popup', 'button', 'url', 'image_url', 'expires_at', 'params',
   'code', 'claim_id', 'gift_tier', 'gift_days', 'gift_text', 'key',
+  // notification_fields: describe the notification, not the screen.
+  'challenge_name', 'by_name', 'board_name', 'tier', 'week', 'program_id', 'program_name',
 ]);
+
+const num = (v: unknown): number | null => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+function fieldsOf(data: Record<string, unknown>): NotificationFields {
+  const kind = text(data.kind);
+  return {
+    challengeName: text(data.challenge_name),
+    byName: text(data.by_name),
+    overtakenKind: kind === 'score' || kind === 'time' ? kind : null,
+    boardName: text(data.board_name),
+    tier: num(data.tier),
+    week: num(data.week),
+    programName: text(data.program_name),
+  };
+}
 
 function httpsUrl(value: unknown): string | null {
   const url = text(value);
@@ -179,6 +222,8 @@ export function toInboxItem(row: InboxRow): InboxItem {
     claimId: kind === 'gift' ? text(data.claim_id) : null,
     giftTier: rawTier === 'first' || rawTier === 'pro' || rawTier === 'max' ? rawTier : null,
     giftDays: Number.isFinite(days) && days > 0 ? days : null,
+    actedAt: row.acted_at ?? null,
+    fields: fieldsOf(data),
   };
 }
 

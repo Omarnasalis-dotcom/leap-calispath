@@ -46,7 +46,10 @@ import { track } from '../lib/analytics';
 import { CoachSetup } from '../components/coach/CoachSetup';
 import { CoachMessageText } from '../components/coach/CoachMessageText';
 import { needsCoachSetup } from '../lib/coachSetup';
-import { coachUsageWarning, rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
+import { coachUsageText, coachUsageWarning, rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
+import { fetchWeekReviewReady } from '../lib/coachStart';
+import { useScreenTour } from '../hooks/useScreenTour';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useCoachUsage } from '../hooks/useCoachUsage';
 import { CoachUsageRing } from '../components/coach/CoachUsageRing';
 import { CoachLoadingLabel } from '../components/coach/CoachLoadingTime';
@@ -295,6 +298,35 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // Display only: never in the history sent to the AI Coach, and it can only
   // lift the lock below, never set it. The server judges every message.
   const usage = useCoachUsage(!!profile && !showSetup, loading);
+
+  // The empty chat's start cards. The third (review the finished week and
+  // build the next) is live once the AI Coach program has a finished week.
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const showStarters = historyLoaded && !showSetup && messages.length === 0 && !loading;
+  const [weekReviewReady, setWeekReviewReady] = useState(false);
+  useEffect(() => {
+    if (!showStarters || !profile?.id) return;
+    let alive = true;
+    fetchWeekReviewReady(profile.id).then((ready) => { if (alive) setWeekReviewReady(ready); });
+    return () => { alive = false; };
+  }, [showStarters, profile?.id]);
+
+  // First chat ever: a 2-step highlight (the cards, then the message
+  // allowance with the athlete's real numbers). Waits briefly for the
+  // allowance; without it the second step skips itself.
+  const [usageWaitOver, setUsageWaitOver] = useState(false);
+  useEffect(() => {
+    if (!showStarters) return;
+    const timer = setTimeout(() => setUsageWaitOver(true), 2500);
+    return () => clearTimeout(timer);
+  }, [showStarters]);
+  const usageLine = usage ? coachUsageText(usage)?.messages : null;
+  useScreenTour('coach', showStarters && (!!usage || usageWaitOver), {
+    anyTime: true,
+    captions: usageLine ? { 'coach.usage': t('tour.coachUsageLive', { messages: usageLine.toUpperCase() }) } : undefined,
+  });
+  const { ref: startersTourRef, onLayout: onStartersTourLayout } = useTutorialTarget('coach.starters', scrollViewRef);
+  const { ref: usageTourRef, onLayout: onUsageTourLayout } = useTutorialTarget('coach.usage', undefined, true);
   // When this wait began, for the seconds counter. Survives the switch from
   // the loader to the real steps, so the count covers the whole wait.
   const loadingSinceRef = useRef<number | null>(null);
@@ -373,6 +405,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         sendMessage(initialPrompt);
       }
       hasLoadedFromStorageRef.current = true;
+      setHistoryLoaded(true);
       // After the flag above, so the collected answer and card are saved.
       if (hadSavedHistory) resumeInflight(savedMessages);
     };
@@ -1049,8 +1082,18 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                 <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
                 <Text style={[styles.welcomeTitle, { color: c.bodyText }]}>{t('coach.hi', { name: profile.display_name || t('coach.warrior') })}</Text>
                 <Text style={[styles.welcomeSub, { color: c.secondaryText }]}>{t('coach.welcome')}</Text>
-                <View style={styles.welcomeOptions}>
+                <View style={styles.welcomeOptions} ref={startersTourRef} onLayout={onStartersTourLayout} collapsable={false}>
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}
+                    onPress={() => sendMessage(t('coach.buildPrompt'))}
+                    disabled={loading}
+                  >
+                    <MaterialCommunityIcons name="dumbbell" size={22} color={theme.accent} />
+                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.build')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
                     style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}
                     onPress={() => sendMessage(t('coach.analyzePrompt'))}
                     disabled={loading}
@@ -1059,12 +1102,23 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.analyze')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}
-                    onPress={() => sendMessage(t('coach.buildPrompt'))}
-                    disabled={loading}
+                    accessibilityRole="button"
+                    accessibilityLabel={weekReviewReady ? t('coach.review') : t('coach.reviewLockedA11y')}
+                    accessibilityState={{ disabled: !weekReviewReady || loading }}
+                    style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }, !weekReviewReady && styles.welcomeOptionLocked]}
+                    onPress={() => {
+                      track('ai_week_review_tapped', { from: 'coach_start' });
+                      sendMessage(t('journey.aiReviewPrompt'));
+                    }}
+                    disabled={!weekReviewReady || loading}
                   >
-                    <MaterialCommunityIcons name="dumbbell" size={22} color={theme.accent} />
-                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.build')}</Text>
+                    <MaterialCommunityIcons name="calendar-refresh" size={22} color={weekReviewReady ? theme.accent : c.secondaryText} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.review')}</Text>
+                      {!weekReviewReady && (
+                        <Text style={[styles.welcomeOptionSub, { color: c.secondaryText }]}>{t('coach.reviewLocked')}</Text>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1348,7 +1402,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           )}
 
           <View style={[styles.inputContainer, { borderTopColor: c.headerDivider }]}>
-            {usage && <CoachUsageRing usage={usage} c={c} accent={theme.accent} accentText={theme.accentText} />}
+            {usage && (
+              <View ref={usageTourRef} onLayout={onUsageTourLayout} collapsable={false}>
+                <CoachUsageRing usage={usage} c={c} accent={theme.accent} accentText={theme.accentText} />
+              </View>
+            )}
             <TextInput
               style={[styles.input, { color: c.bodyText, backgroundColor: c.inputBg, borderColor: c.inputBorder }]}
               value={inputText}
@@ -1500,6 +1558,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   welcomeOptionText: { fontSize: 14.5, fontWeight: '600' },
+  welcomeOptionSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  welcomeOptionLocked: { opacity: 0.6, borderStyle: 'dashed' },
   chipsWrap: {
     borderTopWidth: 0.5,
     paddingVertical: 10,

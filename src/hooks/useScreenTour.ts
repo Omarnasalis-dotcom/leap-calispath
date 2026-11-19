@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useMountedRef } from './useMountedRef';
-import { TourId } from '../types/tutorial';
+import { TargetId, TourId } from '../types/tutorial';
 
 // Tours only auto-start for users who finished onboarding this recently.
 // Keyed off onboarding_completed_at (not assessed_at): onboarding runs program
@@ -30,7 +30,19 @@ const ASK_FIRST: ReadonlySet<TourId> = new Set<TourId>(['main']);
  * `replay` for the screen's help button. `ready` should be false until the
  * screen's tour targets have rendered (e.g. while its data is still loading).
  */
-export function useScreenTour(tourId: TourId, ready: boolean) {
+export function useScreenTour(
+  tourId: TourId,
+  ready: boolean,
+  options?: {
+    /** Not only for the recently onboarded: the first time anyone opens the screen. */
+    anyTime?: boolean;
+    /** Captions the screen fills in (see TutorialContext). */
+    captions?: Partial<Record<TargetId, string>>;
+  },
+) {
+  const anyTime = options?.anyTime === true;
+  const captionsRef = useRef(options?.captions);
+  captionsRef.current = options?.captions;
   const [offerOpen, setOfferOpen] = useState(false);
   const { profile } = useAuth();
   const tutorial = useTutorial();
@@ -51,8 +63,11 @@ export function useScreenTour(tourId: TourId, ready: boolean) {
   useEffect(() => {
     // Never interrupt another tour — try again once it finishes.
     if (!ready || !focused || tutorial.active || attemptedRef.current) return;
-    if (!profile?.id || !profile.onboarding_completed_at) return;
-    if (Date.now() - new Date(profile.onboarding_completed_at).getTime() > TOUR_AUTO_START_WINDOW_MS) return;
+    if (!profile?.id) return;
+    if (!anyTime) {
+      if (!profile.onboarding_completed_at) return;
+      if (Date.now() - new Date(profile.onboarding_completed_at).getTime() > TOUR_AUTO_START_WINDOW_MS) return;
+    }
     attemptedRef.current = true;
     const key = seenKey(tourId, profile.id);
     (async () => {
@@ -64,17 +79,17 @@ export function useScreenTour(tourId: TourId, ready: boolean) {
         await AsyncStorage.setItem(key, 'true');
         if (!mountedRef.current) return;
         if (ASK_FIRST.has(tourId)) setOfferOpen(true);
-        else tutorial.start(tourId);
+        else tutorial.start(tourId, captionsRef.current);
       } catch (e) {
         console.warn(`[useScreenTour] Failed to read tour storage (${tourId}):`, e);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focused, tutorial.active, profile?.id, profile?.onboarding_completed_at, tourId]);
+  }, [ready, focused, tutorial.active, profile?.id, profile?.onboarding_completed_at, tourId, anyTime]);
 
   const { start } = tutorial;
-  const replay = useCallback(() => start(tourId), [start, tourId]);
-  const acceptOffer = useCallback(() => { setOfferOpen(false); start(tourId); }, [start, tourId]);
+  const replay = useCallback(() => start(tourId, captionsRef.current), [start, tourId]);
+  const acceptOffer = useCallback(() => { setOfferOpen(false); start(tourId, captionsRef.current); }, [start, tourId]);
   const declineOffer = useCallback(() => setOfferOpen(false), []);
   return { replay, offerOpen, acceptOffer, declineOffer };
 }

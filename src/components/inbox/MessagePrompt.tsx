@@ -15,7 +15,7 @@ const SHOW_DELAY_MS = 1500;
 // than this (phones flip between apps constantly).
 const RECHECK_GAP_MS = 10 * 60 * 1000;
 // Never over a workout, a trial or a live room: those screens own the moment.
-const BUSY_ROUTES = new Set(['trial', 'warrior-program', 'live-room', 'team-lobby', 'arena-workout', 'tournament-trial', 'quick-workout', 'assessment']);
+const BUSY_ROUTES = new Set(['trial', 'warrior-program', 'live-room', 'team-lobby', 'arena-workout', 'tournament-trial', 'quick-workout', 'assessment', 'plan-welcome', 'welcome-offer', 'paywall']);
 
 // Shows the newest unread message from the Leap team (news, a discount code,
 // or a gift to claim) as a pop-up card: on app open, and again when the app

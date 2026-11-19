@@ -50,9 +50,17 @@ const TEMPLATES_TOUR: TutorialStep[] = [
   { targetId: 'templates.firstRow', mode: 'decoy', caption: t('tour.step33'), optional: true },
 ];
 
+// First AI Coach chat: the start cards, then the message allowance (its
+// caption is filled with the athlete's real numbers when the chat starts it).
+const COACH_TOUR: TutorialStep[] = [
+  { targetId: 'coach.starters', mode: 'decoy', caption: t('tour.coachStarters') },
+  { targetId: 'coach.usage', mode: 'decoy', caption: t('tour.coachUsage'), optional: true },
+];
+
 export const TOURS: Record<TourId, TutorialStep[]> = {
   main: MAIN_TOUR,
   customize: CUSTOMIZE_TOUR,
   quickWorkout: QUICK_WORKOUT_TOUR,
   templates: TEMPLATES_TOUR,
+  coach: COACH_TOUR,
 };

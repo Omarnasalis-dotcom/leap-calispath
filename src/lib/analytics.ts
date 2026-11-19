@@ -69,6 +69,8 @@ export type AnalyticsEvent =
   | 'admin_message_action'
   | 'admin_message_push_opened'
   | 'gift_claimed'
+  | 'plan_welcome_viewed'
+  | 'plan_welcome_action'
   | 'notification_setting_changed'
   | 'ai_week_review_tapped'
   | 'ai_week_repeated'

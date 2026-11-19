@@ -3,6 +3,7 @@ import { Platform, TextInput } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import Purchases from 'react-native-purchases';
 
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark' }) }));
 const mockRefreshProfile = jest.fn();
 jest.mock('../../contexts/AuthContext', () => ({
