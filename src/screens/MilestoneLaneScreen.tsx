@@ -31,6 +31,7 @@ import { useJourneyPoints } from '../hooks/useJourneyPoints';
 import { JourneyPointsSummary, JourneyTask, PointsEntry, programDayPointsToday, questPaidToday, todaySegments } from '../lib/journeyPoints';
 import { measureInWindow, WindowRect } from '../lib/measureView';
 import { track } from '../lib/analytics';
+import { weekReviewRoute } from '../lib/coachStart';
 import { UndoToast } from '../components/UndoToast';
 import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
@@ -2185,12 +2186,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   }, [journeyData, router, loadJourneyProgram, profile, paywallEnabled]);
 
   // AI Coach program past its last week: the coach reviews the week and
-  // builds the next one (it leads with that review on its own; the prompt
-  // just starts it)...
+  // builds the next one. The request is typed into the coach's message box
+  // (?draft=), ready to send, whether or not there's an earlier chat.
   const handleReviewWithCoach = useCallback(() => {
     track('ai_week_review_tapped', { from: 'journey' });
-    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } });
-  }, [router]);
+    router.push(weekReviewRoute(journeyData?.currentWeek ?? 1));
+  }, [router, journeyData?.currentWeek]);
 
   // The repeated week can be undone for UNDO_WINDOW_MS (UndoToast); after
   // that only Leap Coach removes it (ai_coach_delete_week, which refuses a

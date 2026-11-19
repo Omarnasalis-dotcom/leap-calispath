@@ -1,4 +1,4 @@
-import { hasFinishedWeek } from '../coachStart';
+import { hasFinishedWeek, weekReviewRoute } from '../coachStart';
 
 const b = (id: string, week: number | null) => ({ id, week_number: week });
 
@@ -21,5 +21,15 @@ describe('hasFinishedWeek', () => {
 
   it('is false for a program with no workouts', () => {
     expect(hasFinishedWeek([], new Set(), 1)).toBe(false);
+  });
+});
+
+describe('weekReviewRoute', () => {
+  it('opens the AI Coach with the week review typed in, ready to send', () => {
+    expect(weekReviewRoute(2)).toEqual({ pathname: '/coach', params: { draft: 'Analyze my Week 2 and build Week 3.' } });
+  });
+  it('falls back to week 1 for a missing or odd week number', () => {
+    expect(weekReviewRoute(0).params.draft).toBe('Analyze my Week 1 and build Week 2.');
+    expect(weekReviewRoute(NaN).params.draft).toBe('Analyze my Week 1 and build Week 2.');
   });
 });

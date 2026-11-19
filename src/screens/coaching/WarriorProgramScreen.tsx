@@ -17,6 +17,7 @@ import { View,
   Dimensions,
   Vibration } from 'react-native';
 import { track } from '../../lib/analytics';
+import { weekReviewRoute } from '../../lib/coachStart';
 import { UndoToast } from '../../components/UndoToast';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1332,9 +1333,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     setAddingWeek(false);
   };
 
+  // Typed into the coach's message box (?draft=), ready to send, over any earlier chat.
   const handleReviewWithCoach = () => {
     track('ai_week_review_tapped', { from: 'workout' });
-    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } });
+    router.push(weekReviewRoute(activeWeek));
   };
 
   // The repeated week can be undone for UNDO_WINDOW_MS (UndoToast); after
