@@ -52,7 +52,7 @@ const minutes = (s: number | null) => (s ? `${Math.max(1, Math.round(s / 60))} m
 const key = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
 /** What the program asked for, in plain words. */
-function plannedText(ex: BuilderExercise, block: BuilderBlock): string {
+export function plannedText(ex: BuilderExercise, block: BuilderBlock): string {
   const m = block.metadata;
   const timing = m.timing_system ?? 'straight_set';
   const structure = m.structure ?? 'single';

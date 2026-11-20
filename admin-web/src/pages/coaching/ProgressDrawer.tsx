@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import {
   appendWeekToClientProgram,
   fetchCoachWeekNote,
+  fetchCoachWeekNotes,
   fetchWarriorProgress,
   saveCoachWeekNote,
   type AssignmentRow,
@@ -24,6 +25,8 @@ import { fetchTestResults, type TestResult } from '@/api/tests';
 import { programSource } from '@/shared/constants';
 import { LastLogsProvider } from './builder/LastLogs';
 import { buildHistory, computeInsights, weekTotals } from './weekInsights';
+import { buildWeekSummary, compactJson, downloadTextFile, summaryWeeks } from './weekSummary';
+import type { BuilderWeeks } from './builder/types';
 
 function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; weekNumber: number }) {
   const { profile } = useAuth();
@@ -75,6 +78,109 @@ function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; 
         </button>
       )}
     </div>
+  );
+}
+
+type SummaryRange = '1' | '2' | '4' | 'all';
+
+/** Downloads a short, read-only summary of the selected week (or the weeks
+ * up to it) for the coach's AI assistant: one line per exercise, test
+ * results with their previous value. Built from what this view already
+ * loaded (weekSummary.ts). Not an import file. */
+function ExportSummaryButton({
+  assignment,
+  weeks,
+  selectedWeek,
+  plan,
+  logs,
+  testResults,
+  testsLoading,
+  bodyweightTrend,
+}: {
+  assignment: AssignmentRow;
+  weeks: number[];
+  selectedWeek: number | null;
+  plan: BuilderWeeks | undefined;
+  logs: WarriorProgressLog[];
+  testResults: TestResult[];
+  testsLoading: boolean;
+  bodyweightTrend: WarriorProgressBodyweight[];
+}) {
+  const [range, setRange] = useState<SummaryRange>('1');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const pick = (r: SummaryRange) =>
+    selectedWeek === null ? [] : summaryWeeks(weeks, selectedWeek, r === 'all' ? 'all' : Number(r));
+  const label = (r: SummaryRange) => {
+    const w = pick(r);
+    if (w.length === 0) return r === '1' ? 'This week' : `${r} weeks`;
+    return w.length === 1 ? `Week ${w[0]}` : `Weeks ${w[0]}–${w[w.length - 1]}`;
+  };
+
+  async function handleExport() {
+    const picked = pick(range);
+    if (picked.length === 0 || !plan) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const weekNotes = await fetchCoachWeekNotes(assignment.id, picked);
+      const summary = buildWeekSummary({
+        warriorProgramId: assignment.id,
+        warriorName: assignment.warrior_name ?? 'Warrior',
+        strengthTier: assignment.warrior_strength_tier ?? 0,
+        programName: assignment.template_name ?? 'Program',
+        weeks: picked,
+        plan,
+        logs,
+        testResults,
+        weekNotes,
+        bodyweight: bodyweightTrend,
+      });
+      const first = picked[0];
+      const last = picked[picked.length - 1];
+      const span = first === last ? `week${last}` : `weeks${first}-${last}`;
+      const name = `${assignment.warrior_name ?? 'warrior'}_${span}_summary`.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+      downloadTextFile(`${compactJson(summary)}\n`, `${name}.json`);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Export failed.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Which options make sense: no "last 4" when there are only 2 weeks so far.
+  const options: SummaryRange[] = ['1', '2', '4', 'all'].filter(
+    (r, i, all) => i === 0 || pick(r as SummaryRange).length > pick(all[i - 1] as SummaryRange).length,
+  ) as SummaryRange[];
+
+  return (
+    <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+      {options.length > 1 && (
+        <select
+          className="field"
+          style={{ width: 'auto' }}
+          value={options.includes(range) ? range : '1'}
+          disabled={busy}
+          onChange={(e) => setRange(e.target.value as SummaryRange)}
+          aria-label="Weeks in the summary"
+        >
+          {options.map((r) => (
+            <option key={r} value={r}>
+              {label(r)}
+            </option>
+          ))}
+        </select>
+      )}
+      <button
+        className="btn small"
+        disabled={busy || selectedWeek === null || !plan || testsLoading}
+        onClick={() => void handleExport()}
+        title="A short summary for your AI assistant to read. It can't be imported back."
+      >
+        {busy ? 'Exporting…' : 'Export summary'}
+      </button>
+      {error && <ErrorNote error={error} />}
+    </span>
   );
 }
 
@@ -428,6 +534,16 @@ export function ProgressDrawer({
                 assignment={assignment}
                 selectedWeek={selectedWeek}
                 visibleLogs={visibleLogs}
+                bodyweightTrend={data.bodyweight_trend}
+              />
+              <ExportSummaryButton
+                assignment={assignment}
+                weeks={weeks}
+                selectedWeek={selectedWeek}
+                plan={templateWeeksQ.data?.weeks}
+                logs={data.logs}
+                testResults={testsQ.data ?? []}
+                testsLoading={testsQ.isLoading}
                 bodyweightTrend={data.bodyweight_trend}
               />
               <ImportWeekButton assignment={assignment} />

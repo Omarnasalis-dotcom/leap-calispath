@@ -813,6 +813,22 @@ export async function fetchCoachWeekNote(
   return data;
 }
 
+/** The coach's notes for several weeks of one program: week → note. */
+export async function fetchCoachWeekNotes(warriorProgramId: string, weekNumbers: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (weekNumbers.length === 0) return out;
+  const { data, error } = await supabase
+    .from('coach_week_notes')
+    .select('week_number, note')
+    .eq('warrior_program_id', warriorProgramId)
+    .in('week_number', weekNumbers);
+  if (error) throw new Error(error.message);
+  for (const r of (data ?? []) as { week_number: number; note: string | null }[]) {
+    if (r.note) out.set(r.week_number, r.note);
+  }
+  return out;
+}
+
 export async function saveCoachWeekNote(params: {
   warriorProgramId: string;
   weekNumber: number;

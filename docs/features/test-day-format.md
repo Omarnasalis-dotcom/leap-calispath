@@ -382,6 +382,32 @@ Example: week 5, a test day with a Warm-Up block and four items (one skipped):
 - **Separate test-history file: NOT IMPLEMENTED.** Use `previous`, or read
   `program_test_results` by `warrior_id`.
 
+### Week summary (short, read-only)
+
+admin-web → client progress → **Export summary**. It covers the selected week,
+or the 2, 4 or all weeks up to it. Built by `buildWeekSummary`
+(`admin-web/src/pages/coaching/weekSummary.ts`) from data the page already loaded.
+- One line per exercise: `planned` comes from the program and `done` has one entry per set
+  (`"8, 8, 7"`, `"20kg×6, 20kg×5"`, `"30s, 28s"`).
+- Test items carry `test` (value, previous, `pb`: `new`/`matched`, note, grade).
+- Empty fields are left out.
+- About 270 lines for a fully logged week (EXPORT WEEK gives about 4,000).
+- **It can't be imported.** IMPORT WEEK needs the full EXPORT WEEK format.
+
+```
+{ "type": "leap_week_summary", "version": 1, "exported_at", "warrior": {"name","strength_tier"}, "program",
+  "weeks": [ { "week", "coach_week_note"?, "totals": {"done","missed","not_logged"},
+               "days": [ { "day", "blocks": [ { "block", "kind", "status": "done"|"missed"|"not_logged",
+                           "rpe"?, "feel"?, "minutes"?, "result"?, "notes"?, "missed_reason"?, "missed_detail"?,
+                           "exercises"?: [ {"name","planned"?,"done"?,"rpe"?} ],
+                           "test"?: {"kind","movement"?,"value"?,"unit"?,"previous"?,"previous_week"?,"pb"?,"world"?,
+                                     "skip_reason"?,"skip_detail"?,"note"?,"grade"?,"coach_note"?} } ] } ],
+               "other_logs"?: [ {"block","status","notes"?} ] } ],
+  "bodyweight": [ {"date","kg"} ] }
+```
+
+`other_logs` lists logged blocks that are no longer in the program.
+
 ---
 
 ## 6. Import (write)
