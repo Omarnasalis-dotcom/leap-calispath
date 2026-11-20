@@ -575,7 +575,7 @@ export type ProgramUpdateType = 'program_assigned' | 'week_unlocked';
  * warrior_program_id server-side, so this call is safe from any authenticated
  * coach/admin session. Best-effort: a failed notify must never block or
  * surface as an error on the assignment/write action that already succeeded. */
-async function notifyClientProgramUpdate(warriorProgramId: string, updateType: ProgramUpdateType): Promise<void> {
+export async function notifyClientProgramUpdate(warriorProgramId: string, updateType: ProgramUpdateType): Promise<void> {
   try {
     await supabase.functions.invoke('notify-client-program-update', {
       body: { warrior_program_id: warriorProgramId, update_type: updateType },
