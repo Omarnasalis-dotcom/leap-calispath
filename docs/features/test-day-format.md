@@ -46,18 +46,27 @@ tag (stored at the start of `program_blocks.notes`) contains `test_kind`:
   no arrays or objects and no `]` in any value**, or the server gets `NULL`
   and the block is not a test. The import now rejects such test blocks (§6).
 
-A **test day** is a day in which every block is a test item:
-`isTestDay(day) = day.blocks.length > 0 && day.blocks.every(isTestBlock)` (`src/lib/testItems.ts`).
+A **test day** is a day with at least one test item, where every other block is a
+**Warm-Up or Cool-Down** block (`isTestDay`, `isSupportBlock` in `src/lib/testItems.ts`).
+Support-block names are matched ignoring case: "Warm-Up", "Warm Up", "Warmup",
+"Cool-Down", "Cool Down", "Cooldown". A day with any other block is a normal
+training day, even if it holds test items.
 - The Journey uses it in `src/screens/MilestoneLaneScreen.tsx` → `buildWeekSequence` / `rotationSlotsUsed`:
   a test day gets no side quest after it.
 - The workout runner uses it in `src/screens/coaching/WarriorProgramScreen.tsx`:
   the header shows "done/total" instead of moves and minutes.
 - The server only counts per **week**: `_test_week_counts(program, template, week)`.
 
-**A day with a Warm-Up or Cool-Down block is not a test day yet**, so the
-Journey and the header treat it as a training day. Its test items still work:
-they log, they go to their world, and the "test week finished" notice still
-fires. Planned for the next app build (§7).
+**A test day is done when every test item is logged or skipped.** The Warm-Up and
+Cool-Down may stay unlogged (owner rule 2026-11-20).
+- **App:** `blocksThatCount` → `deriveDayStates` (day status and progress ring), the
+  workout header ("done/total" counts test items only), and the finish-session check.
+- **Server:** Journey "program day" points follow the same rule (`journey_points_award`,
+  migration `20261120210000_journey_test_day_points.sql`).
+- App versions before this build show such a day as a normal training day; its test
+  items still work.
+- Test tags on a non-coach program are dropped when the workout screen loads, so those
+  blocks and days behave as normal training.
 
 ### Linkage
 
@@ -119,8 +128,8 @@ for test items.
 - **UI path:** admin-web program builder → block card → "Test item" select
   (`ConceptWizard.tsx`), then a movement select. The same block card is used by the
   master-template and client-program builders.
-- **Mobile builder cannot mark a test item: NOT IMPLEMENTED.** It keeps existing
-  test keys when it saves (`BlockConfigWizard.tsx`).
+- **Mobile builder:** the same "Test item" choice (`BlockConfigWizard.tsx`). Choosing it
+  hides the timing, structure and tier-trial controls, which don't apply to a test block.
 - **Slot, not date.** A test item sits in a week / day / order slot like any
   block. **Scheduled date: NOT IMPLEMENTED.**
 - **Sources that keep the tag:** assigning a master template, the master-template
@@ -206,7 +215,7 @@ Each save writes three things:
 |---|---|
 | status | `done` / `skipped` (partial: **NOT IMPLEMENTED**) |
 | skip reason + detail | yes |
-| athlete note per item | yes on the server and in exports; the app's Notes field comes with the next build |
+| athlete note per item | yes: the optional note box in the test sheet when logging (a skip's note is the skip detail) |
 | RPE, feel | **NOT IMPLEMENTED** |
 | video | not stored. Form check opens WhatsApp |
 | coach validation | `grade_program_test_item(result_id, 'pass'\|'needs_work'\|NULL, note)` in the admin-web Tests panel |
@@ -227,9 +236,10 @@ world best from before the save:
   world best, so the corrected value isn't flagged even if it beats the athlete's older best.
 
 **What each side sees:**
-- **Athlete** (`TestItemCard.tsx`): the value, a world chip, "New PB", and the coach
+- **Athlete** (`TestItemCard.tsx`): the value, "New PB" or "Matched PB", and the coach
   grade and note. There is no comparison, and a lower number is never shown as a change.
-  A "Matched PB" chip comes with the next build.
+- **World chip:** "Counted in <world>" when saved. A locked world, or a movement with no
+  world, shows only "Saved for your coach"; the app never names a locked world on a test.
 - **Coach** (admin-web `TestsPanel.tsx`): the change since the previous result
   (`Delta`, which can be negative), the athlete's note, "PB" or "Matched PB", grading,
   and Clear result.
@@ -456,7 +466,7 @@ Writable vs read-only:
 |---|---|
 | `day_name` + `block_name` (or `name`), `order_index`, `metadata`, `coach_notes` | written |
 | `exercises[]`: `exercise_id`/`name`, `sets`, `reps`, `rest_seconds`, `hold_seconds`, `is_weighted`, `notes` | written, in file order. Numbers are ignored for tests |
-| `coach_week_note` | **written** to `coach_week_notes` for the new week by the admin-web week import (it comes back in the next export); the app's import does this from the next build. Only the program's coach or an admin can save it; otherwise the import says so and the week is still added. **No athlete screen shows week notes yet: NOT IMPLEMENTED** |
+| `coach_week_note` | **written** to `coach_week_notes` for the new week by the admin-web and app week imports (it comes back in the next export). Only the program's coach or an admin can save it; otherwise the import says so and the week is still added. **No athlete screen shows week notes yet: NOT IMPLEMENTED** |
 | `block_id`, `log`, `test_result`, `warrior` (incl. `strength_tier`), `program`, `bodyweight_trend`, `exported_at` | ignored |
 | results | cannot be imported |
 
@@ -546,11 +556,11 @@ and the other read-only fields are dropped.
 | 5 | Exercise order lost on import | **fixed** (`order_index` per exercise) | — |
 | 6 | Editing a logged item leaves a stale result; the coach couldn't clear one | **coach clear added** (`clear_program_test_item`) | Warn in the builder when a logged test block is changed |
 | 7 | "New PB" stuck after a correction down | **fixed** (computed on every save) | — |
-| 8 | 1MM tie counted as a PB | **fixed for tests** (`is_matched_pb`) | App chip "Matched PB" at next build |
+| 8 | 1MM tie counted as a PB | **fixed for tests** (`is_matched_pb`, app chip "Matched PB") | — |
 | 9 | Coach panel shows negative deltas | by design (coach only) | — |
 | 10 | Metric types (for time, AMRAP X min, RPE cap, targets, attempts) | open | Add a `test_kind` only together with a server rule |
-| 11 | No RPE, feel or athlete note | **note added** (server + export) | App Notes field at next build; RPE/feel open |
-| 12 | A day with a Warm-Up / Cool-Down block isn't a test day | open | App build: count support blocks in `isTestDay` |
-| 13 | The mobile builder can't create test items | open | App build |
+| 11 | No RPE, feel or athlete note | **note added** (server, export, app note box) | RPE/feel open |
+| 12 | A day with a Warm-Up / Cool-Down block wasn't a test day | **fixed** (app + Journey points) | Coach review adherence still counts an unlogged Warm-Up as "not logged" |
+| 13 | The mobile builder couldn't create test items | **fixed** | — |
 | 14 | Test tags on Leap / AI Coach programs do nothing | **warned** in the admin-web week import | — |
-| 15 | Week note on import | **saved** (admin-web); app at next build | Athlete screen for week notes: not built |
+| 15 | Week note on import | **saved** (admin-web and app import) | Athlete screen for week notes: not built |
