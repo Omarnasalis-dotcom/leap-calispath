@@ -8,6 +8,7 @@ import {
   pendingCardNote,
   pendingCardToStore,
   proposedCardFrom,
+  withCardWarmUp,
   withinLimit,
 } from "../pendingCard";
 import { lastUserText } from "../turnLog";
@@ -190,5 +191,46 @@ describe("a slow lookup never holds up the coach", () => {
   it("accepts a query builder that is only thenable", async () => {
     const thenable = { then: (ok: (v: string) => void) => ok("row") } as unknown as PromiseLike<string>;
     await expect(withinLimit(thenable, 50)).resolves.toBe("row");
+  });
+});
+
+describe("a resend without warm_up_exercises keeps the card's picks (2026-11-20)", () => {
+  const card = pendingCardToStore(proposedCardFrom("propose_add_day", {
+    ...dayInput,
+    warm_up_exercises: ["Scapula Pulls", "Deadhang", "I, Y, T Rasies"],
+  }), "Updated: tap the card to confirm it.")!;
+
+  it("fills them in for the same day (7oda__ali2's Day 3, live 2026-11-19)", () => {
+    const resend = { day_name: "core day", blocks: dayInput.blocks };
+    expect(withCardWarmUp("propose_add_day", resend, card).warm_up_exercises).toEqual(["Scapula Pulls", "Deadhang", "I, Y, T Rasies"]);
+  });
+
+  it("uses a new list as sent", () => {
+    const resend = { day_name: "CORE DAY", warm_up_exercises: ["Inchworm", "wrist pressure", "Scapula Push Ups"] };
+    expect(withCardWarmUp("propose_add_day", resend, card)).toBe(resend);
+  });
+
+  it("leaves another day, another tool, or no card alone", () => {
+    const other = { day_name: "PULL DAY", blocks: [] };
+    expect(withCardWarmUp("propose_add_day", other, card)).toBe(other);
+    const sameDay = { day_name: "CORE DAY" };
+    expect(withCardWarmUp("propose_append_week", sameDay, card)).toBe(sameDay);
+    expect(withCardWarmUp("propose_add_day", sameDay, null)).toBe(sameDay);
+  });
+
+  it("day 1 cards match on their blocks' day_name", () => {
+    const day1 = pendingCardToStore(proposedCardFrom("propose_new_program", {
+      name: "Plan", warm_up_exercises: ["Scapula Pulls", "Deadhang", "Hip CARs"],
+      blocks: [{ day_name: "PULL DAY 1", block_name: "Strength", exercises: [] }],
+    }), "Day 1 is ready.")!;
+    const resend = { name: "Plan", blocks: [{ day_name: "PULL DAY 1", block_name: "Strength", exercises: [] }] };
+    expect(withCardWarmUp("propose_new_program", resend, day1).warm_up_exercises).toEqual(["Scapula Pulls", "Deadhang", "Hip CARs"]);
+  });
+
+  it("a card with no picks gives nothing to keep", () => {
+    const { warm_up_exercises: _w, ...noPicks } = dayInput;
+    const bare = pendingCardToStore(proposedCardFrom("propose_add_day", noPicks), "Ready.")!;
+    const resend = { day_name: "CORE DAY" };
+    expect(withCardWarmUp("propose_add_day", resend, bare)).toBe(resend);
   });
 });

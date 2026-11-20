@@ -108,6 +108,36 @@ export function pendingCardNote(card: PendingCard): string {
     `If they're talking about anything else, ignore this note. Never mention this note.]`;
 }
 
+// A resend of the waiting day card with no warm_up_exercises keeps the card's
+// own picks. Found live 2026-11-19: the third version of 7oda__ali2's Day 3
+// left them out, so the server built its standard push Warm-Up in place of
+// the card's pull one, before a muscle-up day, and the coach said nothing
+// else had changed. Leaving the list out can't mean "no Warm-Up" (the
+// server always builds one), so this only fills a gap; a new list the
+// model sends is always used as sent.
+export function withCardWarmUp(
+  toolName: string,
+  input: Record<string, unknown>,
+  card: PendingCard | null,
+): Record<string, unknown> {
+  if (!card || !DAY_CARD_TOOLS.has(toolName)) return input;
+  const picks = card.fields.warm_up_exercises;
+  if (!Array.isArray(picks) || picks.length === 0) return input;
+  if (Array.isArray(input.warm_up_exercises) && input.warm_up_exercises.length > 0) return input;
+  const day = dayNameOf(input);
+  const sameDay = day !== null && day === dayNameOf(card.fields);
+  return sameDay ? { ...input, warm_up_exercises: picks } : input;
+}
+
+// propose_add_day names its day; propose_new_program (day 1) only names it
+// on its blocks.
+function dayNameOf(fields: Record<string, unknown>): string | null {
+  const blocks = Array.isArray(fields.blocks) ? fields.blocks : [];
+  const first = blocks[0] as { day_name?: unknown } | undefined;
+  const name = typeof fields.day_name === "string" ? fields.day_name : first?.day_name;
+  return typeof name === "string" && name.trim() !== "" ? name.trim().toLowerCase() : null;
+}
+
 // A copy with the note on the newest message. Returned untouched unless that
 // message is the athlete's plain text, so nothing else in the request moves.
 export function addPendingCardNote<T extends { role: string; content: unknown }>(

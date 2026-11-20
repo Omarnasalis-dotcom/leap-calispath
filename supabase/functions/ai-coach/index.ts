@@ -19,11 +19,13 @@ import {
   cardReplyIsInChat,
   NO_PENDING_CARD,
   PENDING_CARD_LOOKUP_TIMEOUT_MS,
+  PendingCard,
   pendingCardEnabled,
   pendingCardNote,
   pendingCardToStore,
   ProposedCard,
   proposedCardFrom,
+  withCardWarmUp,
   withinLimit,
 } from "./tools/pendingCard.ts";
 
@@ -734,6 +736,9 @@ serve(async (req: Request) => {
   // Set for every card, day card or not: the newest card replaces the saved
   // one, so an older day card can't be described as the current card.
   let proposedAt: string | null = null;
+  // The day card still waiting for the athlete's tap, once the note for it
+  // is added; a resend of that day keeps its Warm-Up picks (withCardWarmUp).
+  let waitingCard: PendingCard | null = null;
 
   const readPendingCardNote = async (): Promise<string | null> => {
     // One message can't hold a card's reply: it's the athlete's own.
@@ -749,7 +754,9 @@ serve(async (req: Request) => {
       }
       if (lookup.error) throw new Error(lookup.error.message);
       const card = asPendingCard(lookup.data);
-      return card && cardReplyIsInChat(card, initialMessages) ? pendingCardNote(card) : null;
+      if (!card || !cardReplyIsInChat(card, initialMessages)) return null;
+      waitingCard = card;
+      return pendingCardNote(card);
     } catch (err) {
       console.error("[ai-coach] Pending card lookup failed:", err instanceof Error ? err.message : err);
       return null;
@@ -947,8 +954,13 @@ serve(async (req: Request) => {
       const turnTools = (claudeResponse.content ?? [])
         .filter((block: { type: string }) => block.type === "tool_use")
         .map((block: { name: string }) => block.name);
+      // Set when this round's text went to the reply and tools still run: if
+      // one of them fails, that text is moved to heldParts below.
+      let roundTextInReply = false;
       if (turnText.trim()) {
-        (claudeResponse.stop_reason === "tool_use" && isNarrationRound(turnTools) ? heldParts : replyParts).push(turnText.trim());
+        const held = claudeResponse.stop_reason === "tool_use" && isNarrationRound(turnTools);
+        (held ? heldParts : replyParts).push(turnText.trim());
+        roundTextInReply = !held && claudeResponse.stop_reason === "tool_use";
       }
 
       if (claudeResponse.stop_reason !== "tool_use") {
@@ -1066,6 +1078,7 @@ serve(async (req: Request) => {
       const toolResults = [];
       for (const block of claudeResponse.content) {
         if (block.type !== "tool_use") continue;
+        block.input = withCardWarmUp(block.name, (block.input ?? {}) as Record<string, unknown>, waitingCard);
         const tool = TOOLS_BY_NAME[block.name];
         if (!tool) {
           turnLog.tools.push(traceTool(block.name, block.input, 0, { error: `Unknown tool: ${block.name}` }));
@@ -1112,6 +1125,15 @@ serve(async (req: Request) => {
             is_error: true,
           });
         }
+      }
+      // Text written beside a tool call that then failed describes a plan
+      // that didn't happen, and the retry writes its own. Found live
+      // 2026-11-16: "I'll set it at 8s…" before a failed adjust_program
+      // reached the athlete above the real answer. Held like narration:
+      // used only if the turn ends with nothing else to say.
+      if (roundTextInReply && toolResults.some((r) => (r as { is_error?: boolean }).is_error)) {
+        const text = replyParts.pop();
+        if (text) heldParts.push(text);
       }
       messages.push({ role: "user", content: toolResults });
     }

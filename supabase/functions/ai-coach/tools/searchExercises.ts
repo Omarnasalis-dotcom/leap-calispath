@@ -32,6 +32,34 @@ const SINGLE_MATCH_LIMIT = 20;
 const SINGLE_FIELDS = "id, name, category, difficulty";
 const APPROXIMATE_NOTE =
   "approximate: true means no exercise has that exact name; these are the nearest real ones. Use one only if it fits, and tell the athlete which one you used.";
+// Rows fetched before ranking. The database returns "contains" matches in
+// no set order, so with a cap of 3 the exact name could be left out: found
+// live 2026-11-16, "Front Lever Hold" came back as Banded / Single Leg /
+// Straddle and the coach guessed an id. 11 library names sit inside 3+
+// other names (push ups, Dips, Muscle Up, Chin Ups, Front Lever Hold…).
+// The widest is push ups at 26, so 60 holds every match for ranking.
+const RANK_POOL = 60;
+
+// Exact name first, then names starting with the term, then names holding
+// it as whole words, then the rest; shorter names first within each group.
+export function rankByName<T extends { name?: string | null }>(rows: T[], term: string): T[] {
+  const t = term.trim().toLowerCase();
+  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const wholeWord = new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`);
+  const rank = (name: string) => {
+    if (name === t) return 0;
+    if (name.startsWith(t)) return 1;
+    if (wholeWord.test(name)) return 2;
+    return 3;
+  };
+  return rows
+    .map((row, i) => {
+      const name = (row.name ?? "").trim().toLowerCase();
+      return { row, i, r: rank(name), len: name.length };
+    })
+    .sort((a, b) => a.r - b.r || a.len - b.len || a.i - b.i)
+    .map((x) => x.row);
+}
 
 export const searchExercises: ToolDefinition = {
   name: "search_exercises",
@@ -69,11 +97,12 @@ export const searchExercises: ToolDefinition = {
         .from("exercise_library")
         .select(fields)
         .ilike("name", `%${term}%`)
-        .limit(limit);
+        .limit(Math.max(limit, RANK_POOL));
       if (input.category) q = q.eq("category", input.category as string);
       const { data, error } = await q;
       if (error) throw new Error(`search_exercises failed for "${term}": ${error.message}`);
-      if ((data ?? []).length > 0) return { matches: data, approximate: false };
+      const rows = (data ?? []) as unknown as Array<{ name?: string | null }>;
+      if (rows.length > 0) return { matches: rankByName(rows, term).slice(0, limit), approximate: false };
       // Nothing contains the whole phrase: match its words in any order,
       // without equipment/load words ("Dumbbell Biceps Curl" -> Biceps Curl).
       // These are the nearest real exercises, not an exact match.
