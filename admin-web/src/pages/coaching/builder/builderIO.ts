@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { notifyClientProgramUpdate } from '@/api/coaching';
 import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser } from '@/shared/BlockConceptParser';
 import { clientKey, type BuilderBlock, type BuilderDay, type BuilderWeeks } from './types';
@@ -257,9 +258,24 @@ export async function saveTemplateWeeks(params: {
     p_blocks: blocksPayload,
   });
   if (error) throw new Error(error.message);
-  const result = data as { success: boolean; template_id?: string; error?: string; undeletable_block_ids?: string[] };
+  const result = data as {
+    success: boolean;
+    template_id?: string;
+    error?: string;
+    undeletable_block_ids?: string[];
+    week_increased?: boolean;
+    warrior_program_id?: string | null;
+  };
   if (!result?.success) {
     throw new Error(result?.error === 'NOT_FOUND' ? 'Template not found.' : 'Failed to save workout program.');
+  }
+
+  // A save that adds a week to a client's active program tells them, the
+  // same as mobile's useProgramBuilder. Found 2026-11-20: Week 2 added to
+  // omaraliii's program here sent nothing. The edge function sends once a
+  // day per week; not awaited, and a failed notify never fails the save.
+  if (result.week_increased && result.warrior_program_id) {
+    void notifyClientProgramUpdate(result.warrior_program_id, 'week_unlocked');
   }
 
   return {
