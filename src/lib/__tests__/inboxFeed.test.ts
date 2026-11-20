@@ -115,6 +115,19 @@ describe('activity', () => {
     expect(timelineText(time).line.map((s) => s.text).join('')).toBe('Abdo2009 beat your time in Helot');
   });
 
+  it('a coach week unlock reads in the app language, not the stored English', () => {
+    const unlocked = item({
+      type: 'client_program_update', title: 'New Week Unlocked!', body: 'Week 7 of "Foundation" is now available.',
+      fields: { week: 7, programName: 'Foundation' },
+    });
+    expect(timelineText(unlocked)).toEqual({
+      line: [{ text: 'Week 7 of ', bold: false }, { text: 'Foundation', bold: true }, { text: ' is ready', bold: false }],
+      sub: null,
+    });
+    const assigned = item({ type: 'client_program_update', fields: { byName: 'Admin', programName: 'Foundation' } });
+    expect(timelineText(assigned).line.map((s) => s.text).join('')).toBe('New program: Foundation');
+  });
+
   it('falls back to the title and text when the server could not read the names', () => {
     const old = item({ type: 'leaderboard_overtaken', title: "You've Been Overtaken!", body: 'Someone…' });
     expect(timelineText(old)).toEqual({ line: [{ text: "You've Been Overtaken!", bold: true }], sub: 'Someone…' });

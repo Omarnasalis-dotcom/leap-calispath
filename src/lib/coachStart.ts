@@ -1,5 +1,17 @@
 import { supabase } from './supabase';
 import { AI_COACH_SYSTEM_PROFILE_ID } from '../constants/system';
+import { t } from '../i18n';
+
+/**
+ * Opens the AI Coach with "Analyze my Week n and build Week n+1." typed into
+ * the message box, ready for the athlete to send (never sent by itself, and
+ * there over any earlier chat). Used by every "review the week" button:
+ * Notifications' Build Week, Journey and the program screen's Review with coach.
+ */
+export function weekReviewRoute(week: number): { pathname: '/coach'; params: { draft: string } } {
+  const n = Number.isInteger(week) && week > 0 ? week : 1;
+  return { pathname: '/coach', params: { draft: t('journey.aiReviewDraft', { n, next: n + 1 }) } };
+}
 
 // The AI Coach start screen's third card ("Review my week and build the
 // next") is live once the athlete's active AI Coach program has a week with

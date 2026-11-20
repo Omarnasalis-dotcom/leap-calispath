@@ -158,7 +158,37 @@ Deno.serve(async (req) => {
   // WarriorProgramScreen always loads the caller's own active program from
   // warriorId alone (app/warrior-program.tsx passes warriorId={user.id} and
   // nothing else) — no extra params needed for this deep link.
-  const notificationData = { screen: "warrior-program" };
+  const isWeek = updateType === "week_unlocked";
+  // A week unlock also carries the week and program name, so the app can write
+  // the line in the reader's language (the stored text stays in the language
+  // the app was in when this was sent), and a key to spot a repeat.
+  const weekKey = `${program.id}:w${program.current_week}`;
+  const notificationData: Record<string, unknown> = isWeek
+    ? {
+      screen: "warrior-program",
+      key: weekKey,
+      week: program.current_week,
+      // Only a real name: the English "your program" fallback would show as is.
+      // week_program, not program_name: app 1.2.20 reads that as a new program.
+      ...((template as { name?: string } | null)?.name ? { week_program: templateName } : {}),
+    }
+    : { screen: "warrior-program" };
+
+  // A coach who removes a week and publishes it again (to fix a mistake) would
+  // announce the same week twice; once a day per week is enough.
+  if (isWeek) {
+    const { data: recent } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("user_id", clientId)
+      .eq("type", NOTIFICATION_TYPE)
+      .eq("data->>key", weekKey)
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .limit(1);
+    if (recent && recent.length > 0) {
+      return json({ success: true, notified: false, reason: "ALREADY_SENT" });
+    }
+  }
 
   const title = updateType === ("program_assigned" as UpdateType) ? "New Program Assigned!" : "New Week Unlocked!";
   const body = updateType === ("program_assigned" as UpdateType)
@@ -208,7 +238,9 @@ Deno.serve(async (req) => {
         // Stored text: localize_notification may have translated it.
         title: notification.title,
         body: notification.body,
-        data: notificationData,
+        // Only the screen: a tap forwards every text field as a route param
+        // (app/_layout.tsx), and the inbox fields aren't the screen's.
+        data: { screen: "warrior-program" },
         sound: "default",
       }]),
     });

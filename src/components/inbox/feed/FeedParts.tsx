@@ -22,6 +22,7 @@ import { isArabic, t } from '../../../i18n';
 import { TC_COLORS, TCPalette } from '../../../../constants/trainingCenterTokens';
 import { giftLabelFor } from '../MessageCard';
 import { canCopy, copyCode, useGiftClaim } from '../useGiftClaim';
+import { weekReviewRoute } from '../../../lib/coachStart';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type Tone = 'tint' | 'neutral' | 'ink' | 'solid';
@@ -103,7 +104,7 @@ export function HeroCoachCard({ entry, onActed }: { entry: ActionEntry; onActed:
     track('ai_week_review_tapped', { from: 'notifications' });
     onActed(entry.item.id);
     // Ready in the message box; the athlete taps send.
-    router.push({ pathname: '/coach', params: { draft: t('inboxFeed.heroDraft', { n: week, next: week + 1 }) } } as never);
+    router.push(weekReviewRoute(week) as never);
   };
   return (
     <View style={styles.card}>
@@ -194,7 +195,8 @@ function cardText(entry: ActionEntry, claim: GiftClaim | undefined): { title: st
     case 'program':
       return {
         title: f.programName ?? item.title,
-        body: f.byName ? t('inboxFeed.programFrom', { name: f.byName }) : item.body,
+        body: f.week != null ? t('inboxFeed.weekReady', { n: f.week })
+          : f.byName ? t('inboxFeed.programFrom', { name: f.byName }) : item.body,
       };
     default:
       return { title: item.title, body: item.body };

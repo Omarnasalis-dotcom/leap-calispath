@@ -260,6 +260,9 @@ export function timelineText(item: InboxItem): { line: Segment[]; sub: string | 
   if (item.type === 'leaderboard_overtaken' && f.overtakenKind === 'time') {
     return { line: withBoldName((name) => t('inboxFeed.lineOvertakenTime', { name, tier: tierLabel(f.tier) }), whoName(item)), sub: null };
   }
+  if (item.type === 'client_program_update' && f.week != null && f.programName) {
+    return { line: withBoldName((name) => t('inboxFeed.lineWeekReady', { name, n: f.week }), f.programName), sub: null };
+  }
   if (item.type === 'client_program_update' && f.programName) {
     return { line: withBoldName((name) => t('inboxFeed.lineProgram', { name }), f.programName), sub: null };
   }
