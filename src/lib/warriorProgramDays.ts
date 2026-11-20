@@ -1,4 +1,5 @@
 import { ProgramBlock, ProgramDay } from '../types/warriorProgram';
+import { blocksThatCount } from './testItems';
 
 // program_blocks.name is authored as "{Day Name} | {Block Name}" (e.g.
 // "Day 1 | Warm-Up", "Day 1 | Strength") — one real session/day is composed
@@ -73,12 +74,16 @@ export interface DayStateEntry {
  */
 export function deriveDayStates(days: ProgramDay[]): DayStateEntry[] {
   return days.map((day, index) => {
-    const total = day.blocks.length;
-    const logged = day.blocks.filter((b) => b.completedStatus !== 'none').length;
+    // A test day is done when its test items are; its Warm-Up / Cool-Down
+    // may stay unlogged (testItems.blocksThatCount).
+    const counted = blocksThatCount(day);
+    const total = counted.length;
+    const logged = counted.filter((b) => b.completedStatus !== 'none').length;
     const progressPct = total === 0 ? 0 : Math.round((logged / total) * 100);
+    const anyLogged = day.blocks.some((b) => b.completedStatus !== 'none');
     let status: DayStatus;
     if (total > 0 && logged === total) status = 'done';
-    else if (logged > 0) status = 'in_progress';
+    else if (anyLogged) status = 'in_progress';
     else status = 'clean';
     return { day, index, status, progressPct };
   });

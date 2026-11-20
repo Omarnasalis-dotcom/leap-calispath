@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { ConceptMetadata } from '../../lib/BlockConceptParser';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TIER_NAMES } from '../../types';
+import { isTestKind, TEST_KIND_CHOICES, testMovementChoices, type TestKind } from '../../lib/testItems';
 
 interface BlockConfigWizardProps {
   initialMetadata: ConceptMetadata;
@@ -38,6 +39,18 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
   // undefined means "use the warrior's current tier" — preserves old blocks
   // built before a fixed tier could be assigned.
   const [tierTrialTier, setTierTrialTier] = useState<number | undefined>(initialMetadata.tier_trial_tier);
+  // Coach Test Week item (src/lib/testItems.ts), same choices as the admin
+  // panel's builder. A test item is one plain block: the athlete logs one result.
+  const [testKind, setTestKind] = useState<TestKind | undefined>(
+    isTestKind(initialMetadata.test_kind) ? initialMetadata.test_kind : undefined,
+  );
+  const [testMovement, setTestMovement] = useState<string | undefined>(initialMetadata.test_movement || undefined);
+
+  const chooseTestKind = (kind: TestKind | undefined) => {
+    setTestKind(kind);
+    setTestMovement(kind ? testMovementChoices(kind)[0]?.id : undefined);
+    if (kind) setIsTierTrial(false);
+  };
 
   useEffect(() => {
     // Compile into ConceptMetadata. Start from the block's existing metadata
@@ -61,6 +74,21 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
     delete payload.rest_after_round;
     delete payload.is_tier_trial;
     delete payload.tier_trial_tier;
+    delete payload.test_kind;
+    delete payload.test_movement;
+
+    if (testKind) {
+      // Same shape as the admin builder's ConceptWizard: timing and structure
+      // don't apply to a test item.
+      payload.timing_system = 'straight_set';
+      payload.structure = 'single';
+      payload.test_kind = testKind;
+      if (testMovement && testMovementChoices(testKind).some((m) => m.id === testMovement)) {
+        payload.test_movement = testMovement;
+      }
+      onChange(payload);
+      return;
+    }
 
     payload.timing_system = timingSystem;
     payload.structure = timingSystem === 'tabata' ? 'circuit' : structure;
@@ -100,7 +128,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
     }
 
     onChange(payload);
-  }, [timingSystem, structure, timeCap, rounds, restAfterRound, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tierTrialTier, tabataWork, tabataRest, tabataRounds]);
+  }, [timingSystem, structure, timeCap, rounds, restAfterRound, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tierTrialTier, tabataWork, tabataRest, tabataRounds, testKind, testMovement]);
 
   const TimingOption = ({ value, label }: { value: any, label: string }) => {
     const active = timingSystem === value;
@@ -126,8 +154,45 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
     );
   };
 
+  const chip = (active: boolean, label: string, onPress: () => void, key?: string) => (
+    <TouchableOpacity
+      key={key}
+      style={[styles.optionBtn, { borderColor: active ? theme.accent : theme.card.border, backgroundColor: active ? 'rgba(255, 82, 82, 0.1)' : 'transparent' }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      <Text style={[styles.optionText, { color: active ? theme.accent : theme.text.secondary }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  const testSection = (
+    <View>
+      <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>TEST ITEM</Text>
+      <View style={styles.row}>
+        {chip(!testKind, 'NORMAL BLOCK', () => chooseTestKind(undefined), 'none')}
+        {TEST_KIND_CHOICES.map((c) => chip(testKind === c.kind, c.label, () => chooseTestKind(c.kind), c.kind))}
+      </View>
+      {testKind && testMovementChoices(testKind).length > 0 && (
+        <View style={styles.row}>
+          {testMovementChoices(testKind).map((m) => chip(testMovement === m.id, m.label.toUpperCase(), () => setTestMovement(m.id), m.id))}
+        </View>
+      )}
+      {testKind && (
+        <Text style={[styles.inputLabel, { color: theme.text.tertiary, marginBottom: 16 }]}>
+          THE ATHLETE LOGS ONE RESULT. ADD ONE EXERCISE FOR THE NAME AND DEMO VIDEO; THE BLOCK NOTES ARE THEIR INSTRUCTIONS. WORKS ON PROGRAMS YOU ASSIGN TO A CLIENT.
+        </Text>
+      )}
+    </View>
+  );
+
+  if (testKind) {
+    return <View style={styles.container}>{testSection}</View>;
+  }
+
   return (
     <View style={styles.container}>
+      {testSection}
       <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>1. TIMING SYSTEM</Text>
       <View style={styles.row}>
         <TimingOption value="straight_set" label="STRAIGHT SET" />

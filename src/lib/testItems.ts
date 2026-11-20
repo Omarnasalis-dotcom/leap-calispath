@@ -3,7 +3,7 @@ import { ONEMM_CATEGORIES, ONEMM_MOVEMENTS } from './oneMMLogic';
 import { POWER_MOVEMENTS } from './powerLogic';
 import { STATIC_CATEGORIES, STATIC_MOVEMENTS } from './staticLogic';
 import { LEAP_SYSTEM_PROFILE_ID, AI_COACH_SYSTEM_PROFILE_ID } from '../constants/system';
-import type { ProgramBlock, ProgramDay } from '../types/warriorProgram';
+import type { ProgramBlock } from '../types/warriorProgram';
 
 // Coach Test Week (supabase/migrations/20261114190000_coach_test_week.sql).
 // A coach marks blocks of an assigned program as test items through the
@@ -39,6 +39,10 @@ export interface TestResult {
   skip_detail: string | null;
   world_status: WorldStatus;
   is_new_pb: boolean;
+  /** Equal to the athlete's world best (server 20261120200000; absent on old rows). */
+  is_matched_pb?: boolean;
+  /** The athlete's note on the item (server 20261120200000). */
+  note?: string | null;
   coach_grade: 'pass' | 'needs_work' | null;
   coach_note: string | null;
 }
@@ -58,13 +62,41 @@ export function getTestItem(metadata: ConceptMetadata | undefined | null): TestI
   return { kind: metadata.test_kind, movement: metadata.test_movement || undefined };
 }
 
+/** The metadata without its test tag (for programs where tests don't count). */
+export function withoutTestTag<M extends ConceptMetadata | undefined>(metadata: M): M {
+  if (!metadata || (metadata.test_kind === undefined && metadata.test_movement === undefined)) return metadata;
+  const { test_kind: _kind, test_movement: _movement, ...rest } = metadata;
+  return rest as M;
+}
+
 export function isTestBlock(block: Pick<ProgramBlock, 'metadata'>): boolean {
   return getTestItem(block.metadata) !== null;
 }
 
-/** A day made only of test items (the Journey shows it as a test card). */
-export function isTestDay(day: Pick<ProgramDay, 'blocks'>): boolean {
-  return day.blocks.length > 0 && day.blocks.every(isTestBlock);
+// A Warm-Up / Cool-Down block around a test day's items (owner decision
+// 2026-11-20): these names, any case, hyphen / space / none.
+const SUPPORT_BLOCK_NAME = /^(warm[\s-]?up|cool[\s-]?down)$/i;
+
+/** A Warm-Up or Cool-Down block that isn't a test item. Takes the block name
+ * with or without its "Day | " prefix. */
+export function isSupportBlock(block: Pick<ProgramBlock, 'name' | 'metadata'>): boolean {
+  if (isTestBlock(block)) return false;
+  const raw = block.name || '';
+  const i = raw.indexOf(' | ');
+  return SUPPORT_BLOCK_NAME.test((i >= 0 ? raw.slice(i + 3) : raw).trim());
+}
+
+/** A day of test items, optionally with Warm-Up / Cool-Down blocks (the
+ * Journey shows it as a test card). A day with any other block is a normal
+ * training day. */
+export function isTestDay(day: { blocks: Pick<ProgramBlock, 'name' | 'metadata'>[] }): boolean {
+  return day.blocks.some(isTestBlock) && day.blocks.every((b) => isTestBlock(b) || isSupportBlock(b));
+}
+
+/** The blocks that decide whether a day is done: on a test day only its test
+ * items (a Warm-Up / Cool-Down doesn't have to be logged), else every block. */
+export function blocksThatCount<B extends Pick<ProgramBlock, 'name' | 'metadata'>>(day: { blocks: B[] }): B[] {
+  return isTestDay(day) ? day.blocks.filter(isTestBlock) : day.blocks;
 }
 
 /** Test items only count on a program a real coach assigned — the server
@@ -82,6 +114,32 @@ export function testMovementIds(kind: TestKind): string[] {
   if (kind === 'max_reps') return ONEMM_MOVEMENTS.map((m) => m.id);
   if (kind === 'one_rm') return [...POWER_MOVEMENTS.map((m) => m.id), 'deadlift'];
   if (kind === 'max_hold') return Object.keys(STATIC_CATEGORIES);
+  return [];
+}
+
+/** The builder's choices for a kind, labelled like admin-web's
+ * testMovementOptions (English, like the coaching tools). */
+export const TEST_KIND_CHOICES: { kind: TestKind; label: string }[] = [
+  { kind: 'max_reps', label: 'MAX REPS (1 MIN)' },
+  { kind: 'one_rm', label: '1RM' },
+  { kind: 'max_hold', label: 'MAX HOLD' },
+  { kind: 'form_check', label: 'FORM CHECK' },
+];
+
+export function testMovementChoices(kind: TestKind): { id: string; label: string }[] {
+  if (kind === 'max_reps') return ONEMM_MOVEMENTS.map((m) => ({ id: m.id, label: m.name }));
+  if (kind === 'one_rm') {
+    return [
+      ...POWER_MOVEMENTS.map((m) => ({
+        id: m.id,
+        label: m.id === 'squat' ? 'Back Squat (bar kg)' : `${m.name} (added kg)`,
+      })),
+      { id: 'deadlift', label: 'Deadlift (bar kg) · test only' },
+    ];
+  }
+  if (kind === 'max_hold') {
+    return Object.entries(STATIC_CATEGORIES).map(([id, c]) => ({ id, label: `${c.name} (athlete picks the progression)` }));
+  }
   return [];
 }
 

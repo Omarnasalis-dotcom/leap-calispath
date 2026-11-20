@@ -54,6 +54,8 @@ export interface TestSubmit {
   movementId?: string | null;
   skipReason?: SkipReason | null;
   skipDetail?: string | null;
+  /** Logged items: the athlete's note to the coach. A skip's note is skipDetail. */
+  note?: string | null;
 }
 
 const COND_800 = 'BarlowCondensed-ExtraBold';
@@ -107,6 +109,7 @@ export function TestItemSheet({
   );
   const [reason, setReason] = useState<SkipReason | null>(result?.skip_reason ?? null);
   const [detail, setDetail] = useState(result?.skip_detail ?? '');
+  const [note, setNote] = useState(result?.status === 'done' ? result.note ?? '' : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showVideo, setShowVideo] = useState(false);
@@ -188,8 +191,9 @@ export function TestItemSheet({
   };
 
   const submitLog = () => {
+    const noteText = note.trim() || null;
     if (item.kind === 'form_check') {
-      run({ status: 'done' });
+      run({ status: 'done', note: noteText });
       return;
     }
     const value = parseTestNumber(valueText);
@@ -198,7 +202,7 @@ export function TestItemSheet({
       setError(check === 'whole' ? t('testWeek.wholeReps') : t('testWeek.enterValue'));
       return;
     }
-    const submit = () => run({ status: 'done', value, movementId: item.kind === 'max_hold' ? movementId : null });
+    const submit = () => run({ status: 'done', value, movementId: item.kind === 'max_hold' ? movementId : null, note: noteText });
     const worldKey = worldKeyFor(item.kind);
     if (!worldKey || !goesToWorld(item, strengthTier)) {
       submit();
@@ -408,6 +412,20 @@ export function TestItemSheet({
                     <Text style={s.hint}>{t('testWeek.noWhatsApp')}</Text>
                   )}
                 </View>
+              )}
+
+              {mode === 'log' && (
+                <TextInput
+                  style={base.note}
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder={t('testWeek.skipDetailPlaceholder')}
+                  placeholderTextColor={C.faint}
+                  multiline
+                  maxLength={500}
+                  textAlignVertical="top"
+                  accessibilityLabel={t('testWeek.skipDetailPlaceholder')}
+                />
               )}
 
               {mode === 'skip' && (

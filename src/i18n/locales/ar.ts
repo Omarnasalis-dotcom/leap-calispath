@@ -3225,7 +3225,7 @@ const ar: Translations = {
     worldStatic: 'عالم الثبات',
     worldSaved: 'احتُسب في {{world}}',
     newPb: 'رقم قياسي جديد',
-    worldLocked: '{{world}} ما زال مقفلًا · حُفظ لمدربك',
+    matchedPb: 'عادلت أفضل رقم لك',
     noWorld: 'حُفظ لمدربك',
     formSent: 'أُرسل الفيديو',
     gradePass: 'المدرب: ناجح',

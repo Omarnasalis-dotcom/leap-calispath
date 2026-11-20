@@ -103,12 +103,13 @@ export function TestItemCard({
   if (done && result) {
     if (result.world_status === 'saved' && worldKey) {
       chips.push({ label: t('testWeek.worldSaved', { world: t(`testWeek.${worldKey}`) }), tone: 'plain' });
-    } else if (result.world_status === 'locked' && worldKey) {
-      chips.push({ label: t('testWeek.worldLocked', { world: t(`testWeek.${worldKey}`) }), tone: 'plain' });
-    } else if (result.world_status === 'no_world') {
+    } else if (result.world_status === 'locked' || result.world_status === 'no_world') {
+      // A world the athlete hasn't unlocked isn't named (owner, 2026-11-20):
+      // the result is kept for the coach, same as a movement with no world.
       chips.push({ label: t('testWeek.noWorld'), tone: 'plain' });
     }
     if (result.is_new_pb) chips.push({ label: t('testWeek.newPb'), tone: 'ok' });
+    else if (result.is_matched_pb) chips.push({ label: t('testWeek.matchedPb'), tone: 'ok' });
   }
   if (result?.coach_grade) {
     chips.push({
