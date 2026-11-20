@@ -173,6 +173,7 @@
       ],
       "./plugins/withPodfileModularHeaders.js",
       "./plugins/withAndroidGradleMemory.js",
+      "./plugins/withOptionalHardware.js",
       [
         "@sentry/react-native/expo",
         {
