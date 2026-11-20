@@ -400,6 +400,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
     setExporting(true);
     try {
       const payload = await fetchWeekExportPayload({
+        warriorProgramId: selectedWarrior.warriorProgramId,
         templateId: selectedWarrior.templateId,
         templateName: selectedWarrior.programName,
         weekNumber: selectedWeek,

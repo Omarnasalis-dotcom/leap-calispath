@@ -8,6 +8,7 @@ import {
   fetchMyWhatsApp,
   fetchTestBlocks,
   fetchTestResults,
+  clearTestResult,
   gradeTestResult,
   saveMyWhatsApp,
   type TestBlock,
@@ -143,13 +144,41 @@ function WorldChip({ r }: { r: TestResult }) {
     return (
       <span className="rv-chip yes">
         {WORLD_NAME[r.test_kind]}
-        {r.is_new_pb ? ' · PB' : ''}
+        {r.is_new_pb ? ' · PB' : r.is_matched_pb ? ' · Matched PB' : ''}
       </span>
     );
   }
   if (r.world_status === 'locked') return <span className="rv-chip">World locked · test only</span>;
   if (r.world_status === 'no_world') return <span className="rv-chip">Test record only</span>;
   return null;
+}
+
+/** Coach clears a result so the athlete can log the item again. */
+function ClearResultButton({ r }: { r: TestResult }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const m = useMutation({
+    mutationFn: () => clearTestResult(r.id),
+    onSuccess: () => {
+      toast('Result cleared');
+      qc.invalidateQueries({ queryKey: ['test-results', r.warrior_id] });
+      qc.invalidateQueries({ queryKey: ['logged-blocks'] });
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Could not clear the result', 'error'),
+  });
+  return (
+    <button
+      type="button"
+      className="btn small ghost"
+      disabled={m.isPending}
+      onClick={() => {
+        const worldNote = r.world_status === 'saved' ? ' The value already saved to its world stays there.' : '';
+        if (window.confirm(`Clear this result? The athlete can log the item again.${worldNote}`)) m.mutate();
+      }}
+    >
+      Clear result
+    </button>
+  );
 }
 
 function GradeForm({ r }: { r: TestResult }) {
@@ -406,6 +435,8 @@ export function TestsPanel({
                       )}
                     </span>
                     {r?.skip_detail && <span className="rv-comment">“{r.skip_detail}”</span>}
+                    {r?.note && <span className="rv-comment">Athlete's note: “{r.note}”</span>}
+                    {r && <ClearResultButton r={r} />}
                     {r?.status === 'done' && b.test_kind === 'form_check' && <GradeForm key={r.updated_at} r={r} />}
                   </li>
                 );

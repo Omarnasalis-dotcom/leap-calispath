@@ -43,11 +43,12 @@ export function buildLibraryTemplateBlocksPayload(data: any, resolved: Map<strin
       order_index: block.order_index ?? blockIdx,
       week_number: blockWeekNumber(block),
       exercises: (block.exercises || [])
-        .map((ex: any) => {
+        .map((ex: any, exIdx: number) => {
           const exerciseId = resolvedExerciseId(resolved, ex);
           if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
             exercise_id: exerciseId,
+            order_index: exIdx,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,

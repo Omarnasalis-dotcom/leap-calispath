@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { BlockConceptParser } from './BlockConceptParser';
+import { isTestKind } from './testItems';
 
 export interface ExportSetLog {
   set_index: number;
@@ -54,6 +55,107 @@ export interface WeekExportBlock {
     notes: string;
     sets: ExportSetLog[];
   } | null;
+  /** Test blocks only (metadata.test_kind). */
+  test_result?: ExportTestResult;
+}
+
+// Coach Test Week result of one test block, read-only like `log` (import
+// ignores it). From program_test_results (written only by
+// submit_program_test_item); docs/features/test-day-format.md.
+export interface ExportTestResult {
+  /** null: not logged yet. */
+  status: 'done' | 'skipped' | null;
+  value: number | null;
+  unit: 'reps' | 'kg' | 'seconds' | null;
+  /** The world movement tested; for a max hold, the progression picked. */
+  movement_id: string | null;
+  skip_reason: 'cant_do' | 'injury' | 'no_equipment' | 'no_time' | 'other' | null;
+  skip_detail: string | null;
+  /** The athlete's note on the item. */
+  note: string | null;
+  is_new_pb: boolean;
+  /** Equal to the athlete's world best before this result. */
+  is_matched_pb: boolean;
+  world_status: 'saved' | 'locked' | 'no_world' | 'none' | null;
+  coach_grade: 'pass' | 'needs_work' | null;
+  coach_note: string | null;
+  /** The athlete's last done result of the same test kind + movement before
+   * this one, in any program (admin-web TestsPanel's previousOf). For an item
+   * not logged yet: the latest one (a max hold needs the progression, so
+   * none). */
+  previous: {
+    value: number;
+    unit: 'reps' | 'kg' | 'seconds' | null;
+    week_number: number;
+    logged_at: string;
+    same_program: boolean;
+  } | null;
+}
+
+/** program_test_results row, as much of it as the export reads. */
+export interface ExportTestResultRow {
+  id: string;
+  warrior_program_id: string | null;
+  block_id: string | null;
+  week_number: number;
+  test_kind: string;
+  movement_id: string | null;
+  status: 'done' | 'skipped';
+  value: number | string | null;
+  unit: 'reps' | 'kg' | 'seconds' | null;
+  skip_reason: ExportTestResult['skip_reason'];
+  skip_detail: string | null;
+  note?: string | null;
+  is_new_pb: boolean;
+  is_matched_pb?: boolean;
+  world_status: 'saved' | 'locked' | 'no_world' | 'none';
+  coach_grade: 'pass' | 'needs_work' | null;
+  coach_note: string | null;
+  created_at: string;
+}
+
+/** The test_result of one test block. `results` = every result row of the
+ * athlete (any program). Pure; exported for tests. */
+export function buildExportTestResult(
+  warriorProgramId: string,
+  blockId: string,
+  metadata: { test_kind?: string; test_movement?: string },
+  results: ExportTestResultRow[],
+): ExportTestResult {
+  const num = (v: number | string | null | undefined) => (v == null || v === '' ? null : Number(v));
+  const r = results.find((x) => x.warrior_program_id === warriorProgramId && x.block_id === blockId) ?? null;
+  const kind = r?.test_kind ?? metadata.test_kind;
+  const movement = r ? r.movement_id : metadata.test_movement || null;
+  let prev: ExportTestResultRow | null = null;
+  for (const x of results) {
+    if (x === r || x.status !== 'done' || num(x.value) == null) continue;
+    if (x.test_kind !== kind || x.movement_id !== movement) continue;
+    if (r && x.created_at >= r.created_at) continue;
+    if (!prev || x.created_at > prev.created_at) prev = x;
+  }
+  return {
+    status: r?.status ?? null,
+    value: num(r?.value),
+    unit: r?.unit ?? null,
+    movement_id: r?.movement_id ?? null,
+    skip_reason: r?.skip_reason ?? null,
+    skip_detail: r?.skip_detail ?? null,
+    note: r?.note ?? null,
+    is_new_pb: !!r?.is_new_pb,
+    is_matched_pb: !!r?.is_matched_pb,
+    world_status: r?.world_status ?? null,
+    coach_grade: r?.coach_grade ?? null,
+    coach_note: r?.coach_note ?? null,
+    previous: prev
+      ? {
+          value: num(prev.value) as number,
+          unit: prev.unit,
+          week_number: prev.week_number,
+          logged_at: prev.created_at,
+          same_program: prev.warrior_program_id === warriorProgramId,
+        }
+      : null,
+  };
 }
 
 export interface WeekExportPayload {
@@ -73,6 +175,8 @@ export interface WeekExportPayload {
 }
 
 interface FetchWeekExportParams {
+  /** The client's warrior_programs row (test results are keyed by it). */
+  warriorProgramId: string;
   templateId: string;
   templateName: string;
   weekNumber: number;
@@ -120,6 +224,20 @@ export async function fetchWeekExportPayload(params: FetchWeekExportParams): Pro
 
   const logsByBlockId = new Map(params.logs.map(l => [l.blockId, l]));
 
+  // Every test result of this athlete, any program (a previous result can
+  // come from an earlier program). Only fetched when the week has test blocks.
+  let testResults: ExportTestResultRow[] = [];
+  const hasTestBlocks = (blocksData || []).some(b => isTestKind(BlockConceptParser.parse(b.notes).metadata.test_kind));
+  if (hasTestBlocks && params.warriorId) {
+    const { data, error } = await supabase
+      .from('program_test_results')
+      .select('*')
+      .eq('warrior_id', params.warriorId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    testResults = (data || []) as ExportTestResultRow[];
+  }
+
   const blocks: WeekExportBlock[] = (blocksData || []).map(block => {
     const parsed = BlockConceptParser.parse(block.notes);
 
@@ -160,6 +278,9 @@ export async function fetchWeekExportPayload(params: FetchWeekExportParams): Pro
         notes: log.notes,
         sets: log.sets,
       } : null,
+      ...(isTestKind(parsed.metadata.test_kind)
+        ? { test_result: buildExportTestResult(params.warriorProgramId, block.id, parsed.metadata, testResults) }
+        : {}),
     };
   });
 

@@ -155,11 +155,12 @@ export function buildMasterTemplateBlocksPayload(data: { blocks: unknown[] }, re
       order_index: block.order_index ?? blockIdx,
       week_number: block.week_number || 1,
       exercises: ((block.exercises ?? []) as Array<Record<string, any>>)
-        .map((ex) => {
+        .map((ex, exIdx) => {
           const exerciseId = resolvedExerciseId(resolved, ex);
           if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
             exercise_id: exerciseId,
+            order_index: exIdx,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,

@@ -102,6 +102,7 @@ function ExportWeekButton({
     try {
       const note = await fetchCoachWeekNote(assignment.id, selectedWeek);
       const payload = await fetchWeekExportPayload({
+        warriorProgramId: assignment.id,
         templateId: assignment.template_id,
         templateName: assignment.template_name ?? 'Program',
         weekNumber: selectedWeek,
@@ -170,14 +171,29 @@ function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
       const validation = validateWeekImportPayload(parsed);
       if (!validation.valid) throw new Error(validation.error ?? 'The file is not in the expected shape.');
 
-      const data = parsed as { blocks: unknown[] };
+      const data = parsed as { blocks: unknown[]; coach_week_note?: unknown };
       const { resolved, blocks: keptBlocks } = await resolveImportedExercises(data.blocks, profile!.id, exerciseMatch.choose);
       const blocks = buildImportBlocksPayload({ ...data, blocks: keptBlocks }, resolved) as ClientProgramBlockPayload[];
-      await appendWeekToClientProgram(assignment.id, blocks);
+      const newWeek = await appendWeekToClientProgram(assignment.id, blocks);
 
-      setSuccess(`Added ${validation.blockCount} block(s) as a new week.`);
+      const messages = [`Added ${validation.blockCount} block(s) as week ${newWeek}.`];
+      // The file's week note goes on the new week, where EXPORT WEEK reads it.
+      const weekNote = typeof data.coach_week_note === 'string' ? data.coach_week_note.trim() : '';
+      if (weekNote) {
+        try {
+          await saveCoachWeekNote({ warriorProgramId: assignment.id, weekNumber: newWeek, coachId: profile!.id, note: weekNote });
+          messages.push('Week note saved.');
+        } catch (noteErr) {
+          messages.push(`The week note was not saved (${noteErr instanceof Error ? noteErr.message : 'error'}); add it by hand.`);
+        }
+      }
+      if ((validation.testBlockCount ?? 0) > 0 && programSource(assignment.coach_id) !== 'coach') {
+        messages.push("This isn't a coach's program, so its test items can't be logged as tests.");
+      }
+      setSuccess(messages.join(' '));
       void queryClient.invalidateQueries({ queryKey: ['template-weeks'] });
       void queryClient.invalidateQueries({ queryKey: ['archived-weeks'] });
+      void queryClient.invalidateQueries({ queryKey: ['coach-week-note', assignment.id] });
     } catch (err) {
       if (isImportCancelled(err)) return;
       setError(err instanceof Error ? err : new Error('Import failed.'));
