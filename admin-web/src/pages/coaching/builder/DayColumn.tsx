@@ -11,10 +11,11 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { Copy, Scissors, ClipboardPaste, Eraser, Trash2, GripVertical } from 'lucide-react';
 import type { ConceptMetadata } from '@/shared/BlockConceptParser';
-import { useBuilderClipboard, type ClipboardDay } from '@/contexts/BuilderClipboardContext';
+import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
+import { fromClipboardDay, toClipboardDay } from './clipboardConvert';
 import { ConfirmButton } from '@/components/bits';
 import { BlockCard, fromClipboardBlock } from './BlockCard';
-import { clientKey, newBlock, type BuilderDay, type BuilderBlock, type ExerciseOption } from './types';
+import { newBlock, type BuilderDay, type BuilderBlock, type ExerciseOption } from './types';
 
 const FOCUS_TAGS: Array<ConceptMetadata['focus_tag']> = [
   'NONE',
@@ -24,44 +25,6 @@ const FOCUS_TAGS: Array<ConceptMetadata['focus_tag']> = [
   'FULL_BODY',
   'CORE',
 ];
-
-function toClipboardDay(day: BuilderDay): ClipboardDay {
-  return {
-    name: day.name,
-    focus_tag: day.focus_tag,
-    blocks: day.blocks.map((b) => ({
-      name: b.name,
-      notes: b.notes,
-      metadata: { ...b.metadata },
-      exercises: b.exercises.map((e) => ({
-        exercise_id: e.exercise_id,
-        exercise_name: e.exercise_name,
-        sets: e.sets,
-        reps: e.reps,
-        rest_seconds: e.rest_seconds,
-        hold_seconds: e.hold_seconds,
-        is_weighted: e.is_weighted,
-        notes: e.notes,
-      })),
-    })),
-  };
-}
-
-function fromClipboardDay(data: ClipboardDay): BuilderDay {
-  return {
-    id: clientKey(),
-    name: `${data.name} (copy)`,
-    focus_tag: data.focus_tag,
-    blocks: data.blocks.map((b) => ({
-      id: clientKey(),
-      db_id: null,
-      name: b.name,
-      notes: b.notes,
-      metadata: { ...b.metadata },
-      exercises: b.exercises.map((e) => ({ ...e, id: clientKey(), notes: e.notes ?? '' })),
-    })),
-  };
-}
 
 const MIN_DAY_WIDTH = 220;
 const MAX_DAY_WIDTH = 640;

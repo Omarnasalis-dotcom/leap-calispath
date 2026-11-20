@@ -24,6 +24,7 @@ import { loadTemplateWeeks, saveTemplateWeeks, StaleProgramError } from './build
 import { StaleNotice } from './builder/StaleNotice';
 import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
+import { WeekClipboardButtons } from './builder/WeekClipboardButtons';
 import type { BuilderWeeks } from './builder/types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
@@ -207,7 +208,13 @@ export function ProgramBuilderPage() {
         exercises: b.exercises.map((e) => ({ ...e, id: `${e.id}-${Math.random().toString(36).slice(2, 7)}` })),
       })),
     }));
-    setWeeks((w) => ({ ...w, [nextNum]: cloned }));
+    addWeek(cloned);
+  }
+
+  /** The given days as the next week, opened for editing. */
+  function addWeek(newDays: typeof days) {
+    const nextNum = Math.max(...weekNums, 0) + 1;
+    setWeeks((w) => ({ ...w, [nextNum]: newDays }));
     setActiveWeek(nextNum);
     setDirty(true);
   }
@@ -505,6 +512,7 @@ export function ProgramBuilderPage() {
         <button className="btn small" disabled={isCoachPaused} onClick={duplicateWeek}>
           + Duplicate week
         </button>
+        <WeekClipboardButtons days={days} weekNum={activeWeek} readOnly={isCoachPaused} onAddWeek={addWeek} />
         {weekNums.length > 1 && (
           <ConfirmButton
             label="Delete week"
