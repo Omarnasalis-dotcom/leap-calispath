@@ -1,4 +1,4 @@
-import { compareToPrescription, judgedByBlockResult, RECENT_WEEKS, shapeWorkoutLogs } from "../getWorkoutLogs";
+import { compareToPrescription, judgedByBlockResult, noteRepsConflict, RECENT_WEEKS, shapeWorkoutLogs } from "../getWorkoutLogs";
 
 const reps = (...r: number[]) => r.map((n) => ({ exercise_name: "Push Up", reps_completed: n, hold_seconds: null }));
 const holds = (...h: number[]) => h.map((n) => ({ exercise_name: "L-Sit", reps_completed: null, hold_seconds: n }));
@@ -145,5 +145,62 @@ describe("shapeWorkoutLogs (fix #8, 2026-10-30)", () => {
       [{ id: "b1", notes: concept({ timing_system: "straight_set", structure: "circuit", rounds: "3" }) }],
     );
     expect(circuit.logs[0].exercises_vs_prescribed[0]).toMatchObject({ sets_prescribed: 3, sets_logged: 2, under_prescribed: true, over_prescribed: false });
+  });
+});
+
+describe("note_conflict: the note's reps disagree with the logged ones (2026-11-20)", () => {
+  const row = (...r: number[]) => [{ reps_logged: r }];
+
+  it("flags 7oda__ali2's three real ladder logs", () => {
+    expect(noteRepsConflict("10\n7\n6", row(22, 18, 14))).toEqual({ note_reps: [10, 7, 6], logged_reps: [22, 18, 14] });
+    expect(noteRepsConflict("9, 7, 5", row(22, 18, 14))).toEqual({ note_reps: [9, 7, 5], logged_reps: [22, 18, 14] });
+    expect(noteRepsConflict("12,8,6", row(18, 14, 10))).toEqual({ note_reps: [12, 8, 6], logged_reps: [18, 14, 10] });
+  });
+
+  it("reads Arabic digits", () => {
+    expect(noteRepsConflict("٩ ٧ ٥", row(22, 18, 14))).toMatchObject({ note_reps: [9, 7, 5] });
+  });
+
+  it("matching numbers are no conflict", () => {
+    expect(noteRepsConflict("22 18 14 easy", row(22, 18, 14))).toBeNull();
+  });
+
+  it("times, units, sets x reps and RPE are never read as reps", () => {
+    expect(noteRepsConflict("Pull 6:04\nChin-up 8:16", row(12, 10))).toBeNull();
+    expect(noteRepsConflict("12 minutes", row(8, 8))).toBeNull();
+    expect(noteRepsConflict("used 20kg and 15 kg", row(8, 8))).toBeNull();
+    expect(noteRepsConflict("held 30s, 25 sec", row(8, 8))).toBeNull();
+    expect(noteRepsConflict("3x10 then RPE 9", row(8, 8))).toBeNull();
+  });
+
+  it("needs one number per logged set, one exercise, and reps", () => {
+    expect(noteRepsConflict("week 5 felt fine", row(6, 5))).toBeNull();
+    expect(noteRepsConflict("12 10 6 4 11", row(16, 12, 8))).toBeNull();
+    expect(noteRepsConflict("9 7", [{ reps_logged: [10, 10] }, { reps_logged: [8, 8] }])).toBeNull();
+    expect(noteRepsConflict("9", row(10))).toBeNull();
+    expect(noteRepsConflict("20 15", [{ reps_logged: [], holds_logged: [30, 30] }])).toBeNull();
+    expect(noteRepsConflict(null, row(10, 10))).toBeNull();
+  });
+
+  it("shapeWorkoutLogs puts it on the log and its athlete_notes entry", () => {
+    const ladder = {
+      id: "l1", block_id: "b1", block_name: "PUSH DAY 2 | Strength - 1", week_number: 2, completed_at: "2026-11-19T05:20:33Z",
+      status: "completed", rpe: 10, feel: "beast", missed_reason: null, missed_detail: null,
+      notes: "[LOG] Ladder Progress: Reached rung of 14 reps in 5:39\n10\n7\n6",
+      sets: [22, 18, 14].map((n, i) => ({ set_index: i + 1, exercise_name: "Dips", reps_completed: n, hold_seconds: null })),
+    };
+    const out = shapeWorkoutLogs(
+      { logs: [ladder] },
+      [{ block_id: "b1", sets: 1, reps: 22, hold_seconds: null, exercise_library: { name: "Dips" } }],
+      [{ id: "b1", notes: `[CONCEPT:${JSON.stringify({ timing_system: "fortime", structure: "ladder" })}]` }],
+    );
+    const conflict = { note_reps: [10, 7, 6], logged_reps: [22, 18, 14] };
+    expect(out.athlete_notes[0]).toMatchObject({ note: "10\n7\n6", note_conflict: conflict });
+    expect((out.logs[0] as any).note_conflict).toEqual(conflict);
+  });
+
+  it("a missed block's note is never a conflict", () => {
+    expect(shapeWorkoutLogs({ logs: [{ block_id: "b", status: "missed", notes: "9 7", sets: [] }] }, [], []).athlete_notes[0])
+      .not.toHaveProperty("note_conflict");
   });
 });

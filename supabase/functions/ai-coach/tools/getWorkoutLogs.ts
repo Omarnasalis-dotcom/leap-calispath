@@ -49,6 +49,35 @@ export function compareToPrescription(sets: LoggedSet[], prescribed: Prescribed 
   };
 }
 
+// The athlete's note lists rep counts that disagree with what was logged
+// (owner, 2026-11-20). Found live: the ladder sheet asks only how many rungs
+// were reached, so 7oda__ali2 left it at all three and wrote what he really
+// did in the note. Logged 22/18/14, note "9, 7, 5"; the same 3 times in 2
+// weeks. Only a one-exercise log whose note holds exactly one number per
+// logged set counts, after times (6:04), units (12 min, 20kg, 30s), "3x10"
+// and RPE are taken out, so a note about time or load is never a conflict.
+// A fact for the coach to ask about, never a correction.
+const ARABIC_DIGITS: Record<string, string> = Object.fromEntries(
+  [..."٠١٢٣٤٥٦٧٨٩", ..."۰۱۲۳۴۵۶۷۸۹"].map((d, i) => [d, String(i % 10)]),
+);
+export function noteRepsConflict(
+  note: string | null | undefined,
+  rows: Array<{ reps_logged: number[]; holds_logged?: number[] }>,
+): { note_reps: number[]; logged_reps: number[] } | null {
+  if (!note || rows.length !== 1 || (rows[0].holds_logged?.length ?? 0) > 0) return null;
+  const logged = rows[0].reps_logged;
+  if (logged.length < 2) return null;
+  const text = note
+    .replace(/[٠-٩۰-۹]/g, (d) => ARABIC_DIGITS[d] ?? d)
+    .replace(/\d+\s*:\s*\d+/g, " ")
+    .replace(/\d+\s*[x×]\s*\d+/gi, " ")
+    .replace(/rpe\s*\d+/gi, " ")
+    .replace(/\d+(\.\d+)?\s*(kg|kgs|kilos?|lbs?|s|secs?|seconds?|mins?|minutes?|%)(?![a-z])/gi, " ");
+  const nums = (text.match(/\d+/g) ?? []).map(Number);
+  if (nums.length !== logged.length) return null;
+  return nums.some((n, i) => n !== logged[i]) ? { note_reps: nums, logged_reps: logged } : null;
+}
+
 // The app's own result lines for a block ("Finished in: 12:30",
 // "Completed: 5 Rounds/Reps", "Ladder Progress: …", "Weight Used: …").
 function blockResultFrom(notes: string | null | undefined): string[] {
@@ -96,14 +125,6 @@ export function shapeWorkoutLogs(
   blockRows: Array<{ id: string; notes: string | null }>,
 ) {
   const logs = data?.logs ?? [];
-  // Every note the athlete wrote, newest first (the RPC's order), apart
-  // from the app's own [LOG] lines — see athleteNotes.ts.
-  const athlete_notes = logs.flatMap((l) => {
-    const note = athleteNoteFrom(l.notes, l.missed_detail);
-    return note
-      ? [{ week_number: l.week_number ?? null, block_name: l.block_name ?? null, completed_at: l.completed_at ?? null, status: l.status ?? null, note }]
-      : [];
-  });
 
   // Circuits and supersets write each exercise as 1 set and keep the round
   // count on the block, and the app logs one row per round: compare against
@@ -150,11 +171,26 @@ export function shapeWorkoutLogs(
     return { judgeByResult, rows };
   };
 
+  // Every note the athlete wrote, newest first (the RPC's order), apart
+  // from the app's own [LOG] lines — see athleteNotes.ts. A note whose rep
+  // counts disagree with the logged ones carries note_conflict here too, so
+  // it survives the chat review's clipped copy.
+  const athlete_notes = logs.flatMap((l) => {
+    const note = athleteNoteFrom(l.notes, l.missed_detail);
+    if (!note) return [];
+    const note_conflict = l.status === "completed" ? noteRepsConflict(note, exercisesOf(l).rows) : null;
+    return [{
+      week_number: l.week_number ?? null, block_name: l.block_name ?? null, completed_at: l.completed_at ?? null, status: l.status ?? null, note,
+      ...(note_conflict ? { note_conflict } : {}),
+    }];
+  });
+
   const recentLogs: Record<string, unknown>[] = [];
   const olderWeeks: Record<string, unknown>[] = [];
   for (const log of logs) {
     const { judgeByResult, rows } = exercisesOf(log);
     const athlete_note = athleteNoteFrom(log.notes, log.missed_detail);
+    const note_conflict = log.status === "completed" ? noteRepsConflict(athlete_note, rows) : null;
     const block_result = blockResultFrom(log.notes);
     const base = {
       week_number: log.week_number,
@@ -175,6 +211,7 @@ export function shapeWorkoutLogs(
         session_seconds: log.session_seconds,
         missed_detail: log.missed_detail && log.missed_detail.trim() !== athlete_note ? log.missed_detail : null,
         athlete_note,
+        note_conflict,
         exercises_vs_prescribed: rows,
       }));
     } else {
@@ -229,7 +266,7 @@ export function shapeWorkoutLogs(
 export const getWorkoutLogs: ToolDefinition = {
   name: "get_workout_logs",
   description:
-    "Get the athlete's actual logged performance (sets/reps/weight/hold completed, RPE, feel, pain notes, bodyweight trend) for their active program, block by block, week by week. athlete_notes (first) lists every note the athlete wrote, all weeks, in their own words, apart from the app's [LOG] lines. The last 3 logged weeks (recent_weeks) come in full in logs, each with its athlete_note and block_result; older weeks come as one short line per exercise in older_weeks (sets, best reps/hold, top kg, RPE, feel, missed reason). Each logged exercise in logs carries `under_prescribed`, `over_prescribed` and `rpe_mismatch`, computed against what the block actually prescribes (reps or hold seconds), so a session marked 'completed' with fewer sets or lower reps than written is never mistaken for full completion. Ladder/AMRAP/For Time/Tabata logs carry `judge_by_block_result: true` and `block_result` (time, rounds, rungs) instead. Use this before reviewing a week or deciding on an adjustment — never guess at their performance.",
+    "Get the athlete's actual logged performance (sets/reps/weight/hold completed, RPE, feel, pain notes, bodyweight trend) for their active program, block by block, week by week. athlete_notes (first) lists every note the athlete wrote, all weeks, in their own words, apart from the app's [LOG] lines. The last 3 logged weeks (recent_weeks) come in full in logs, each with its athlete_note and block_result; older weeks come as one short line per exercise in older_weeks (sets, best reps/hold, top kg, RPE, feel, missed reason). Each logged exercise in logs carries `under_prescribed`, `over_prescribed` and `rpe_mismatch`, computed against what the block actually prescribes (reps or hold seconds), so a session marked 'completed' with fewer sets or lower reps than written is never mistaken for full completion. Ladder/AMRAP/For Time/Tabata logs carry `judge_by_block_result: true` and `block_result` (time, rounds, rungs) instead. A log (and its athlete_notes entry) carries `note_conflict` when the athlete's note lists different rep counts than were logged (note_reps vs logged_reps): you don't know which is right until they tell you. Use this before reviewing a week or deciding on an adjustment — never guess at their performance.",
   input_schema: {
     type: "object",
     properties: {

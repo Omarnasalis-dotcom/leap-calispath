@@ -23,7 +23,7 @@ export const saveAthleteUpdate: ToolDefinition = {
       training_notes: {
         type: "array",
         items: { type: "string" },
-        description: "Lasting facts that should shape every future program, in short plain sentences: a sport that covers their legs, what their rings can't do, days they can't train. Up to 10, under 200 characters each. This replaces the saved list, so send every note still true, and drop any that no longer is. Omit to leave them unchanged.",
+        description: "Lasting facts that should shape every future program, in short plain sentences: a sport that covers their legs, what their rings can't do, days they can't train. Also a change they agreed to save for the next week build, as one note starting \"Next week build:\" (system prompt §13), dropped once that week is built. Up to 10, under 200 characters each. This replaces the saved list, so send every note still true, and drop any that no longer is. Omit to leave them unchanged.",
       },
       current_maxes: {
         type: "object",
