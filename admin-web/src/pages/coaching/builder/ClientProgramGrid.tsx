@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Undo2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -26,6 +27,7 @@ import { LoggedBlocksProvider } from './LoggedBlocks';
 import { LastLogsProvider } from './LastLogs';
 import { WeekGrid } from './WeekGrid';
 import { WeekClipboardButtons } from './WeekClipboardButtons';
+import { useUndoHistory } from './useUndoHistory';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
@@ -97,6 +99,15 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
   // went out before the coach had finished editing that week).
   const [weekNoticePending, setWeekNoticePending] = useState(false);
   const unsaved = useUnsavedChanges(dirty || weekNoticePending, "this athlete's program");
+  const history = useUndoHistory(
+    { weeks, activeWeek, dirty },
+    (snapshot) => {
+      setWeeks(snapshot.weeks);
+      setActiveWeek(snapshot.activeWeek);
+      setDirty(snapshot.dirty);
+    },
+    { disabled: isCoachPaused },
+  );
 
   const assignmentQ = useQuery({
     queryKey: ['assignment', assignmentId],
@@ -174,6 +185,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
       setDirty(true);
       setAcknowledged(new Set());
       if (isNew) toast(`Week ${nextNum} drafted from week ${last}. Edit it, then save.`);
+      history.reset();
       return;
     }
     // Without ?week: the client's current week, like the app opens it (the
@@ -184,6 +196,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
     setActiveWeek((current) => (!firstLoad && nums.includes(current) ? current : start));
     setDirty(false);
     setAcknowledged(new Set());
+    history.reset();
   }, [loadQ.data]);
 
   // After "Save & return" succeeds: leave once `dirty` is false, so the
@@ -204,6 +217,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
 
   /** The given days as the next week, opened for editing. */
   function addWeek(newDays: BuilderWeeks[number]) {
+    history.record();
     const nextNum = Math.max(...weekNums, 0) + 1;
     setWeeks((w) => ({ ...w, [nextNum]: newDays }));
     setActiveWeek(nextNum);
@@ -303,6 +317,15 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
             {weekNoticePending && (
               <Badge tone="warn">Athlete not told yet: save to send the new week notice</Badge>
             )}
+            <button
+              className="btn icon"
+              disabled={isCoachPaused || !history.canUndo}
+              title="Undo last change (Ctrl+Z). Only changes not saved yet."
+              aria-label="Undo last change"
+              onClick={history.undo}
+            >
+              <Undo2 />
+            </button>
             <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
               {showApply ? 'Close' : 'Apply template…'}
             </button>
@@ -479,6 +502,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
               exerciseOptions={exerciseOptions}
               readOnly={isCoachPaused}
               onCommit={(days) => {
+                history.record(`edit:${activeWeek}`);
                 setWeeks((w) => ({ ...w, [activeWeek]: days }));
                 setDirty(true);
               }}

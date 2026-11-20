@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Undo2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createTemplateFromImportedBlocks,
@@ -25,6 +26,7 @@ import { StaleNotice } from './builder/StaleNotice';
 import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
 import { WeekClipboardButtons } from './builder/WeekClipboardButtons';
+import { useUndoHistory } from './builder/useUndoHistory';
 import type { BuilderWeeks } from './builder/types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
@@ -145,6 +147,19 @@ export function ProgramBuilderPage() {
 
   const clipboard = useBuilderClipboard();
   const unsaved = useUnsavedChanges(selectedId !== null && dirty, 'this template');
+  // Undo covers the weeks; the name and description fields have the
+  // browser's own undo, so an edit there keeps the template marked unsaved.
+  const history = useUndoHistory(
+    { weeks, activeWeek, dirty },
+    (snapshot) => {
+      setWeeks(snapshot.weeks);
+      setActiveWeek(snapshot.activeWeek);
+      const loadedName = selectedId === 'new' ? '' : (loadQ.data?.name ?? '');
+      const loadedDescription = selectedId === 'new' ? '' : (loadQ.data?.description ?? '');
+      setDirty(snapshot.dirty || name !== loadedName || description !== loadedDescription);
+    },
+    { disabled: isCoachPaused || selectedId === null },
+  );
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
   const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
@@ -175,6 +190,7 @@ export function ProgramBuilderPage() {
       setActiveWeek(1);
       setDirty(false);
       setSaveError(null);
+      history.reset();
     } else if (loadQ.data) {
       setName(loadQ.data.name);
       setDescription(loadQ.data.description);
@@ -182,6 +198,7 @@ export function ProgramBuilderPage() {
       setActiveWeek(Math.min(...Object.keys(loadQ.data.weeks).map(Number)));
       setDirty(false);
       setSaveError(null);
+      history.reset();
     }
   }, [selectedId, loadQ.data]);
 
@@ -192,6 +209,7 @@ export function ProgramBuilderPage() {
   const days = weeks[activeWeek] ?? [];
 
   function setDays(next: typeof days) {
+    history.record(`edit:${activeWeek}`);
     setWeeks((w) => ({ ...w, [activeWeek]: next }));
     setDirty(true);
   }
@@ -213,6 +231,7 @@ export function ProgramBuilderPage() {
 
   /** The given days as the next week, opened for editing. */
   function addWeek(newDays: typeof days) {
+    history.record();
     const nextNum = Math.max(...weekNums, 0) + 1;
     setWeeks((w) => ({ ...w, [nextNum]: newDays }));
     setActiveWeek(nextNum);
@@ -220,6 +239,7 @@ export function ProgramBuilderPage() {
   }
 
   function deleteWeek() {
+    history.record();
     setWeeks((w) => {
       const remaining = Object.keys(w).map(Number).filter((n) => n !== activeWeek).sort((a, b) => a - b);
       const next: BuilderWeeks = {};
@@ -464,6 +484,15 @@ export function ProgramBuilderPage() {
           <>
                         {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
             {clipboard.clipboard && <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>}
+            <button
+              className="btn icon"
+              disabled={isCoachPaused || !history.canUndo}
+              title="Undo last change (Ctrl+Z). Only changes not saved yet."
+              aria-label="Undo last change"
+              onClick={history.undo}
+            >
+              <Undo2 />
+            </button>
             <button
               className="btn primary"
               disabled={
