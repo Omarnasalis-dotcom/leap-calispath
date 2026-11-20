@@ -12,8 +12,10 @@ import { plannedText, splitNote } from './WeekLogs';
 
 export interface SummaryExercise {
   name: string;
-  /** What the program asked for: "4 × 6", "3 rounds × 10 +kg". */
+  /** What the program asked for: "4 × 6 · rest 120s", "3 rounds × 10 +kg". */
   planned?: string;
+  /** The coach's note on this exercise (tempo, cues, weights). */
+  coach_notes?: string;
   /** What was logged, one entry per set: "8, 8, 7" or "20kg×6, 20kg×5" or "30s, 25s". */
   done?: string;
   rpe?: number;
@@ -42,6 +44,12 @@ export interface SummaryBlock {
   /** "Straight sets", "Circuit · 3 rounds", "AMRAP 12 min", "Test item". */
   kind: string;
   status: 'done' | 'missed' | 'not_logged';
+  /** Day the block was logged (YYYY-MM-DD), when it differs from the day's date. */
+  date?: string;
+  /** The coach's instructions on the block. */
+  coach_notes?: string;
+  /** Circuit / superset: rest after each round, seconds. */
+  round_rest?: number;
   rpe?: number;
   feel?: string;
   minutes?: number;
@@ -59,9 +67,10 @@ export interface SummaryWeek {
   week: number;
   coach_week_note?: string;
   totals: { done: number; missed: number; not_logged: number };
-  days: { day: string; blocks: SummaryBlock[] }[];
+  /** `date`: the day the day's blocks were logged (the most common one). */
+  days: { day: string; date?: string; blocks: SummaryBlock[] }[];
   /** Logged blocks no longer in the program (removed or replaced since). */
-  other_logs?: { block: string; status: 'done' | 'missed'; notes?: string }[];
+  other_logs?: { block: string; status: 'done' | 'missed'; date?: string; notes?: string }[];
 }
 
 export interface WeekSummary {
@@ -92,6 +101,14 @@ export interface BuildWeekSummaryInput {
 }
 
 const key = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+
+/** YYYY-MM-DD in the browser's time zone (an evening log stays on its day). */
+export function localDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 const trimNum = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10));
 
 /** "8", "20kg×8", "30s", "10kg×30s". */
@@ -137,6 +154,12 @@ function blockSummary(input: BuildWeekSummaryInput, block: BuilderBlock, log: Wa
   const { results, own } = splitNote(log?.notes ?? null);
   const isTest = isTestKind(block.metadata.test_kind);
 
+  const structure = block.metadata.structure ?? 'single';
+  const timing = block.metadata.timing_system ?? 'straight_set';
+  const rounds = structure === 'circuit' || structure === 'superset';
+  const isStraight = timing === 'straight_set' && !rounds && structure !== 'ladder';
+  const roundRest = rounds ? Number(block.metadata.rest_after_round) || undefined : undefined;
+
   let exercises: SummaryExercise[] | undefined;
   if (!isTest) {
     const bySet = new Map<string, WarriorProgressSet[]>();
@@ -147,9 +170,11 @@ function blockSummary(input: BuildWeekSummaryInput, block: BuilderBlock, log: Wa
     const planned = block.exercises.map((ex) => {
       const sets = (bySet.get(key(ex.exercise_name)) ?? []).sort((a, b) => (a.set_index ?? 0) - (b.set_index ?? 0));
       bySet.delete(key(ex.exercise_name));
+      const rest = ex.rest_seconds && isStraight ? ` · rest ${ex.rest_seconds}s` : '';
       return clean({
         name: ex.exercise_name ?? 'Exercise',
-        planned: plannedText(ex, block),
+        planned: `${plannedText(ex, block)}${rest}`,
+        coach_notes: ex.notes?.trim(),
         done: sets.map(setText).join(', '),
         rpe: rpe.get(key(ex.exercise_name)),
       });
@@ -165,6 +190,9 @@ function blockSummary(input: BuildWeekSummaryInput, block: BuilderBlock, log: Wa
     block: block.name,
     kind: describeBlockKind({ metadata: block.metadata }),
     status,
+    date: log ? localDate(log.completed_at) : undefined,
+    coach_notes: block.notes?.trim(),
+    round_rest: roundRest,
     rpe: log?.rpe ?? undefined,
     feel: log?.feel ?? undefined,
     minutes: log?.session_seconds ? Math.max(1, Math.round(log.session_seconds / 60)) : undefined,
@@ -189,15 +217,21 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     const plan = input.plan[week] ?? [];
     const plannedIds = new Set<string>();
     const totals = { done: 0, missed: 0, not_logged: 0 };
-    const days = plan.map((day) => ({
-      day: day.name,
-      blocks: day.blocks.map((b) => {
+    const days = plan.map((day) => {
+      const blocks = day.blocks.map((b) => {
         if (b.db_id) plannedIds.add(b.db_id);
         const s = blockSummary(input, b, (b.db_id && latest.get(b.db_id)) || null);
         totals[s.status]++;
         return s;
-      }),
-    }));
+      });
+      // The day's date is the one most of its blocks were logged on; a block
+      // logged on another day keeps its own.
+      const counts = new Map<string, number>();
+      for (const b of blocks) if (b.date) counts.set(b.date, (counts.get(b.date) ?? 0) + 1);
+      const date = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+      for (const b of blocks) if (b.date === date) delete b.date;
+      return clean({ day: day.name, date, blocks });
+    });
     const other = sorted.filter(
       (l) => (l.week_number ?? 1) === week && (!l.block_id || !plannedIds.has(l.block_id)) && (!l.block_id || latest.get(l.block_id) === l),
     );
@@ -212,6 +246,7 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
         return clean({
           block: sep === -1 ? name : name.slice(sep + 3).trim(),
           status: l.status === 'missed' ? ('missed' as const) : ('done' as const),
+          date: localDate(l.completed_at),
           notes: splitNote(l.notes).own,
         });
       }),
@@ -225,7 +260,7 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     warrior: { name: input.warriorName, strength_tier: input.strengthTier },
     program: input.programName,
     weeks,
-    bodyweight: input.bodyweight.map((b) => ({ date: b.logged_at.slice(0, 10), kg: Number(b.weight_kg) })),
+    bodyweight: input.bodyweight.map((b) => ({ date: localDate(b.logged_at), kg: Number(b.weight_kg) })),
   };
 }
 
