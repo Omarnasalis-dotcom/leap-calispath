@@ -81,6 +81,27 @@ describe('groupRawBlocksIntoDays — the Phase 1 hub bug fix', () => {
 });
 
 describe('deriveDayStates', () => {
+  test('a test day is done when its test items are, with the Warm-Up / Cool-Down left unlogged', () => {
+    const test = (id: string, status: ProgramBlock['completedStatus']): ProgramBlock => ({
+      ...block(id, [], status),
+      metadata: { test_kind: 'max_reps', test_movement: 'pull_ups' },
+    });
+    const day: ProgramDay = {
+      name: 'TEST DAY',
+      blocks: [block('Warm-Up', [], 'none'), test('t1', 'completed'), test('t2', 'missed'), block('Cool-Down', [], 'none')],
+    };
+    expect(deriveDayStates([day])[0]).toMatchObject({ status: 'done', progressPct: 100 });
+    const half: ProgramDay = { name: 'TEST DAY', blocks: [block('Warm-Up', [], 'completed'), test('t1', 'none'), test('t2', 'completed')] };
+    expect(deriveDayStates([half])[0]).toMatchObject({ status: 'in_progress', progressPct: 50 });
+    const warmOnly: ProgramDay = { name: 'TEST DAY', blocks: [block('Warm-Up', [], 'completed'), test('t1', 'none')] };
+    expect(deriveDayStates([warmOnly])[0]).toMatchObject({ status: 'in_progress', progressPct: 0 });
+  });
+
+  test('a training day still needs every block, Warm-Up included', () => {
+    const day: ProgramDay = { name: 'Day 1', blocks: [block('Warm-Up', [], 'none'), block('Strength', [], 'completed')] };
+    expect(deriveDayStates([day])[0]).toMatchObject({ status: 'in_progress', progressPct: 50 });
+  });
+
   test('clean / in_progress / done reflect real logging progress, not order — every day is tappable', () => {
     const days: ProgramDay[] = [
       { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed'), block('Strength', [], 'completed')] },

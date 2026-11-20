@@ -18,6 +18,8 @@ export interface SubmitTestItemParams {
   movementId?: string | null;
   skipReason?: SkipReason | null;
   skipDetail?: string | null;
+  /** The athlete's note on a logged item (p_note, server 20261120200000). */
+  note?: string | null;
 }
 
 export interface SubmitTestItemResult {
@@ -63,6 +65,7 @@ export const TestItemService = {
         p_movement_id: p.movementId ?? null,
         p_skip_reason: p.skipReason ?? null,
         p_skip_detail: p.skipDetail ?? null,
+        p_note: p.note ?? null,
       }),
     );
     if (error) throw error;

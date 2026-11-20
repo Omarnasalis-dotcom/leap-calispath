@@ -4,6 +4,11 @@ import {
   isBarWeight,
   isCoachAssigned,
   isTestDay,
+  isSupportBlock,
+  blocksThatCount,
+  withoutTestTag,
+  testMovementChoices,
+  testMovementIds,
   parseTestNumber,
   testErrorKey,
   testItemTitle,
@@ -49,6 +54,56 @@ describe('isTestDay', () => {
     expect(isTestDay({ blocks: [block({ test_kind: 'max_reps' }), block({ test_kind: 'form_check' })] })).toBe(true);
     expect(isTestDay({ blocks: [block({ test_kind: 'max_reps' }), block({ structure: 'single' })] })).toBe(false);
     expect(isTestDay({ blocks: [] })).toBe(false);
+  });
+
+  it('allows Warm-Up / Cool-Down blocks around the test items (any spelling)', () => {
+    const warm = block({ structure: 'circuit' }, { name: 'TEST DAY | Warm-Up' });
+    const cool = block({}, { name: 'Cool down' });
+    expect(isTestDay({ blocks: [warm, block({ test_kind: 'max_reps' }), cool] })).toBe(true);
+    for (const name of ['Warm Up', 'warmup', 'WARM-UP', 'Cooldown', 'Cool-Down', 'Day 2 | cool down']) {
+      expect(isSupportBlock(block({}, { name }))).toBe(true);
+    }
+    for (const name of ['Warm-Up 2', 'Strength', 'Mobility', 'Cool-Down finisher']) {
+      expect(isSupportBlock(block({}, { name }))).toBe(false);
+    }
+  });
+
+  it('a day of only Warm-Up / Cool-Down, or with any other block, is not a test day', () => {
+    expect(isTestDay({ blocks: [block({}, { name: 'Warm-Up' }), block({}, { name: 'Cool-Down' })] })).toBe(false);
+    expect(isTestDay({ blocks: [block({}, { name: 'Warm-Up' }), block({ test_kind: 'one_rm' }), block({}, { name: 'Strength - 1' })] })).toBe(false);
+  });
+
+  it('a test item named Warm-Up is still a test item', () => {
+    expect(isSupportBlock(block({ test_kind: 'max_reps' }, { name: 'Warm-Up' }))).toBe(false);
+  });
+});
+
+describe('blocksThatCount', () => {
+  it('on a test day only the test items count; otherwise every block', () => {
+    const warm = block({}, { id: 'w', name: 'Warm-Up' });
+    const t1 = block({ test_kind: 'max_reps' }, { id: 't1' });
+    const t2 = block({ test_kind: 'max_hold' }, { id: 't2' });
+    expect(blocksThatCount({ blocks: [warm, t1, t2] }).map((b) => b.id)).toEqual(['t1', 't2']);
+    const strength = block({}, { id: 's', name: 'Strength' });
+    expect(blocksThatCount({ blocks: [warm, strength] }).map((b) => b.id)).toEqual(['w', 's']);
+  });
+});
+
+describe('withoutTestTag', () => {
+  it('drops only the test keys', () => {
+    expect(withoutTestTag({ structure: 'single', test_kind: 'max_reps', test_movement: 'dips' })).toEqual({ structure: 'single' });
+    const plain = { structure: 'circuit' as const };
+    expect(withoutTestTag(plain)).toBe(plain);
+    expect(withoutTestTag(undefined)).toBeUndefined();
+  });
+});
+
+describe('testMovementChoices', () => {
+  it('offers exactly the ids the server accepts, for every kind', () => {
+    for (const kind of ['max_reps', 'one_rm', 'max_hold', 'form_check'] as const) {
+      expect(testMovementChoices(kind).map((m) => m.id).sort()).toEqual([...testMovementIds(kind)].sort());
+    }
+    expect(testMovementChoices('one_rm').find((m) => m.id === 'pull_up')?.label).toBe('Weighted Pull-up (added kg)');
   });
 });
 

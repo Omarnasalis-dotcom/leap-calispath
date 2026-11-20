@@ -16,6 +16,7 @@ import { LeapLogo } from '../../components/LeapLogo';
 import { fetchWeekExportPayload, shareWeekExportPayload } from '../../lib/ProgramExportBuilder';
 import { NotificationService } from '../../services/NotificationService';
 import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload, isImportCancelled } from '../../lib/ProgramImportParser';
+import { isCoachAssigned } from '../../lib/testItems';
 import { useExerciseMatchPrompt } from '../../hooks/coaching/useExerciseMatchPrompt';
 import { ExerciseMatchModal } from '../../components/coaching/ExerciseMatchModal';
 import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
@@ -469,7 +470,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
       const { resolved, blocks: keptBlocks } = await resolveImportedExercises(parsed.blocks, coachId, exerciseMatch.choose);
       const blocks = buildImportBlocksPayload({ ...parsed, blocks: keptBlocks }, resolved);
 
-      const { error } = await supabase.rpc('append_weeks_to_client_program', {
+      const { data: appended, error } = await supabase.rpc('append_weeks_to_client_program', {
         p_warrior_program_id: selectedWarrior.warriorProgramId,
         p_blocks: blocks,
       });
@@ -477,7 +478,30 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
 
       NotificationService.notifyClientProgramUpdate(selectedWarrior.warriorProgramId, 'week_unlocked');
 
-      Alert.alert('IMPORTED', `Added ${validation.blockCount} block(s) as a new week.`);
+      // The file is one week, placed after the old last week.
+      const newWeek = Number((appended as { week_offset?: number } | null)?.week_offset ?? 0) + 1;
+      const messages = [`Added ${validation.blockCount} block(s) as week ${newWeek}.`];
+      // The file's week note goes on the new week, where EXPORT WEEK reads it
+      // (same as the admin panel's import).
+      const weekNote = typeof parsed.coach_week_note === 'string' ? parsed.coach_week_note.trim() : '';
+      if (weekNote) {
+        const { error: noteError } = await supabase.from('coach_week_notes').upsert(
+          {
+            warrior_program_id: selectedWarrior.warriorProgramId,
+            week_number: newWeek,
+            coach_id: coachId,
+            note: weekNote,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'warrior_program_id,week_number' },
+        );
+        messages.push(noteError ? `The week note was not saved (${noteError.message}); add it by hand.` : 'Week note saved.');
+      }
+      if ((validation.testBlockCount ?? 0) > 0 && !isCoachAssigned(selectedWarrior.coachId)) {
+        messages.push("This isn't a coach's program, so its test items can't be logged as tests.");
+      }
+
+      Alert.alert('IMPORTED', messages.join(' '));
       await handleOpenHistoryModal(selectedWarrior);
     } catch (err: any) {
       if (isImportCancelled(err)) return;

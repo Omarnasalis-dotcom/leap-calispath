@@ -174,7 +174,17 @@ describe('TestItemCard', () => {
       />,
     );
     expect(texts(r)).toContain('100 KG');
-    expect(texts(r)).toContain('Power World is still locked · saved for your coach');
+    expect(texts(r)).toContain('Saved for your coach');
+    expect(texts(r)).not.toMatch(/locked/i);
+  });
+
+  it('shows MATCHED PB for a tie, and NEW PB wins over it', () => {
+    const tie = mount(<TestItemCard block={block('Pull-ups')} index={0} item={{ kind: 'max_reps', movement: 'pull_ups' }} result={result({ is_new_pb: false, is_matched_pb: true })} mode="light" onOpen={jest.fn()} />);
+    expect(texts(tie)).toContain('MATCHED PB');
+    expect(texts(tie)).not.toContain('NEW PB');
+    const both = mount(<TestItemCard block={block('Pull-ups')} index={0} item={{ kind: 'max_reps', movement: 'pull_ups' }} result={result({ is_new_pb: true, is_matched_pb: true })} mode="light" onOpen={jest.fn()} />);
+    expect(texts(both)).toContain('NEW PB');
+    expect(texts(both)).not.toContain('MATCHED PB');
   });
 
   it('shows a skip reason and the coach grade', () => {
@@ -252,13 +262,13 @@ describe('TestItemSheet', () => {
       expect(texts(r)).toContain('GET READY');
       act(() => { jest.advanceTimersByTime(5000 + 12400); });
       press(r, 'STOP');
-      const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+      const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
       expect(input.props.value).toBe('12');
       // Adjust after stopping.
       press(r, '+1');
       press(r, '+1');
       press(r, '−1');
-      expect(r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput').props.value).toBe('13');
+      expect(r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0].props.value).toBe('13');
     } finally {
       jest.useRealTimers();
     }
@@ -324,7 +334,7 @@ describe('TestItemSheet', () => {
       expect(texts(r)).toContain('HOLDING · 10 S');
       act(() => { showSheet(); });
       press(r, 'STOP');
-      const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+      const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
       expect(input.props.value).toBe('10');
     } finally {
       jest.useRealTimers();
@@ -346,10 +356,22 @@ describe('TestItemSheet', () => {
     press(r, 'SAVE RESULT');
     expect(onSubmit).not.toHaveBeenCalled();
     expect(texts(r)).toContain('Enter your result first.');
-    const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+    const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
     act(() => { input.props.onChangeText('21'); });
     await act(async () => { press(r, 'SAVE RESULT'); });
-    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 21, movementId: null });
+    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 21, movementId: null, note: null });
+  });
+
+  it("sends the athlete's note with the result, trimmed", async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const r = mount(sheet({ kind: 'max_reps', movement: 'pull_ups' }, { onSubmit }));
+    const inputs = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].props.placeholder).toBe('A note for your coach (optional)');
+    act(() => { inputs[0].props.onChangeText('14'); });
+    act(() => { inputs[1].props.onChangeText('  felt grip go at the end  '); });
+    await act(async () => { press(r, 'SAVE RESULT'); });
+    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 14, movementId: null, note: 'felt grip go at the end' });
   });
 
   it('asks before a result goes into its world, and only saves on Save', async () => {
@@ -358,7 +380,7 @@ describe('TestItemSheet', () => {
       const onSubmit = jest.fn().mockResolvedValue(undefined);
       // Pull-ups are a MAIN movement: Endurance World from Strength tier 3.
       const r = mount(sheet({ kind: 'max_reps', movement: 'pull_ups' }, { onSubmit, strengthTier: 3 }));
-      const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+      const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
       act(() => { input.props.onChangeText('45'); });
       press(r, 'SAVE RESULT');
       expect(onSubmit).not.toHaveBeenCalled();
@@ -367,7 +389,7 @@ describe('TestItemSheet', () => {
       expect(body).toBe("45 REPS also goes to Endurance World. Clearing this test later won't remove it from there.");
       expect(buttons.map((b) => b.text)).toEqual(['Cancel', 'Save']);
       await act(async () => { buttons[1].onPress!(); });
-      expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 45, movementId: null });
+      expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 45, movementId: null, note: null });
     } finally {
       alert.mockRestore();
     }
@@ -378,11 +400,11 @@ describe('TestItemSheet', () => {
     try {
       const onSubmit = jest.fn().mockResolvedValue(undefined);
       const r = mount(sheet({ kind: 'one_rm', movement: 'deadlift' }, { onSubmit, strengthTier: 9 }));
-      const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+      const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
       act(() => { input.props.onChangeText('180'); });
       await act(async () => { press(r, 'SAVE RESULT'); });
       expect(alert).not.toHaveBeenCalled();
-      expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 180, movementId: null });
+      expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 180, movementId: null, note: null });
     } finally {
       alert.mockRestore();
     }
@@ -397,10 +419,10 @@ describe('TestItemSheet', () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     const r = mount(sheet({ kind: 'max_hold', movement: 'front_lever' }, { onSubmit }));
     press(r, 'Straddle Front Lever');
-    const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+    const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
     act(() => { input.props.onChangeText('9'); });
     await act(async () => { press(r, 'SAVE RESULT'); });
-    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 9, movementId: 'straddle_front_lever' });
+    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', value: 9, movementId: 'straddle_front_lever', note: null });
   });
 
   it('form check: opens WhatsApp to the coach, and "I sent it" saves', async () => {
@@ -411,7 +433,7 @@ describe('TestItemSheet', () => {
     expect(open).toHaveBeenCalledWith(expect.stringContaining('https://wa.me/201001234567?text='));
     expect(decodeURIComponent(open.mock.calls[0][0])).toContain('Hi Omar, here is my Pull-ups form check for the Week 4 test.');
     await act(async () => { press(r, 'I SENT IT'); });
-    expect(onSubmit).toHaveBeenCalledWith({ status: 'done' });
+    expect(onSubmit).toHaveBeenCalledWith({ status: 'done', note: null });
     open.mockRestore();
   });
 
@@ -436,7 +458,7 @@ describe('TestItemSheet', () => {
   it('shows the server error in the sheet', async () => {
     const onSubmit = jest.fn().mockRejectedValue({ message: 'VALUE_TOO_HIGH' });
     const r = mount(sheet({ kind: 'max_reps', movement: 'pull_ups' }, { onSubmit }));
-    const input = r.root.find((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput');
+    const input = r.root.findAll((n) => typeof n.type === 'string' && (n.type as string) === 'TextInput')[0];
     act(() => { input.props.onChangeText('99'); });
     await act(async () => { press(r, 'SAVE RESULT'); });
     expect(texts(r)).toContain('That number is above the limit for this movement.');

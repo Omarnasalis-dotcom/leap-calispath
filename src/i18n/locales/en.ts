@@ -3048,7 +3048,7 @@ const en = {
     worldStatic: 'Static World',
     worldSaved: 'Counted in {{world}}',
     newPb: 'NEW PB',
-    worldLocked: '{{world}} is still locked · saved for your coach',
+    matchedPb: 'MATCHED PB',
     noWorld: 'Saved for your coach',
     formSent: 'VIDEO SENT',
     gradePass: 'COACH: PASS',

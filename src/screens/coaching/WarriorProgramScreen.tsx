@@ -69,7 +69,7 @@ import { localizedErrorText } from '../../lib/asyncErrorHandler';
 import { offerRoute } from '../../lib/offerStore';
 import { TestItemCard } from '../../components/coaching/test/TestItemCard';
 import { TestItemSheet, TestSubmit } from '../../components/coaching/test/TestItemSheet';
-import { getTestItem, isCoachAssigned, isTestDay, testItemTitle, TestCoach, TestResult } from '../../lib/testItems';
+import { blocksThatCount, getTestItem, isCoachAssigned, isTestDay, testItemTitle, TestCoach, TestResult, withoutTestTag } from '../../lib/testItems';
 import { TestItemService } from '../../services/TestItemService';
 import { useTestItemTimer } from '../../hooks/useTestItemTimer';
 
@@ -672,8 +672,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const loggableBlocks = (days[activeDayIndex]?.blocks || []).filter(b => !b.metadata?.is_tier_trial);
   // "Addressed" = every block has some status (completed or missed) — this is
   // what flips the footer button to "Finish session" and opens the finish card.
-  const blocksAddressedCount = loggableBlocks.filter(b => b.completedStatus !== 'none').length;
-  const blocksTotalCount = loggableBlocks.length;
+  // On a test day only the test items have to be addressed (owner rule: a
+  // Warm-Up / Cool-Down may stay unlogged).
+  const countedBlocks = blocksThatCount({ blocks: loggableBlocks });
+  const blocksAddressedCount = countedBlocks.filter(b => b.completedStatus !== 'none').length;
+  const blocksTotalCount = countedBlocks.length;
   const isWorkoutAddressed = blocksTotalCount > 0 && blocksAddressedCount === blocksTotalCount;
 
   const openSessionComplete = async () => {
@@ -1179,13 +1182,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         const rawWeekNum = block.week_number || 1;
         const weekNum = rawToDisplayWeek.get(rawWeekNum) ?? rawWeekNum;
 
+        // Test items only count on a real coach's program (the server refuses
+        // the rest), so elsewhere their tag is dropped and the block, its day
+        // and the day's progress behave like normal training.
+        const metadata = isCoachAssigned(actualAssignment.coach_id) ? parsed.metadata : withoutTestTag(parsed.metadata);
+
         const mappedBlock: ProgramBlock = {
           id: block.id,
           name: blockName,
           notes: plainNotes,
           exercises: mappedExercises,
           completedStatus,
-          metadata: parsed.metadata,
+          metadata,
           week_number: weekNum
         };
 
@@ -2207,6 +2215,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       movementId: p.movementId,
       skipReason: p.skipReason,
       skipDetail: p.skipDetail,
+      note: p.note,
     });
     if (result) setTestResults(prev => ({ ...prev, [blockId]: result }));
     testTimer.cancel(blockId);
@@ -2299,8 +2308,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                 <Text style={dbRunnerStyles.metaLine} numberOfLines={1}>
                   {isCoachAssigned(coachId) && isTestDay(activeDay)
                     ? t('testWeek.dayProgress', {
-                        done: activeDay.blocks.filter(b => b.completedStatus !== 'none').length,
-                        total: activeDay.blocks.length,
+                        // Test items only: a Warm-Up / Cool-Down doesn't count.
+                        done: blocksThatCount(activeDay).filter(b => b.completedStatus !== 'none').length,
+                        total: blocksThatCount(activeDay).length,
                       })
                     : t('workout.dayMeta', { blocks: activeDay.blocks.length, moves: countMovements(activeDay), min: estimateSessionMinutes(activeDay) })}
                 </Text>
