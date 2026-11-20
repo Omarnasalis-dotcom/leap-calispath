@@ -545,6 +545,7 @@ const en = {
     onBoard: 'On {{board}}',
     inTier: 'In {{tier}}',
     programFrom: 'From {{name}}',
+    weekReady: 'Week {{n}} is ready to train',
     join: 'Join',
     defend: 'Defend',
     useCode: 'Use code',
@@ -564,6 +565,7 @@ const en = {
     lineOvertakenScore: '{{name}} passed you on {{board}}',
     lineOvertakenTime: '{{name}} beat your time in {{tier}}',
     lineProgram: 'New program: {{name}}',
+    lineWeekReady: 'Week {{n}} of {{name}} is ready',
   },
   notifSettings: {
     title: 'NOTIFICATIONS',

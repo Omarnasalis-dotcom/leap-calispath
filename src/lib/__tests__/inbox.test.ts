@@ -33,6 +33,15 @@ describe('toInboxItem', () => {
     expect(toInboxItem(row({ data: { kind: 'gift', claim_id: 'c1', gift_tier: 'gold', gift_days: '7' } }))).toMatchObject({ giftTier: null, giftDays: 7 });
   });
 
+  it("reads a coach week unlock's week and program, and keeps them out of the route", () => {
+    const item = toInboxItem(row({
+      type: 'client_program_update',
+      data: { screen: 'warrior-program', key: 'p1:w7', week: 7, week_program: 'Foundation' },
+    } as Partial<InboxRow>));
+    expect(item.fields).toMatchObject({ week: 7, programName: 'Foundation' });
+    expect(routeFor(item)).toBe('/warrior-program');
+  });
+
   it('marks a read row as not unread', () => {
     expect(toInboxItem(row({ read_at: '2026-11-17T00:00:00Z' })).unread).toBe(false);
   });

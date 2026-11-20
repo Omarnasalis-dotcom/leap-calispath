@@ -131,7 +131,7 @@ const NOT_PARAMS = new Set([
   'screen', 'kind', 'message_id', 'inbox', 'popup', 'button', 'url', 'image_url', 'expires_at', 'params',
   'code', 'claim_id', 'gift_tier', 'gift_days', 'gift_text', 'key',
   // notification_fields: describe the notification, not the screen.
-  'challenge_name', 'by_name', 'board_name', 'tier', 'week', 'program_id', 'program_name',
+  'challenge_name', 'by_name', 'board_name', 'tier', 'week', 'program_id', 'program_name', 'week_program',
 ]);
 
 const num = (v: unknown): number | null => {
@@ -148,7 +148,8 @@ function fieldsOf(data: Record<string, unknown>): NotificationFields {
     boardName: text(data.board_name),
     tier: num(data.tier),
     week: num(data.week),
-    programName: text(data.program_name),
+    // A coach's week unlock names its program in week_program (1.2.20 reads program_name as a new program).
+    programName: text(data.program_name) ?? text(data.week_program),
   };
 }
 

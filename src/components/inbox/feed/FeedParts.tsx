@@ -195,7 +195,8 @@ function cardText(entry: ActionEntry, claim: GiftClaim | undefined): { title: st
     case 'program':
       return {
         title: f.programName ?? item.title,
-        body: f.byName ? t('inboxFeed.programFrom', { name: f.byName }) : item.body,
+        body: f.week != null ? t('inboxFeed.weekReady', { n: f.week })
+          : f.byName ? t('inboxFeed.programFrom', { name: f.byName }) : item.body,
       };
     default:
       return { title: item.title, body: item.body };

@@ -614,6 +614,7 @@ const ar: Translations = {
     onBoard: 'في لوحة {{board}}',
     inTier: 'في {{tier}}',
     programFrom: 'من {{name}}',
+    weekReady: 'الأسبوع {{n}} جاهز للتدريب',
     join: 'شارك',
     defend: 'دافع',
     useCode: 'استخدم الكود',
@@ -633,6 +634,7 @@ const ar: Translations = {
     lineOvertakenScore: '{{name}} تجاوزك في {{board}}',
     lineOvertakenTime: '{{name}} تفوّق على وقتك في {{tier}}',
     lineProgram: 'برنامج جديد: {{name}}',
+    lineWeekReady: 'الأسبوع {{n}} من {{name}} جاهز',
   },
   notifSettings: {
     title: 'الإشعارات',
