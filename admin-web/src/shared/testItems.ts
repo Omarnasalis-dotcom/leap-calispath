@@ -49,6 +49,12 @@ export const HOLD_CATEGORIES: { value: string; label: string }[] = [
   { value: 'handstand', label: 'Handstand' },
 ];
 
+/** The test_movement values submit_program_test_item accepts for a kind;
+ * [] for form checks. Mirrors testMovementIds in src/lib/testItems.ts. */
+export function testMovementIds(kind: TestKind): string[] {
+  return testMovementOptions(kind).map((m) => m.value);
+}
+
 export function testMovementOptions(kind: TestKind | undefined): { value: string; label: string }[] {
   if (kind === 'max_reps') return MAX_REPS_MOVEMENTS;
   if (kind === 'one_rm') return ONE_RM_MOVEMENTS;

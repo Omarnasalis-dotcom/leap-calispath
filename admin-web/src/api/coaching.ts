@@ -637,6 +637,7 @@ export interface ClientProgramBlockPayload {
     hold_seconds: number | null;
     is_weighted: boolean;
     notes: string;
+    order_index?: number;
   }>;
 }
 
@@ -733,14 +734,16 @@ export async function applyTemplateToExistingClient(
 export async function appendWeekToClientProgram(
   warriorProgramId: string,
   blocks: ClientProgramBlockPayload[],
-): Promise<void> {
-  const { error } = await supabase.rpc('append_weeks_to_client_program', {
+): Promise<number> {
+  const { data, error } = await supabase.rpc('append_weeks_to_client_program', {
     p_warrior_program_id: warriorProgramId,
     p_blocks: blocks,
   });
   if (error) throw new Error(error.message);
 
   await notifyClientProgramUpdate(warriorProgramId, 'week_unlocked');
+  // The payload is one week (week_number 1), placed after the old last week.
+  return Number((data as { week_offset?: number } | null)?.week_offset ?? 0) + 1;
 }
 
 export interface WarriorProgressSet {
@@ -808,6 +811,22 @@ export async function fetchCoachWeekNote(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** The coach's notes for several weeks of one program: week → note. */
+export async function fetchCoachWeekNotes(warriorProgramId: string, weekNumbers: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (weekNumbers.length === 0) return out;
+  const { data, error } = await supabase
+    .from('coach_week_notes')
+    .select('week_number, note')
+    .eq('warrior_program_id', warriorProgramId)
+    .in('week_number', weekNumbers);
+  if (error) throw new Error(error.message);
+  for (const r of (data ?? []) as { week_number: number; note: string | null }[]) {
+    if (r.note) out.set(r.week_number, r.note);
+  }
+  return out;
 }
 
 export async function saveCoachWeekNote(params: {

@@ -22,6 +22,10 @@ export interface TestResult {
   skip_detail: string | null;
   world_status: 'saved' | 'locked' | 'no_world' | 'none';
   is_new_pb: boolean;
+  /** Equal to the athlete's world best (migration 20261120200000; false on older rows). */
+  is_matched_pb?: boolean;
+  /** The athlete's note on this item (migration 20261120200000). */
+  note?: string | null;
   coach_grade: 'pass' | 'needs_work' | null;
   coach_note: string | null;
   graded_at: string | null;
@@ -82,6 +86,16 @@ export async function gradeTestResult(resultId: string, grade: 'pass' | 'needs_w
     p_note: note || null,
   });
   if (error) throw new Error(error.message);
+}
+
+/** Clears one result and the block log it wrote, so the athlete can log the
+ * item again. A value already sent to a world stays there. */
+export async function clearTestResult(resultId: string): Promise<void> {
+  const { error } = await supabase.rpc('clear_program_test_item', { p_result_id: resultId });
+  if (error) {
+    if (error.message.includes('RESULT_NOT_FOUND')) throw new Error('That result is gone or not yours to clear.');
+    throw new Error(error.message);
+  }
 }
 
 /** The signed-in coach's own WhatsApp number (digits), or null. */

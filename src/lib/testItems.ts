@@ -74,6 +74,17 @@ export function isCoachAssigned(coachId: string | null | undefined): boolean {
   return !!coachId && coachId !== LEAP_SYSTEM_PROFILE_ID && coachId !== AI_COACH_SYSTEM_PROFILE_ID;
 }
 
+/** The test_movement values submit_program_test_item accepts for a kind:
+ * onemm ids (max_reps), the Power World lifts + deadlift (one_rm), static
+ * categories (max_hold); [] for form checks. Same ids as admin-web's
+ * testMovementOptions. */
+export function testMovementIds(kind: TestKind): string[] {
+  if (kind === 'max_reps') return ONEMM_MOVEMENTS.map((m) => m.id);
+  if (kind === 'one_rm') return [...POWER_MOVEMENTS.map((m) => m.id), 'deadlift'];
+  if (kind === 'max_hold') return Object.keys(STATIC_CATEGORIES);
+  return [];
+}
+
 export function unitFor(kind: TestKind): TestUnit | null {
   if (kind === 'max_reps') return 'reps';
   if (kind === 'one_rm') return 'kg';

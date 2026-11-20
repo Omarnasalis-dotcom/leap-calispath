@@ -4,11 +4,54 @@ import { supabase } from '@/lib/supabase';
 import { fetchAllRows, fetchByIds } from '@/lib/fetchAll';
 import { BlockConceptParser } from './BlockConceptParser';
 import { findLibraryMatch, suggestLibraryExercises, type LibraryExerciseName } from './exerciseNameMatch';
+import { isTestKind, testMovementIds } from './testItems';
 
 export interface ImportValidationResult {
   valid: boolean;
   error?: string;
   blockCount?: number;
+  /** Blocks marked as test items (test_kind). */
+  testBlockCount?: number;
+}
+
+/** Why a block marked as a test item (metadata.test_kind) can't be imported,
+ * or null. Matches what submit_program_test_item and _block_concept accept
+ * (supabase/migrations/20261114190000_coach_test_week.sql), so a bad file is
+ * stopped here instead of failing when the athlete logs the item. */
+export function testBlockError(block: any, blockName: string): string | null {
+  const m = block?.metadata;
+  if (!m || typeof m !== 'object' || m.test_kind == null || m.test_kind === '') return null;
+  const where = `Test block "${blockName}"`;
+  if (!isTestKind(m.test_kind)) {
+    return `${where}: test_kind must be max_reps, one_rm, max_hold or form_check.`;
+  }
+  const kind = m.test_kind;
+  const ids = testMovementIds(kind);
+  const movement = m.test_movement;
+  if (kind === 'max_reps' || kind === 'one_rm') {
+    if (typeof movement !== 'string' || !ids.includes(movement)) {
+      return `${where}: test_movement must be one of ${ids.join(', ')}.`;
+    }
+  } else if (kind === 'max_hold' && movement != null && movement !== '') {
+    if (typeof movement !== 'string' || !ids.includes(movement)) {
+      return `${where}: test_movement must be one of ${ids.join(', ')}, or left out.`;
+    }
+  }
+  // The server reads the concept tag with a non-greedy regex up to the
+  // first "]": a list, an object or a "]" would hide the whole tag.
+  for (const [key, value] of Object.entries(m)) {
+    if (value !== null && typeof value === 'object') {
+      return `${where}: metadata "${key}" must be a single value, not a list or object.`;
+    }
+    if (typeof value === 'string' && value.includes(']')) {
+      return `${where}: metadata "${key}" can't contain "]".`;
+    }
+  }
+  if (m.is_tier_trial) return `${where}: a block can't be both a test item and a tier trial.`;
+  if (!Array.isArray(block.exercises) || block.exercises.length !== 1) {
+    return `${where} needs exactly one exercise: it names the item and gives the demo video.`;
+  }
+  return null;
 }
 
 // Checks the shape produced by ProgramExportBuilder's WeekExportPayload
@@ -20,6 +63,7 @@ export function validateWeekImportPayload(data: any): ImportValidationResult {
   if (!Array.isArray(data.blocks) || data.blocks.length === 0) {
     return { valid: false, error: 'No blocks found in the file.' };
   }
+  let testBlockCount = 0;
   for (const block of data.blocks) {
     const blockName = block?.block_name || block?.name || 'UNNAMED BLOCK';
     if (!block || typeof blockName !== 'string' || !blockName.trim()) {
@@ -35,8 +79,11 @@ export function validateWeekImportPayload(data: any): ImportValidationResult {
         return { valid: false, error: `An exercise in block "${blockName}" has neither an exercise_id nor a name to match against.` };
       }
     }
+    const testError = testBlockError(block, blockName);
+    if (testError) return { valid: false, error: testError };
+    if (block.metadata?.test_kind) testBlockCount++;
   }
-  return { valid: true, blockCount: data.blocks.length };
+  return { valid: true, blockCount: data.blocks.length, testBlockCount };
 }
 
 /** One exercise line of a block, as the coach sees it in "View block". */
@@ -317,11 +364,14 @@ export function buildImportBlocksPayload(data: any, resolved: Map<string, string
       order_index: block.order_index ?? blockIdx,
       week_number: 1,
       exercises: (block.exercises || [])
-        .map((ex: any) => {
+        .map((ex: any, exIdx: number) => {
           const exerciseId = resolvedExerciseId(resolved, ex);
           if (!exerciseId) unresolved.push(String(ex.name || ex.exercise_id || 'an exercise'));
           return {
             exercise_id: exerciseId,
+            // File order. Without it every row got 0 and the block's
+            // exercises came back in no fixed order.
+            order_index: exIdx,
             sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
             reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
             rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
