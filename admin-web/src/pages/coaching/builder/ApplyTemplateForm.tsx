@@ -30,12 +30,16 @@ export function ApplyTemplateForm({
   onApplied,
   embedded,
   startNew,
+  deferWeekNotice,
 }: {
   warriorProgramId: string;
   /** Pre-fills the source template — e.g. the Assign form already had one
    * selected before discovering the warrior has an active program. */
   initialTemplateId?: string;
-  onApplied: (result?: { newProgramId: string | null }) => void;
+  onApplied: (result?: { newProgramId: string | null; weekNoticePending?: boolean }) => void;
+  /** A new week isn't announced here: the caller sends the notice when the
+   * coach saves (onApplied gets weekNoticePending). */
+  deferWeekNotice?: boolean;
   /** Just the controls, no panel of its own (inside another box). */
   embedded?: boolean;
   /** Offers "Start as a new program" (assign_program_template: the current
@@ -72,7 +76,9 @@ export function ApplyTemplateForm({
           customName: `${templateName} — ${startNew.warriorName ?? 'athlete'}`,
         });
       }
-      await applyTemplateToExistingClient(mode as ClientProgramWriteMode, warriorProgramId, sourceTemplateId);
+      await applyTemplateToExistingClient(mode as ClientProgramWriteMode, warriorProgramId, sourceTemplateId, {
+        notifyWeek: !deferWeekNotice,
+      });
       return null;
     },
     onSuccess: (newProgramId) => {
@@ -80,7 +86,13 @@ export function ApplyTemplateForm({
       void queryClient.invalidateQueries({ queryKey: ['archived-weeks'] });
       void queryClient.invalidateQueries({ queryKey: ['assignments'] });
       void queryClient.invalidateQueries({ queryKey: ['coach-dashboard'] });
-      onApplied(mode === 'new_program' ? { newProgramId } : undefined);
+      onApplied(
+        mode === 'new_program'
+          ? { newProgramId }
+          : deferWeekNotice && mode !== 'overwrite'
+            ? { newProgramId: null, weekNoticePending: true }
+            : undefined,
+      );
     },
   });
 

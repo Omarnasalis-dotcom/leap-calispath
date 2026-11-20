@@ -702,6 +702,9 @@ export async function applyTemplateToExistingClient(
   mode: ClientProgramWriteMode,
   warriorProgramId: string,
   sourceTemplateId: string,
+  /** false: the caller tells the athlete about a new week itself, later
+   * (the client program editor does it on Save). */
+  opts: { notifyWeek?: boolean } = {},
 ): Promise<void> {
   const blocks = await fetchTemplateBlocksPayload(sourceTemplateId);
   const rpcName =
@@ -720,7 +723,8 @@ export async function applyTemplateToExistingClient(
   // 'overwrite' resets current_week back to 1 and replaces the content
   // wholesale — closer to a fresh assignment than a routine week unlock.
   // Mirrors mobile's ClientProgramWriter.applyTemplateToExistingClient.
-  await notifyClientProgramUpdate(warriorProgramId, mode === 'overwrite' ? 'program_assigned' : 'week_unlocked');
+  if (mode === 'overwrite') await notifyClientProgramUpdate(warriorProgramId, 'program_assigned');
+  else if (opts.notifyWeek !== false) await notifyClientProgramUpdate(warriorProgramId, 'week_unlocked');
 }
 
 /** Adds a JSON-imported week onto a client's program. Always append-only —

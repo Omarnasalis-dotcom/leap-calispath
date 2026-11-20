@@ -9,6 +9,7 @@ import {
   fetchExercises,
   fetchLoggedBlocks,
   fetchWarriorPrograms,
+  notifyClientProgramUpdate,
   setAssignmentStatus,
 } from '@/api/coaching';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
@@ -24,6 +25,7 @@ import { StaleNotice } from './StaleNotice';
 import { LoggedBlocksProvider } from './LoggedBlocks';
 import { LastLogsProvider } from './LastLogs';
 import { WeekGrid } from './WeekGrid';
+import { WeekClipboardButtons } from './WeekClipboardButtons';
 import type { BuilderWeeks } from './types';
 import { PageHeader } from '@/components/layout';
 import { useToast } from '@/components/Toast';
@@ -90,7 +92,11 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
   // Logged blocks whose "already logged" warning the coach has accepted
   // since the program was last loaded.
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
-  const unsaved = useUnsavedChanges(dirty, "this athlete's program");
+  // A template applied as a new week is already in their program, but the
+  // athlete is told only when the coach saves (owner, 2026-11-20: the notice
+  // went out before the coach had finished editing that week).
+  const [weekNoticePending, setWeekNoticePending] = useState(false);
+  const unsaved = useUnsavedChanges(dirty || weekNoticePending, "this athlete's program");
 
   const assignmentQ = useQuery({
     queryKey: ['assignment', assignmentId],
@@ -193,9 +199,13 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
   const days = weeks[activeWeek] ?? [];
 
   function duplicateWeek() {
+    addWeek(cloneDays(days, Math.max(...weekNums, 0) + 1));
+  }
+
+  /** The given days as the next week, opened for editing. */
+  function addWeek(newDays: BuilderWeeks[number]) {
     const nextNum = Math.max(...weekNums, 0) + 1;
-    const cloned = cloneDays(days, nextNum);
-    setWeeks((w) => ({ ...w, [nextNum]: cloned }));
+    setWeeks((w) => ({ ...w, [nextNum]: newDays }));
     setActiveWeek(nextNum);
     setDirty(true);
   }
@@ -214,6 +224,10 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
     onSuccess: (result) => {
       setSaved((n) => n + 1);
       setDirty(false);
+      if (weekNoticePending) {
+        setWeekNoticePending(false);
+        void notifyClientProgramUpdate(assignmentId, 'week_unlocked');
+      }
       setSaveError(null);
       const message =
         result.undeletableCount > 0
@@ -286,6 +300,9 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
         actions={
           <>
                         {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+            {weekNoticePending && (
+              <Badge tone="warn">Athlete not told yet: save to send the new week notice</Badge>
+            )}
             <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
               {showApply ? 'Close' : 'Apply template…'}
             </button>
@@ -307,7 +324,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
                 onClick={() => {
                   returnAfterSave.current = true;
                   // Nothing to save: just go back.
-                  if (!dirty) navigate(safeFrom);
+                  if (!dirty && !weekNoticePending) navigate(safeFrom);
                   else saveMutation.mutate(false);
                 }}
               >
@@ -383,6 +400,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
       {showApply && (
         <ApplyTemplateForm
           warriorProgramId={assignmentId}
+          deferWeekNotice
           startNew={
             assignmentQ.data &&
             (programSource(assignmentQ.data.coach_id) !== 'coach' || isAdmin || assignmentQ.data.coach_id === profile?.id)
@@ -401,6 +419,10 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
               return;
             }
             setShowApply(false);
+            if (result?.weekNoticePending) {
+              setWeekNoticePending(true);
+              toast('Template added. The athlete is told about the new week when you save.');
+            }
             void queryClient.invalidateQueries({ queryKey: ['template-weeks', templateId] });
             void queryClient.invalidateQueries({ queryKey: ['archived-weeks', templateId] });
           }}
@@ -426,6 +448,7 @@ function ClientProgramEditor({ assignmentId }: { assignmentId: string }) {
             <button className="btn small" disabled={isCoachPaused} onClick={duplicateWeek}>
               + Duplicate week
             </button>
+            <WeekClipboardButtons days={days} weekNum={activeWeek} readOnly={isCoachPaused} onAddWeek={addWeek} />
             <ConfirmButton
               label="Delete week"
               danger

@@ -8,7 +8,9 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { DayColumn } from './DayColumn';
+import { fromClipboardDay } from './clipboardConvert';
 import { newDay, type BuilderDay, type ExerciseOption } from './types';
 
 const DEFAULT_DAY_WIDTH = 300;
@@ -31,6 +33,8 @@ export function WeekGrid({
   readOnly?: boolean;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const clipboard = useBuilderClipboard();
+  const copiedDay = clipboard.clipboard?.type === 'day' ? clipboard.clipboard.data : null;
 
   // Per-day column width, adjustable via the drag handle on each DayColumn.
   // Session-only by design — day.id is a client-side key regenerated on
@@ -58,6 +62,18 @@ export function WeekGrid({
           onClick={() => onCommit([...days, newDay(`Day ${days.length + 1}`)])}
         >
           + Day
+        </button>
+        {/* A day's own paste button needs a day to paste after; this one also
+            works on an empty week (a new "+ Add week"). */}
+        <button
+          className="btn small"
+          disabled={readOnly || !copiedDay}
+          title={copiedDay ? 'Add a copy of the copied day at the end of this week' : 'Copy a day first'}
+          onClick={() => {
+            if (copiedDay) onCommit([...days, fromClipboardDay(copiedDay)]);
+          }}
+        >
+          Paste day
         </button>
       </div>
 
